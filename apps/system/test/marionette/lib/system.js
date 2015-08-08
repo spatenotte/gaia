@@ -50,6 +50,7 @@ System.Selector = Object.freeze({
   imeMenu: '.ime-menu',
   inlineActivity: '.appWindow.inline-activity',
   pinDialog: '.appWindow.active .chrome .pin-dialog',
+  pinButton: '.appWindow.active .chrome .pin-button',
   sleepMenuContainer: '#sleep-menu-container',
   softwareButtons: '#software-buttons',
   softwareHome: '#software-home-button',
@@ -195,8 +196,13 @@ System.prototype = {
   },
 
   get appChromeProgressBar() {
-    return this.client.helper.waitForElement(
-      System.Selector.appChromeProgressBar);
+    var progressBar;
+    var client = this.client;
+    this.client.waitFor(function() {
+      progressBar = client.findElement(System.Selector.appChromeProgressBar);
+      return progressBar;
+    });
+    return progressBar;
   },
 
   get currentWindow() {
@@ -222,6 +228,10 @@ System.prototype = {
 
   get pinDialog() {
     return this.client.findElement(System.Selector.pinDialog);
+  },
+
+  get pinButton() {
+    return this.client.findElement(System.Selector.pinButton);
   },
 
   get sleepMenuContainer() {
