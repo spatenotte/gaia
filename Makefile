@@ -85,6 +85,7 @@ SCREEN_TIMEOUT?=-1
 PRODUCTION?=0
 GAIA_OPTIMIZE?=0
 GAIA_DEV_PIXELS_PER_PX?=1
+NGA_SERVICE_WORKERS?=0
 
 # Parallel build for multicores CPU
 P?=1
@@ -562,7 +563,8 @@ define BUILD_CONFIG
   "DEFAULT_KEYBOAD_SYMBOLS_FONT": "$(DEFAULT_KEYBOAD_SYMBOLS_FONT)", \
   "DEFAULT_GAIA_ICONS_FONT": "$(DEFAULT_GAIA_ICONS_FONT)", \
   "RAPTOR_TRANSFORM": "$(RAPTOR_TRANSFORM)", \
-  "RAPTOR_TRANSFORMER_PATH": "$(RAPTOR_TRANSFORMER_PATH)" \
+  "RAPTOR_TRANSFORMER_PATH": "$(RAPTOR_TRANSFORMER_PATH)", \
+  "NGA_SERVICE_WORKERS": "$(NGA_SERVICE_WORKERS)" \
 }
 endef
 
@@ -829,6 +831,14 @@ caldav-server-install:
 .PHONY: raptor
 raptor: node_modules
 	PERF_LOGGING=1 DEVICE_DEBUG=1 GAIA_OPTIMIZE=1 NOFTU=1 SCREEN_TIMEOUT=0 make reset-gaia
+
+.PHONY: raptor-transformer
+raptor-transformer: node_modules
+ifeq ($(RAPTOR_TRANSFORM_RULES),)
+	@(echo "Please ensure you specify the 'RAPTOR_TRANSFORM_RULES=<directory with the *.esp files>'" && exit 1)
+endif
+	@test -d $(RAPTOR_TRANSFORM_RULES) || (echo "Please ensure the '$(RAPTOR_TRANSFORM_RULES)' directory exists" && exit 1)
+	RAPTOR_TRANSFORM=1 PERF_LOGGING=1 DEVICE_DEBUG=1 GAIA_OPTIMIZE=1 NOFTU=1 SCREEN_TIMEOUT=0 make reset-gaia
 
 .PHONY: tests
 tests: app offline

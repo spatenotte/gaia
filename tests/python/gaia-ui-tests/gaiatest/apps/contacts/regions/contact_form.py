@@ -23,8 +23,7 @@ class ContactForm(Base):
     _add_new_email_locator = (By.ID, 'add-new-email')
     _add_new_address_locator = (By.ID, 'add-new-address')
     _add_new_note_locator = (By.ID, 'add-new-note')
-    _screen_locator = (By.ID, 'screen')
-    _statusbar_locator = (By.ID, 'statusbar')
+    _add_new_phone_locator = (By.ID, 'add-new-phone')
 
     _thumbnail_photo_locator = (By.ID, 'thumbnail-photo')
 
@@ -51,6 +50,8 @@ class ContactForm(Base):
         return self.marionette.find_element(*self._phone_locator).text
 
     def type_phone(self, value):
+        Wait(self.marionette).until(
+            expected.element_present(*self._add_new_phone_locator)).tap()
         element = self.marionette.find_element(*self._phone_locator)
         element.clear()
         element.send_keys(value)
@@ -114,8 +115,13 @@ class ContactForm(Base):
         element.send_keys(value)
 
     def tap_comment(self):
-        self.marionette.find_element(*self._add_new_note_locator).tap()
+        element = self.marionette.find_element(*self._add_new_note_locator)
+        element.tap()
+        self.marionette.execute_script(
+            'arguments[0].scrollIntoView(true);', [element])
         element = self.marionette.find_element(*self._comment_locator)
+        self.marionette.execute_script(
+            'arguments[0].scrollIntoView(true);', [element])
         element.tap()
 
     @property
@@ -204,14 +210,8 @@ class NewContact(ContactForm):
         Wait(self.marionette).until(lambda m: done.location['y'] == 0)
 
     def tap_done(self, return_contacts=True):
-        # Workaround for bug 1109213, where tapping on the button inside the app itself
-        # makes Marionette spew out NoSuchWindowException errors
         element = self.marionette.find_element(*self._done_button_locator)
-        x = element.rect['x'] + element.rect['width']//2
-        y = element.rect['y'] + element.rect['height']//2
-        self.marionette.switch_to_frame()
-        statusbar = self.marionette.find_element(*self._statusbar_locator)
-        self.marionette.find_element(*self._screen_locator).tap(x, y + statusbar.rect['height'])
+        self.tap_element_from_system_app(element, add_statusbar_height=True)
 
         return self.wait_for_done(return_contacts)
 

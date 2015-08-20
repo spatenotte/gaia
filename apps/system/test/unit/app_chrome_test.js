@@ -1,11 +1,13 @@
 /* global AppWindow, AppChrome, MocksHelper, MockL10n, PopupWindow,
           MockModalDialog, MockService, MockPromise,
-          MockSettingsListener, Service */
+          MockSettingsListener, Service, Icon*/
+
 /* exported MockBookmarksDatabase */
 'use strict';
 
 require('/shared/js/component_utils.js');
 require('/shared/js/event_safety.js');
+require('/shared/js/homescreens/icon.js');
 require('/shared/elements/gaia_progress/script.js');
 require('/shared/elements/gaia_pin_card/script.js');
 require('/shared/test/unit/mocks/mock_l10n.js');
@@ -516,6 +518,8 @@ suite('system/AppChrome', function() {
 
   suite('mozbrowserlocationchange', function() {
     var subject = null;
+    var observeSpy, unobserveSpy;
+
     setup(function() {
       var website = new AppWindow(cloneConfig(fakeWebSite));
       subject = new AppChrome(website);
@@ -529,7 +533,15 @@ suite('system/AppChrome', function() {
     test('should not do anything on apps with manifests', function() {
       var app = new AppWindow(fakeAppWithName);
       var chrome = new AppChrome(app);
+
+      observeSpy = this.sinon.spy(MockSettingsListener, 'observe');
+      unobserveSpy = this.sinon.spy(MockSettingsListener, 'unobserve');
+
       chrome._registerEvents();
+
+      sinon.assert.calledOnce(observeSpy);
+      sinon.assert.calledWith(observeSpy, PINNING_PREF);
+      sinon.assert.notCalled(unobserveSpy);
 
       var evt = new CustomEvent('mozbrowserlocationchange', {
         detail: 'app://communications.gaiamobile.org/calllog.html'
@@ -537,6 +549,9 @@ suite('system/AppChrome', function() {
       chrome.app.element.dispatchEvent(evt);
       this.sinon.clock.tick(500);
       chrome._unregisterEvents();
+
+      sinon.assert.calledWith(unobserveSpy, PINNING_PREF);
+      sinon.assert.calledOnce(unobserveSpy);
     });
 
     test('browser start page should always have the same title',
@@ -949,6 +964,7 @@ suite('system/AppChrome', function() {
 
     setup(function() {
       var app = new AppWindow(cloneConfig(fakeWebSite));
+      this.sinon.stub(Icon.prototype, 'render');
       combinedChrome = new AppChrome(app);
       combinedChrome.setSiteIcon.restore();
       getIconPromise = new MockPromise();
@@ -959,29 +975,14 @@ suite('system/AppChrome', function() {
     test('asks app for url when no argument is provided', function() {
       assert.ok(combinedChrome.useCombinedChrome());
       combinedChrome.setSiteIcon();
-      getIconPromise.mFulfillToValue({ url: fakeIconURI });
-      assert.ok(combinedChrome.siteIcon.style.backgroundImage.indexOf(
-        fakeIconURI) != -1);
-    });
-
-    test('small icon', function() {
-      combinedChrome.setSiteIcon();
-      getIconPromise.mFulfillToValue({ url: fakeIconURI, isSmall: true });
-
-      assert.isTrue(combinedChrome.siteIcon.classList.contains('small-icon'));
-    });
-
-    test('!small icon', function() {
-      combinedChrome.setSiteIcon();
-      getIconPromise.mFulfillToValue({ url: fakeIconURI, isSmall: false });
-
-      assert.isFalse(combinedChrome.siteIcon.classList.contains('small-icon'));
+      getIconPromise.mFulfillToValue({url: fakeIconURI, blob: {}});
+      assert.equal(combinedChrome._currentIconUrl, fakeIconURI);
     });
 
     test('handles url argument', function() {
       combinedChrome.setSiteIcon(fakeIconURI);
-      assert.ok(combinedChrome.siteIcon
-                  .style.backgroundImage.indexOf(fakeIconURI) != -1);
+      assert.equal(combinedChrome._currentIconUrl, fakeIconURI);
+      assert.isTrue(Icon.prototype.render.called);
       sinon.assert.notCalled(combinedChrome.app.getSiteIconUrl);
     });
 
@@ -992,8 +993,7 @@ suite('system/AppChrome', function() {
       combinedChrome.setSiteIcon();
       getIconPromise.mRejectToError();
 
-      assert.ok(combinedChrome.siteIcon
-                  .style.backgroundImage.indexOf(fakeIconURI) != -1);
+      assert.isFalse(Icon.prototype.render.called);
     });
 
     test('has no effect for private browsers', function() {
