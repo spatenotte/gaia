@@ -150,14 +150,13 @@ class EditContact(ContactForm):
     def __init__(self, marionette):
         ContactForm.__init__(self, marionette)
         update = Wait(self.marionette).until(expected.element_present(*self._update_locator))
-        Wait(self.marionette).until(lambda m: update.location['y'] == 0)
+        Wait(self.marionette).until(lambda m: update.location['y'] == 0 and update.is_displayed())
 
     def tap_update(self, return_details=True):
         self.wait_for_update_button_enabled()
         update = self.marionette.find_element(*self._update_locator)
         update.tap()
         if return_details:
-            Wait(self.marionette).until(expected.element_not_displayed(update))
             from gaiatest.apps.contacts.regions.contact_details import ContactDetails
             return ContactDetails(self.marionette)
         else:
@@ -172,6 +171,8 @@ class EditContact(ContactForm):
 
     def tap_delete(self):
         delete_item = self.marionette.find_element(*self._delete_locator)
+        self.marionette.execute_script(
+            'arguments[0].scrollIntoView(true);', [delete_item])
         delete_item.tap()
 
     def tap_cancel_delete(self):
@@ -193,7 +194,7 @@ class EditContact(ContactForm):
 
 class NewContact(ContactForm):
 
-    _src = 'app://communications.gaiamobile.org/contacts/views/form/form.html'
+    _src = 'app://communications.gaiamobile.org/contacts/views/form/form.html?action=new'
     _done_button_locator = (By.ID, 'save-button')
 
     def __init__(self, marionette):
