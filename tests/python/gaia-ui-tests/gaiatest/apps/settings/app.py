@@ -209,6 +209,9 @@ class Settings(Base):
     def open_cell_and_data(self):
         return self._open_subpage(self._cell_data_menu_item_locator, 'cell_data', 'CellData')
 
+    def open_cell_and_data_dual_sim(self):
+        return self._open_subpage(self._cell_data_menu_item_locator, 'cell_data', 'CellDataDualSim')
+
     def open_bluetooth(self):
         return self._open_subpage(self._bluetooth_menu_item_locator, 'bluetooth', 'Bluetooth')
 
@@ -285,7 +288,7 @@ class Settings(Base):
         return self._open_subpage(self._device_info_menu_item_locator, 'device_info', 'DeviceInfo')
 
     def open_downloads(self):
-        return self._open_subpage(self._downloads_menu_item_locator)
+        return self._open_subpage(self._downloads_menu_item_locator, 'downloads', 'Downloads')
 
     def open_battery(self):
         return self._open_subpage(self._battery_menu_item_locator, 'battery', 'Battery')
@@ -297,7 +300,7 @@ class Settings(Base):
         return self._open_subpage(self._developer_menu_item_locator)
 
     def open_improve(self):
-        return self._open_subpage(self._improve_menu_item_locator)
+        return self._open_subpage(self._improve_menu_item_locator, 'improve', 'Improve')
 
     def open_help(self):
         return self._open_subpage(self._help_menu_item_locator)
@@ -362,10 +365,10 @@ class Settings(Base):
 
         # TODO: remove tap with coordinates after Bug 1061698 is fixed
         if gaia_header:
-            _back_locator = self._header_locator
+            _header_locator = self._header_locator
         else:
-            _back_locator = self._non_gaia_header_locator
+            _header_locator = self._non_gaia_header_locator
+        Wait(self.marionette).until(expected.element_displayed(*_header_locator))
 
-        Wait(self.marionette).until(expected.element_displayed(*_back_locator))
-        self.marionette.find_element(*_back_locator).tap(25, 25)
+        self.marionette.find_element(*_header_locator).tap(25, 25)
         Wait(self.marionette).until(expected.element_displayed(parent_view))
