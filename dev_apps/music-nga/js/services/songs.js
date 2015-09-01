@@ -18,6 +18,16 @@ function SongsService(worker) {
     });
   }));
 
+  worker.get('/api/songs/count', stopAfter((request) => {
+    return new Promise((resolve) => {
+      client.method('getSongCount').then((count) => {
+        resolve(new Response(JSON.stringify(count), {
+          headers: { 'Content-Type': 'application/json' }
+        }));
+      });
+    });
+  }));
+
   worker.get('/api/songs/info/:filePath', stopAfter((request) => {
     return new Promise((resolve) => {
       var filePath = '/' + decodeURIComponent(request.parameters.filePath);
@@ -32,37 +42,4 @@ function SongsService(worker) {
         });
     });
   }));
-
-  worker.get('/api/songs/share/:filePath', stopAfter((request) => {
-    return new Promise((resolve) => {
-      var filePath = '/' + decodeURIComponent(request.parameters.filePath);
-      client.method('shareSong', filePath)
-        .then(() => {
-          resolve(new Response(JSON.stringify({ success: true }), {
-            headers: { 'Content-Type': 'application/json' }
-          }));
-        })
-        .catch((error) => {
-          resolve(new Response('', { status: 404 }));
-        });
-    });
-  }));
-}
-
-function getBlobFromURL(url) {
-  return new Promise(function(resolve, reject) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', url, true);
-    xhr.responseType = 'blob';
-
-    xhr.onload = function() {
-      resolve(xhr.response);
-    };
-    // I don't think onerror usually gets called, but let's play it safe.
-    xhr.onerror = function() {
-      reject(null);
-    };
-
-    xhr.send();
-  });
 }

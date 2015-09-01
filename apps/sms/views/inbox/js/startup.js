@@ -1,10 +1,13 @@
-/* global InboxView,
+/* global App,
+          ConversationClient,
+          InboxView,
           InterInstanceEventDispatcher,
           LazyLoader,
           MessageManager,
           Navigation,
           Settings,
-          TimeHeaders
+          TimeHeaders,
+          Utils
 */
 
 (function(exports) {
@@ -31,6 +34,9 @@
 
   exports.Startup = {
     init() {
+      Utils.initializeShimHost(App.instanceId);
+
+      ConversationClient.init(App.instanceId);
       MessageManager.init();
       Navigation.init();
       InboxView.init();

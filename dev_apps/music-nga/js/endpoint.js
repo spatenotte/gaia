@@ -32,11 +32,14 @@ var service = bridge.service('music-service')
   .method('getArtist', getArtist)
 
   .method('getSongs', getSongs)
+  .method('getSongCount', getSongCount)
   .method('getSong', getSong)
   .method('getSongFile', getSongFile)
   .method('getSongArtwork', getSongArtwork)
   .method('getSongThumbnail', getSongThumbnail)
-  .method('shareSong', shareSong)
+
+  .method('share', share)
+  .method('open', open)
 
   .listen()
   .listen(new BroadcastChannel('music-service'));
@@ -220,12 +223,20 @@ function getSongs() {
   });
 }
 
+function getSongCount() {
+  return new Promise((resolve) => {
+    Database.count('metadata.title', null, count => resolve(count));
+  });
+}
+
 function getSong(filePath) {
   return Database.getFileInfo(filePath);
 }
 
 function getSongFile(filePath) {
-  return Database.getFile(filePath);
+  return getSong(filePath).then((song) => {
+    return Database.getFile(song);
+  });
 }
 
 function getSongArtwork(filePath) {
@@ -244,7 +255,7 @@ function getSongThumbnail(filePath) {
   });
 }
 
-function shareSong(filePath) {
+function share(filePath) {
   return getSong(filePath).then((song) => {
     if (song.metadata.locked || !window.MozActivity) {
       return;
@@ -274,6 +285,27 @@ function shareSong(filePath) {
           }
         });
       });
+  });
+}
+
+function open(blob) {
+  var scripts = [
+    '/js/metadata/metadata_scripts.js',
+    '/js/metadata/album_art.js'
+  ];
+
+  return LazyLoader.load(scripts).then(() => {
+    return AudioMetadata.parse(blob).then((metadata) => {
+      var filePath = blob.name;
+
+      play(filePath);
+
+      return {
+        blob: blob,
+        metadata: metadata,
+        name: filePath
+      };
+    });
   });
 }
 

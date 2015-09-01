@@ -25,8 +25,7 @@
     topElementIds: ['search-button', 'search-input', 'settings-group',
         'edit-button', 'settings-button'],
     bottomElementIds: ['filter-tab-group', 'filter-all-button',
-        'filter-tv-button', 'filter-dashboard-button', 'filter-device-button',
-        'filter-app-button'],
+        'filter-tv-button', 'filter-device-button', 'filter-app-button'],
 
     isNavigable: true,
     navigableClasses: ['filter-tab', 'command-button'],
@@ -38,7 +37,7 @@
     _folderCard: undefined,
 
     filterElementIds: ['filter-all-button', 'filter-tv-button',
-        'filter-dashboard-button', 'filter-device-button', 'filter-app-button'],
+        'filter-device-button', 'filter-app-button'],
 
     filterManager: undefined,
     cardListElem: document.getElementById('card-list'),
@@ -119,8 +118,6 @@
           }
         });
 
-        that.spatialNavigator.focus();
-
         that.edit = new Edit();
         that.edit.init(that.spatialNavigator, that.cardManager,
                        that.cardScrollable, that.folderScrollable);
@@ -164,6 +161,8 @@
                         that.onCardRemoved.bind(that, that.folderScrollable));
           }
         });
+
+        that.spatialNavigator.focus(that.cardScrollable);
       });
     },
 

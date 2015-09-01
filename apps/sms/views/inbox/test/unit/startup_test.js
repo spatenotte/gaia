@@ -1,4 +1,6 @@
-/*global InboxView,
+/*global App,
+         ConversationClient,
+         InboxView,
          InterInstanceEventDispatcher,
          LazyLoader,
          MessageManager,
@@ -6,7 +8,8 @@
          Navigation,
          Settings,
          Startup,
-         TimeHeaders
+         TimeHeaders,
+         Utils
 */
 
 'use strict';
@@ -16,19 +19,26 @@ require('/views/shared/test/unit/mock_navigation.js');
 require('/views/shared/test/unit/mock_settings.js');
 require('/views/shared/test/unit/mock_inter_instance_event_dispatcher.js');
 require('/views/shared/test/unit/mock_inbox.js');
+require('/views/shared/test/unit/mock_app.js');
+require('/views/shared/js/utils.js');
+require('/views/shared/test/unit/mock_utils.js');
 require('/shared/test/unit/mocks/mock_lazy_loader.js');
 require('/services/test/unit/mock_message_manager.js');
+require('/services/test/unit/conversation/mock_conversation_client.js');
 
 require('/views/inbox/js/startup.js');
 
 var MocksHelperForInboxStartup = new MocksHelper([
+  'App',
+  'ConversationClient',
   'InboxView',
   'InterInstanceEventDispatcher',
   'LazyLoader',
   'MessageManager',
   'Navigation',
   'Settings',
-  'TimeHeaders'
+  'TimeHeaders',
+  'Utils'
 ]).init();
 
 suite('InboxView Startup', function() {
@@ -45,11 +55,15 @@ suite('InboxView Startup', function() {
     this.sinon.spy(InterInstanceEventDispatcher, 'connect');
     this.sinon.stub(InboxView, 'once');
     this.sinon.stub(LazyLoader, 'load').returns(Promise.resolve());
+    this.sinon.stub(ConversationClient, 'init');
+    this.sinon.spy(Utils, 'initializeShimHost');
 
     Startup.init();
   });
 
   test('correctly initializes dependencies', function() {
+    sinon.assert.calledWith(Utils.initializeShimHost, App.instanceId);
+    sinon.assert.calledWith(ConversationClient.init, App.instanceId);
     sinon.assert.calledOnce(MessageManager.init);
     sinon.assert.calledOnce(Navigation.init);
     sinon.assert.calledOnce(InboxView.init);

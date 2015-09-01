@@ -1,4 +1,4 @@
-/* global SERVICE_WORKERS, bridge */
+/* global SERVICE_WORKERS, service */
 'use strict';
 
 function perfMark(marker) {
@@ -26,47 +26,116 @@ var $id = document.getElementById.bind(document);
 
 var views = {};
 var isPlaying = false;
+var activity = null;
 
-var service = bridge.service('*')
-  .on('message', message => message.forward($id('endpoint')))
-  .listen();
+if (navigator.mozSetMessageHandler) {
+  navigator.mozSetMessageHandler('activity', activity => onActivity(activity));
+}
 
 var client = bridge.client({
   service: 'music-service',
-  endpoint: $id('endpoint'),
+  endpoint: window,
   timeout: false
 });
+
 client.connect();
 
 client.connected.then(() => {
   client.on('play', () => isPlaying = true);
+
+  client.on('databaseChange', () => {
+    client.method('getSongCount').then((count) => {
+      emptyOverlay.hidden = count > 0;
+    });
+  });
+
+  client.on('databaseEnumerable', () => {
+    noCardOverlay.hidden = true;
+    pluggedInOverlay.hidden = true;
+    upgradeOverlay.hidden = true;
+  });
+
+  client.on('databaseUnavailable', (reason) => {
+    switch (reason) {
+      case 'nocard':
+        noCardOverlay.hidden = false;
+        break;
+      case 'pluggedin':
+        pluggedInOverlay.hidden = false;
+        break;
+    }
+  });
+
+  client.on('databaseUpgrade', () => upgradeOverlay.hidden = false);
 });
 
-var header       = $id('header');
-var headerTitle  = $id('header-title');
-var playerButton = $id('player-button');
-var doneButton   = $id('done-button');
-var viewStack    = $id('view-stack');
-var tabBar       = $id('tab-bar');
+var header             = $id('header');
+var headerTitle        = $id('header-title');
+var playerButton       = $id('player-button');
+var activityDoneButton = $id('activity-done-button');
+var viewStack          = $id('view-stack');
+var tabBar             = $id('tab-bar');
+var emptyOverlay       = $id('empty-overlay');
+var noCardOverlay      = $id('no-card-overlay');
+var pluggedInOverlay   = $id('plugged-in-overlay');
+var upgradeOverlay     = $id('upgrade-overlay');
 
 header.addEventListener('action', (evt) => {
-  if (evt.detail.type === 'back' && viewStack.states.length > 1) {
-    viewStack.popView();
-    window.history.back();
+  if (evt.detail.type === 'back') {
+    if (viewStack.states.length > 1) {
+      viewStack.popView();
+      window.history.back();
+      return;
+    }
+
+    cancelActivity();
   }
 });
 
 playerButton.addEventListener('click', () => navigateToURL('/player'));
 
+activityDoneButton.addEventListener('click', () => {
+  switch (activity && activity.source.name) {
+    case 'open':
+      // TODO: Implement 'Save' functionality
+      activity.postResult({ saved: false });
+      break;
+    case 'pick':
+      client.method('getPlaybackStatus').then((status) => {
+        var getSong = client.method('getSong', status.filePath);
+        var getSongFile = client.method('getSongFile', status.filePath);
+        var getSongThumbnail = client.method('getSongThumbnail', status.filePath);
+
+        Promise.all([getSong, getSongFile, getSongThumbnail])
+          .then(([song, file, thumbnail]) => {
+            activity.postResult({
+              type: file.type,
+              blob: file,
+              name: song.metadata.title || '',
+              // We only pass some metadata attributes so we don't share
+              // personal details like # of times played and ratings.
+              metadata: {
+                title: song.metadata.title,
+                artist: song.metadata.artist,
+                album: song.metadata.album,
+                picture: thumbnail
+              }
+            });
+          });
+      });
+      break;
+  }
+});
+
 viewStack.addEventListener('change', (evt) => {
   var view = evt.detail.view;
   var viewId = view && view.dataset.viewId;
-  var backButton = header.els.actionButton;
 
   document.body.dataset.activeViewId = viewId;
 
-  backButton.style.visibility = viewStack.states.length < 2 ? 'hidden' : 'visible';
   playerButton.hidden = viewId === 'player' || !isPlaying;
+  activityDoneButton.hidden = viewId !== 'player' || !activity;
+  setBackButtonHidden(!activity && viewStack.states.length < 2);
 });
 
 viewStack.addEventListener('pop', (evt) => {
@@ -80,6 +149,11 @@ tabBar.addEventListener('change', (evt) => {
 
   navigateToURL(url, true);
 });
+
+emptyOverlay.addEventListener('cancel', () => cancelActivity());
+noCardOverlay.addEventListener('cancel', () => cancelActivity());
+pluggedInOverlay.addEventListener('cancel', () => cancelActivity());
+upgradeOverlay.addEventListener('cancel', () => cancelActivity());
 
 if (SERVICE_WORKERS) {
   navigator.serviceWorker.getRegistration().then((registration) => {
@@ -110,6 +184,10 @@ function setHeaderTitle(title) {
   }
 
   window.requestAnimationFrame(() => headerTitle.textContent = title);
+}
+
+function setBackButtonHidden(hidden) {
+  header.els.actionButton.style.visibility = hidden ? 'hidden' : 'visible';
 }
 
 function getViewById(viewId) {
@@ -170,6 +248,27 @@ function parseQueryString(queryString) {
   });
 
   return query;
+}
+
+function cancelActivity() {
+  switch (activity && activity.source.name) {
+    case 'open':
+      activity.postResult({ saved: false });
+      break;
+    case 'pick':
+      activity.postError('pick cancelled');
+      break;
+  }
+}
+
+function onActivity(activity) {
+  window.activity = activity;
+
+  if (activity.source.name === 'open') {
+    client.method('open', activity.source.data.blob);
+  }
+
+  setBackButtonHidden(false);
 }
 
 function onSearchOpen() {
