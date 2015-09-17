@@ -2,13 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from marionette_driver import By, Wait
+from marionette_driver import expected, By, Wait
 
 from gaiatest.apps.base import Base, PageRegion
 
 
 class RingTone(Base):
     name = 'Ringtones'
+    manifest_url = '{}ringtones{}/manifest.webapp'.format(Base.DEFAULT_PROTOCOL,Base.DEFAULT_APP_HOSTNAME)
+    _page_locator = (By.CLASS_NAME, 'theme-settings')
     _screen_locator = (By.ID, 'list-parent')
     _header_locator = (By.ID, 'header')
     _ring_tone_locator = (By.CSS_SELECTOR, '#list-parent section > ul > li')
@@ -18,8 +20,11 @@ class RingTone(Base):
 
     def __init__(self, marionette):
         Base.__init__(self, marionette)
-        Wait(self.marionette).until(lambda m: self.apps.displayed_app.name == self.name)
+        self.wait_to_be_displayed()
         self.apps.switch_to_displayed_app()
+        Wait(marionette).until(lambda m:
+                               self.marionette.find_element(*self._page_locator).
+                               get_attribute('data-ready') == 'true')
 
     def set_ringtone(self):
         self.marionette.find_element(*self._set_button_locator).tap()

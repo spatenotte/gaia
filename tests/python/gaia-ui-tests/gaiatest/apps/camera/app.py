@@ -48,15 +48,14 @@ class Camera(Base):
         return self.marionette.find_element(*self._controls_locator).get_attribute('data-mode')
 
     def take_photo(self):
-        # Wait for camera to be ready to take a picture
-        controls = self.marionette.find_element(*self._controls_locator)
-        Wait(self.marionette, timeout=20).until(
-            lambda m: controls.get_attribute('data-enabled') == 'true')
+        self.wait_for_capture_ready()
 
         self.tap_capture()
 
         # Wait for thumbnail to appear
         self.wait_for_thumbnail_visible()
+        Wait(self.marionette).until(
+            expected.element_not_displayed(*self._loading_screen_locator))
 
     def record_video(self, duration):
         # Start recording
@@ -88,7 +87,7 @@ class Camera(Base):
         self.tap_element_from_system_app(select)
 
         # Fall back to app beneath the picker
-        Wait(self.marionette).until(lambda m: self.apps.displayed_app.name != self.name)
+        self.wait_to_not_be_displayed()
         self.apps.switch_to_displayed_app()
 
     def tap_switch_source(self):
@@ -139,7 +138,7 @@ class Camera(Base):
         switch_to_gallery_button.tap()
         from gaiatest.apps.gallery.app import Gallery
         gallery_app = Gallery(self.marionette)
-        Wait(self.marionette).until(lambda m: self.apps.displayed_app.name == gallery_app.name)
+        gallery_app.wait_to_be_displayed()
         self.apps.switch_to_displayed_app()
         return gallery_app
 
@@ -233,7 +232,7 @@ class ImagePreview(Base):
         self.marionette.find_element(*self._gallery_button_locator).tap()
         from gaiatest.apps.gallery.app import Gallery
         gallery_app = Gallery(self.marionette)
-        Wait(self.marionette).until(lambda m: self.apps.displayed_app.name == gallery_app.name)
+        gallery_app.wait_to_be_displayed()
         self.apps.switch_to_displayed_app()
         Wait(self.marionette).until(expected.element_displayed(*self._thumbnail_list_view_locator))
 

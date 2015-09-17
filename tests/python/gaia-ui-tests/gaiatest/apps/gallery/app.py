@@ -66,18 +66,21 @@ class Gallery(Base):
 
     @property
     def are_gallery_items_displayed(self):
-        return self.marionette.find_element(*self._gallery_items_locator).is_displayed()
+        return self.is_element_displayed(*self._gallery_items_locator)
 
     @property
     def thumbnails(self):
-        return [self.Thumbnail(self.marionette, thumbnail, index)
+        if self.are_gallery_items_displayed:
+           return [self.Thumbnail(self.marionette, thumbnail, index)
                 for index, thumbnail in enumerate(self.marionette.find_elements(*self._gallery_items_locator))]
+        else:
+            return []
 
     def switch_to_camera(self):
         switch_to_camera_button = self.marionette.find_element(*self._switch_to_camera_button_locator)
         switch_to_camera_button.tap()
         camera_app = gaiatest.apps.camera.app.Camera(self.marionette)
-        Wait(self.marionette).until(lambda m: self.apps.displayed_app.name == camera_app.name)
+        camera_app.wait_to_be_displayed()
         self.apps.switch_to_displayed_app()
         return camera_app
 

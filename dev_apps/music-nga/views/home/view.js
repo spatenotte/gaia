@@ -37,8 +37,6 @@ HomeView.prototype.destroy = function() {
   View.prototype.destroy.call(this); // super(); // Always call *last*
 };
 
-HomeView.prototype.title = 'Music';
-
 HomeView.prototype.render = function() {
   View.prototype.render.call(this); // super();
 
@@ -70,11 +68,11 @@ HomeView.prototype.getAlbums = function() {
 };
 
 HomeView.prototype.getSongThumbnail = function(filePath) {
-  return this.fetch('/api/artwork/thumbnail' + filePath).then(response => response.blob());
+  return this.fetch('/api/artwork/thumbnail/' + filePath).then(response => response.blob());
 };
 
 HomeView.prototype.queueAlbum = function(filePath) {
-  this.fetch('/api/queue/album' + filePath);
+  this.fetch('/api/queue/album/' + filePath);
 };
 
 window.view = new HomeView();

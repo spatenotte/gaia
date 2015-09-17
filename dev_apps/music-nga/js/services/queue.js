@@ -56,8 +56,7 @@ function QueueService(worker) {
 
   worker.get('/api/queue/album/:filePath', stopAfter((request) => {
     return new Promise((resolve) => {
-      var filePath = '/' + decodeURIComponent(request.parameters.filePath);
-
+      var filePath = decodeURIComponent(request.parameters.filePath);
       client.method('queueAlbum', filePath)
         .then(() => {
           resolve(new Response(JSON.stringify({ success: true }), {
@@ -74,9 +73,42 @@ function QueueService(worker) {
 
   worker.get('/api/queue/artist/:filePath', stopAfter((request) => {
     return new Promise((resolve) => {
-      var filePath = '/' + decodeURIComponent(request.parameters.filePath);
-
+      var filePath = decodeURIComponent(request.parameters.filePath);
       client.method('queueArtist', filePath)
+        .then(() => {
+          resolve(new Response(JSON.stringify({ success: true }), {
+            headers: { 'Content-Type': 'application/json' }
+          }));
+        })
+        .catch(() => {
+          resolve(new Response(JSON.stringify({ success: false }), {
+            headers: { 'Content-Type': 'application/json' }
+          }));
+        });
+    });
+  }));
+
+  worker.get('/api/queue/playlist/:id/shuffle', stopAfter((request) => {
+    return new Promise((resolve) => {
+      client.method('queuePlaylist', request.parameters.id)
+        .then(() => {
+          resolve(new Response(JSON.stringify({ success: true }), {
+            headers: { 'Content-Type': 'application/json' }
+          }));
+        })
+        .catch(() => {
+          resolve(new Response(JSON.stringify({ success: false }), {
+            headers: { 'Content-Type': 'application/json' }
+          }));
+        });
+    });
+  }));
+
+  worker.get('/api/queue/playlist/:id/song/:filePath', stopAfter((request) => {
+    return new Promise((resolve) => {
+      var id = request.parameters.id;
+      var filePath = decodeURIComponent(request.parameters.filePath);
+      client.method('queuePlaylist', id, filePath)
         .then(() => {
           resolve(new Response(JSON.stringify({ success: true }), {
             headers: { 'Content-Type': 'application/json' }
@@ -92,8 +124,7 @@ function QueueService(worker) {
 
   worker.get('/api/queue/song/:filePath', stopAfter((request) => {
     return new Promise((resolve) => {
-      var filePath = '/' + decodeURIComponent(request.parameters.filePath);
-
+      var filePath = decodeURIComponent(request.parameters.filePath);
       client.method('queueSong', filePath)
         .then(() => {
           resolve(new Response(JSON.stringify({ success: true }), {

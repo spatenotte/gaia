@@ -1,23 +1,24 @@
 'use strict';
 
-/* global utils */
-/* global MatchService */
 /* global ContactsService */
-/* global LazyLoader */
 /* global ContactToVcardBlob */
-/* global VcardFilename */
+/* global LazyLoader */
+/* global MatchService */
 /* global MozActivity */
+/* global NFC */
 /* global ParamUtils */
+/* global utils */
+/* global VcardFilename */
 
 /* exported Details */
 
 /*
- * Once the deatils view is loaded, we will listen events dispatched
- * from the UI. This events will come with the info needed in order
+ * Once the details view is loaded, we will listen for events dispatched
+ * from the UI. These events will come with the info needed in order
  * to execute actions related with the UI (back, toggle favorite, share...).
  *
  * Controller will *not* contain any code related with the DOM/UI,
- * and will rely on the info provided by the event.
+ * and will rely on the info provided by the events.
  */
 (function(exports) {
 
@@ -26,6 +27,24 @@
 
   function setActivity(activity) {
     _activity = activity;
+  }
+
+  function saveChanges(event) {
+    var eventsStringified = sessionStorage.getItem('contactChanges');
+    var events = [];
+    if (eventsStringified && eventsStringified !== 'null') {
+      var candidates = JSON.parse(eventsStringified);
+      // Remove old events related with the same action on
+      // the contact (i.e. marking as 'favourite')
+      events = candidates.filter(function(a) {
+        return a.reason !== event.reason;
+      });
+    }
+    events.push({
+      contactID: event.contactID,
+      reason: event.reason
+    });
+    sessionStorage.setItem('contactChanges', JSON.stringify(events));
   }
 
   function findDuplicates(evt) {
@@ -39,9 +58,42 @@
       '/contacts/js/match_service.js'
     ];
 
+    function onContactMerged(event) {
+      // Save in session storage
+      saveChanges(event);
+      // Close the window
+      window.postMessage({
+        type: 'window_close'
+      }, location.origin);
+      // Go back in history until reaching the list
+      window.history.back();
+    }
+
     LazyLoader.load(
       dependencies,
       function onLoaded() {
+        window.addEventListener('message', function handler(e) {
+          // Filter by origin
+          if (e.origin !== location.origin) {
+            return;
+          }
+
+          switch(e.data.type) {
+            case 'ready':
+              ContactsService.addListener(
+                'contactchange',
+                onContactMerged
+              );
+              break;
+            case 'window_close':
+              window.removeEventListener('message', handler);
+              ContactsService.removeListener(
+                'contactchange',
+                onContactMerged
+              );
+              break;
+          }
+        });
         MatchService.match(contactId);
       }
     );
@@ -52,15 +104,7 @@
       ContactsService.addListener('contactchange',
         function oncontactchange(event) {
           ContactsService.removeListener('contactchange', oncontactchange);
-
-          var eventToSave = {
-            contactID: event.contactID,
-            reason: event.reason
-          };
-          
-          var events = [];
-          events.unshift(eventToSave);
-          sessionStorage.setItem('contactChanges', JSON.stringify(events));
+          saveChanges(event);
           resolve();
         }
       );
@@ -180,6 +224,14 @@
 
   function setContact(contactID) {
     _contactID = contactID;
+    LazyLoader.load('/contacts/js/nfc.js', () => {
+      ContactsService.get(contactID, contact => {
+        NFC.startListening(contact);
+      }, error => {
+        console.error('Could not get contact from ID %s. ' +
+                      'Unable to initialize NFC. %s', contactID, error);
+      });
+    });
   }
 
   function handleEditAction(evt) {

@@ -10,6 +10,7 @@ var template =
     flex-flow: row nowrap;
     width: 100%;
     height: 100%;
+    -moz-user-select: none;
   }
   #container > button {
     background-color: transparent;
@@ -60,7 +61,10 @@ proto.createdCallback = function() {
     }
 
     this.value = value;
-    this.dispatchEvent(new CustomEvent('change'));
+
+    this.dispatchEvent(new CustomEvent('change', {
+      detail: value
+    }));
   });
 };
 

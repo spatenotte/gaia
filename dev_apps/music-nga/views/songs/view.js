@@ -64,8 +64,6 @@ SongsView.prototype.destroy = function() {
   View.prototype.destroy.call(this); // super(); // Always call *last*
 };
 
-SongsView.prototype.title = 'Songs';
-
 SongsView.prototype.render = function() {
   View.prototype.render.call(this); // super();
 
@@ -84,7 +82,7 @@ SongsView.prototype.getSongs = function() {
 };
 
 SongsView.prototype.queueSong = function(filePath) {
-  this.fetch('/api/queue/song' + filePath);
+  this.fetch('/api/queue/song/' + filePath);
 };
 
 SongsView.prototype.setCache = function(items) {

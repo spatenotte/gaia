@@ -399,7 +399,6 @@
    */
   LockScreenNotifications.prototype.hideColoredMaskBG =
   function lsn_hideColoredMaskBG() {
-    this._lockScreen.maskedBackground.style.backgroundColor = 'transparent';
     this._lockScreen.maskedBackground.classList.add('blank');
   };
 
@@ -579,24 +578,14 @@
   LockScreenNotifications.prototype.updateTimestamps =
   function lsn_updateTimestamps() {
     var timestamps = [...document.querySelectorAll('.notification .timestamp')];
-    timestamps.forEach((element) => {
-      element.textContent =
-        this.prettyDate(new Date(element.dataset.timestamp));
-    });
-  };
+    var formatter = navigator.mozL10n.DateTimeFormat();
 
-  /**
-   * Display a human-readable relative timestamp.
-   */
-  LockScreenNotifications.prototype.prettyDate =
-  function lsn_prettyDate(time) {
-    var date;
-    if (navigator.mozL10n) {
-      date = navigator.mozL10n.DateTimeFormat().fromNow(time, true);
-    } else {
-      date = time.toLocaleFormat();
-    }
-    return date;
+    timestamps.forEach((element) => {
+      var date = new Date(element.dataset.timestamp);
+      formatter.relativeDate(date, true).then(str => {
+        element.textContent = str;
+      });
+    });
   };
 
   /** @exports LockScreenWindowManager */

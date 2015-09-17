@@ -5,8 +5,61 @@ window.View = (function() {
 
 var debug = 1 ? (...args) => console.log('[View]', ...args) : () => {};
 
+if (!window.parent.SERVICE_WORKERS) (function() {
+  window.ROUTES = {
+    '/api/activities/share/:filePath': 'share',
+
+    '/api/albums/list': 'getAlbums',
+    '/api/albums/info/:filePath': 'getAlbum',
+
+    '/api/artists/list': 'getArtists',
+    '/api/artists/info/:filePath': 'getArtist',
+
+    '/api/artwork/original/:filePath': 'getSongArtwork',
+    '/api/artwork/thumbnail/:filePath': 'getSongThumbnail',
+
+    '/api/audio/play': 'play',
+    '/api/audio/pause': 'pause',
+    '/api/audio/seek/:time': 'seek',
+    '/api/audio/status': 'getPlaybackStatus',
+
+    '/api/database/status': 'getDatabaseStatus',
+
+    '/api/playlists/list': 'getPlaylists',
+    '/api/playlists/info/:id': 'getPlaylist',
+
+    '/api/queue/current': 'currentSong',
+    '/api/queue/previous': 'previousSong',
+    '/api/queue/next': 'nextSong',
+    '/api/queue/album/:filePath': 'queueAlbum',
+    '/api/queue/artist/:filePath': 'queueArtist',
+    '/api/queue/playlist/:id/shuffle': 'queuePlaylist',
+    '/api/queue/playlist/:id/song/:filePath': 'queuePlaylist',
+    '/api/queue/song/:filePath': 'queueSong',
+    '/api/queue/repeat': 'getRepeatSetting',
+    '/api/queue/repeat/:repeat': 'setRepeatSetting',
+    '/api/queue/shuffle': 'getShuffleSetting',
+    '/api/queue/shuffle/:shuffle': 'setShuffleSetting',
+
+    '/api/songs/list': 'getSongs',
+    '/api/songs/count': 'getSongCount',
+    '/api/songs/info/:filePath': 'getSong',
+    '/api/songs/rating/:rating/:filePath': 'setSongRating'
+  };
+
+  for (var path in window.ROUTES) {
+    var method = window.ROUTES[path];
+    window.ROUTES[path] = parseSimplePath(path);
+    window.ROUTES[path].method = method;
+  }
+})();
+
 function View() {
-  this.client = bridge.client({ service: 'music-service', endpoint: window.parent });
+  this.client = bridge.client({
+    service: 'music-service',
+    endpoint: window.parent,
+    timeout: false
+  });
 
   this.params = {};
 
@@ -19,20 +72,11 @@ function View() {
     this.params[parts[0]] = parts[1];
   });
 
-  var title = typeof this.title === 'function' ? this.title() : this.title;
-  if (title instanceof Promise) {
-    title.then(title => window.parent.setHeaderTitle(title));
-  }
-
-  else {
-    window.parent.setHeaderTitle(title);
-  }
-
   window.addEventListener('click', (evt) => {
     var link = evt.target.closest('a');
     if (link) {
       evt.preventDefault();
-      window.parent.navigateToURL(link.getAttribute('href'));
+      this.client.method('navigate', link.getAttribute('href'));
     }
   });
 
@@ -41,9 +85,9 @@ function View() {
 
 View.prototype.destroy = function() {
   Object.getOwnPropertyNames(this).forEach(prop => this[prop] = null);
-};
 
-View.prototype.title = '';
+  debug('Destroyed');
+};
 
 View.prototype.render = function() {
   if (window.frameElement) {
@@ -53,73 +97,48 @@ View.prototype.render = function() {
   debug('Rendered');
 };
 
-View.prototype.fetch = function(url) {
-  if (window.parent.SERVICE_WORKERS) {
+View.prototype.fetch = window.parent.SERVICE_WORKERS ?
+  function(url) {
     return window.fetch(url);
-  }
+  } :
+  function(url) {
+    url = decodeURIComponent(url);
 
-  console.log('**** fetch() ****', url);
+    for (var path in window.ROUTES) {
+      var route = window.ROUTES[path];
+      var match = url.match(route.regexp);
 
-  var mappings = {
-    '/api/activities/share*': 'share',
-
-    '/api/albums/list': 'getAlbums',
-    '/api/albums/info*': 'getAlbum',
-
-    '/api/artists/list': 'getArtists',
-    '/api/artists/info*': 'getArtist',
-
-    '/api/artwork/original*': 'getSongArtwork',
-    '/api/artwork/thumbnail*': 'getSongThumbnail',
-
-    '/api/audio/play': 'play',
-    '/api/audio/pause': 'pause',
-    '/api/audio/seek/*': 'seek',
-    '/api/audio/status': 'getPlaybackStatus',
-
-    '/api/database/status': 'getDatabaseStatus',
-
-    '/api/queue/current': 'currentSong',
-    '/api/queue/previous': 'previousSong',
-    '/api/queue/next': 'nextSong',
-    '/api/queue/album*': 'queueAlbum',
-    '/api/queue/artist*': 'queueArtist',
-    '/api/queue/song*': 'queueSong',
-    '/api/queue/repeat': 'getRepeatSetting',
-    '/api/queue/repeat/*': 'setRepeatSetting',
-    '/api/queue/shuffle': 'getShuffleSetting',
-    '/api/queue/shuffle/*': 'setShuffleSetting',
-
-    '/api/songs/list': 'getSongs',
-    '/api/songs/count': 'getSongCount',
-    '/api/songs/info*': 'getSong'
-  };
-
-  for (var key in mappings) {
-    var mapping = mappings[key];
-    var param = undefined;
-    if (key.endsWith('*')) {
-      key = key.substring(0, key.length - 1);
-      param = decodeURIComponent(url.substring(key.length));
-    }
-
-    if ((key === url && param === undefined) ||
-        (url.startsWith(key) && param !== undefined)) {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          this.client.method(mapping, param).then((result) => {
-            resolve({
-              blob: () => Promise.resolve(result),
-              json: () => Promise.resolve(result)
+      if (match) {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            var args = [route.method].concat(match.splice(1));
+            this.client.method.apply(this.client, args).then((result) => {
+              resolve({
+                blob: () => Promise.resolve(result),
+                json: () => Promise.resolve(result)
+              });
             });
           });
         });
-      });
+      }
     }
-  }
 
-  return Promise.reject();
-};
+    return Promise.reject();
+  };
+
+Object.defineProperty(View.prototype, 'title', {
+  get: function() {
+    return document.title;
+  },
+
+  set: function(value) {
+    document.title = value;
+
+    window.frameElement.dispatchEvent(new CustomEvent('titlechange', {
+      detail: document.title
+    }));
+  }
+});
 
 View.preserveListScrollPosition = function(list) {
   var lastScrollTop;
@@ -146,6 +165,46 @@ View.extend = function(subclass) {
 
   return subclass;
 };
+
+/**
+ * Route parser from components/serviceworkerware/dist/sww.js
+ */
+function parseSimplePath(path) {
+  // Check for named placeholder crowding
+  if (/\:[a-zA-Z0-9]+\:[a-zA-Z0-9]+/g.test(path)) {
+    throw new Error('Invalid usage of named placeholders');
+  }
+
+  // Check for mixed placeholder crowdings
+  var mixedPlaceHolders =
+    /(\*\:[a-zA-Z0-9]+)|(\:[a-zA-Z0-9]+\:[a-zA-Z0-9]+)|(\:[a-zA-Z0-9]+\*)/g;
+  if (mixedPlaceHolders.test(path.replace(/\\\*/g,''))) {
+    throw new Error('Invalid usage of named placeholders');
+  }
+
+  // Try parsing the string and converting special characters into regex
+  try {
+    // Parsing anonymous placeholders with simple backslash-escapes
+    path = path.replace(/(.|^)[*]+/g, function(m,escape) {
+      return escape==='\\' ? '\\*' : (escape+'(?:.*?)');
+    });
+
+    // Parsing named placeholders with backslash-escapes
+    var tags = [];
+    path = path.replace(/(.|^)\:([a-zA-Z0-9]+)/g, function (m, escape, tag) {
+      if (escape === '\\') { return ':' + tag; }
+      tags.push(tag);
+      return escape + '(.+?)';
+    });
+
+    return { regexp: RegExp(path + '$'), tags: tags };
+  }
+
+  // Failed to parse final path as a RegExp
+  catch (ex) {
+    throw new Error('Invalid path specified');
+  }
+}
 
 return View;
 

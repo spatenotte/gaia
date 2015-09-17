@@ -6,7 +6,9 @@ importScripts('js/services/artists.js');
 importScripts('js/services/artwork.js');
 importScripts('js/services/audio.js');
 importScripts('js/services/database.js');
+importScripts('js/services/navigation.js');
 importScripts('js/services/playlist.js');
+importScripts('js/services/queue.js');
 importScripts('js/services/songs.js');
 importScripts('resources.js');
 
@@ -18,6 +20,7 @@ var artistsService = new ArtistsService(worker);
 var artworkService = new ArtworkService(worker);
 var audioService = new AudioService(worker);
 var databaseService = new DatabaseService(worker);
+var navigationService = new NavigationService(worker);
 var playlistService = new PlaylistService(worker);
 var queueService = new QueueService(worker);
 var songsService = new SongsService(worker);

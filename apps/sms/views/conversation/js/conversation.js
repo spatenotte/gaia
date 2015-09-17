@@ -14,7 +14,8 @@
          EventDispatcher,
          SelectionHandler,
          TaskRunner,
-         MessagingClient
+         MessagingClient,
+         MozMobileConnectionsClient
 */
 /*exported ConversationView */
 
@@ -71,6 +72,12 @@ var ConversationView = {
   // when sending an sms to several recipients in activity, we'll exit the
   // activity after this delay after moving to the thread list.
   LEAVE_ACTIVITY_DELAY: 3000,
+
+  THROTTLE_DELAY: 300,
+  THROTTLE_OPTS: {
+    preventFirstCall: true,
+    preventLastCall: false
+  },
 
   draft: null,
   recipients: null,
@@ -129,15 +136,30 @@ var ConversationView = {
                               this.onVisibilityChange);
 
     this.toField.addEventListener(
-      'keypress', this.toFieldKeypress.bind(this), true
+      'keypress', 
+      Utils.throttle(
+        this.toFieldKeypress.bind(this),
+        this.THROTTLE_DELAY, 
+        this.THROTTLE_OPTS),
+      true
     );
 
     this.toField.addEventListener(
-      'input', this.toFieldInput.bind(this), true
+      'input', 
+      Utils.throttle(
+        this.toFieldInput.bind(this),
+        this.THROTTLE_DELAY, 
+        this.THROTTLE_OPTS),
+      true
     );
 
     this.toField.addEventListener(
-      'focus', this.toFieldInput.bind(this), true
+      'focus', 
+      Utils.throttle(
+        this.toFieldInput.bind(this),
+        this.THROTTLE_DELAY, 
+        this.THROTTLE_OPTS),
+      true
     );
 
     this.sendButton.addEventListener(
@@ -2398,7 +2420,6 @@ var ConversationView = {
 
   onMessageFailed: function conv_onMessageFailed(e) {
     var message = e.message;
-    var serviceId = Settings.getServiceIdByIccId(message.iccId);
 
     // When this is the first message in a thread, we haven't displayed
     // the new thread yet. The error flag will be shown when the thread
@@ -2414,9 +2435,9 @@ var ConversationView = {
             // Update messageDOM state to 'sending' while sim switching
             this.setMessageStatus(message.id, 'sending');
 
-            Settings.switchMmsSimHandler(serviceId).then(
-              this.resendMessage.bind(this, message.id))
-            .catch(function(err) {
+            MozMobileConnectionsClient.switchMmsSimHandler(message.iccId).then(
+              this.resendMessage.bind(this, message.id)
+            ).catch(function(err) {
                 err && console.error(
                   'Unexpected error while resending the MMS message', err);
             });
@@ -2512,16 +2533,22 @@ var ConversationView = {
     var id = +messageDOM.dataset.messageId;
     var iccId = messageDOM.dataset.iccId;
     var button = messageDOM.querySelector('button');
+    var setMessageStatus = this.setMessageStatus.bind(this);
 
-    this.setMessageStatus(id, 'pending');
-    button.setAttribute('data-l10n-id', 'downloading-attachment');
+    function setMessageButtonStatus(status) {
+      var btnL10n = status === 'pending' ?
+        'downloading-attachment' : 'download-attachment';
 
+      setMessageStatus(id, status);
+      button.setAttribute('data-l10n-id', btnL10n);
+    }
+
+    setMessageButtonStatus('pending');
     MessagingClient.retrieveMMS(id).then(() => {
       Threads.unregisterMessage(id);
       this.removeMessageDOM(messageDOM);
     }, (error) => {
-      this.setMessageStatus(id, 'error');
-      button.setAttribute('data-l10n-id', 'download-attachment');
+      setMessageButtonStatus('error');
 
       // Show NonActiveSimCard/Other error dialog while retrieving MMS
       var errorCode = error && error.name || null;
@@ -2538,26 +2565,28 @@ var ConversationView = {
 
       if (errorCode) {
         this.showMessageError(errorCode, {
-          confirmHandler: function stateResetAndRetry() {
-            var serviceId = Settings.getServiceIdByIccId(iccId);
-            if (serviceId === null) {
-              // TODO Bug 981077 should change this error message
-              this.showMessageError('NoSimCardError');
-              return;
-            }
-
+          confirmHandler: () => {
             // TODO move this before trying to call retrieveMMS in Bug 981077
             // Avoid user to click the download button while sim state is not
             // ready yet.
-            this.setMessageStatus(id, 'pending');
-            button.setAttribute('data-l10n-id', 'downloading-attachment');
-            Settings.switchMmsSimHandler(serviceId).then(
-              this.retrieveMMS.bind(this, messageDOM))
-            .catch(function(err) {
-                err && console.error(
-                  'Unexpected error while retrieving the MMS message', err);
+            setMessageButtonStatus('pending');
+            return MozMobileConnectionsClient.switchMmsSimHandler(iccId).then(
+              this.retrieveMMS.bind(this, messageDOM)
+            ).catch((err) => {
+              setMessageButtonStatus('error');
+
+              if (err === 'NoSimCardError') {
+                // TODO Bug 981077 should change this error message
+                this.showMessageError(err);
+                return;
+              }
+
+              console.error(
+                'Unexpected error while retrieving the MMS message',
+                err || 'UnknownError'
+              );
             });
-          }.bind(this)
+          }
         });
       }
     });

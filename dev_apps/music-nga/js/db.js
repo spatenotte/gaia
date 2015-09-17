@@ -20,6 +20,44 @@ var TitleBar = (function() {
 })();
 
 var Database = (function() {
+  var playlists = [
+    {
+      id: 'shuffle-all',
+      title: 'Shuffle all',
+      index: 'metadata.title',
+      direction: 'next',
+      shuffle: true
+    },
+    {
+      id: 'highest-rated',
+      title: 'Highest rated',
+      index: 'metadata.rated',
+      direction: 'prev',
+      shuffle: false
+    },
+    {
+      id: 'recently-added',
+      title: 'Recently added',
+      index: 'date',
+      direction: 'prev',
+      shuffle: false
+    },
+    {
+      id: 'most-played',
+      title: 'Most played',
+      index: 'metadata.played',
+      direction: 'prev',
+      shuffle: false
+    },
+    {
+      id: 'least-played',
+      title: 'Least played',
+      index: 'metadata.played',
+      direction: 'next',
+      shuffle: false
+    }
+  ];
+
   var status = {
     upgrading: false,
     unavailable: false,
@@ -281,13 +319,21 @@ var Database = (function() {
   }
 
   function incrementPlayCount(fileinfo) {
-    fileinfo.metadata.played++;
-    musicdb.updateMetadata(fileinfo.name, {played: fileinfo.metadata.played});
+    return new Promise((resolve) => {
+      fileinfo.metadata.played++;
+      musicdb.updateMetadata(fileinfo.name, {
+        played: fileinfo.metadata.played
+      }, resolve);
+    });
   }
 
   function setSongRating(fileinfo, rated) {
-    fileinfo.metadata.rated = rated;
-    musicdb.updateMetadata(fileinfo.name, {rated: fileinfo.metadata.rated});
+    return new Promise((resolve) => {
+      fileinfo.metadata.rated = rated;
+      musicdb.updateMetadata(fileinfo.name, {
+        rated: fileinfo.metadata.rated
+      }, resolve);
+    });
   }
 
   function getFile(fileinfo, decrypt = false) {
@@ -381,7 +427,7 @@ var Database = (function() {
     count: count,
     search: search,
     cancelEnumeration: cancelEnumeration,
-
+    playlists: playlists,
     status: status,
 
     // This is just here for testing.

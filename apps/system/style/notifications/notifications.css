@@ -125,14 +125,13 @@
 }
 
 #notification-bar [data-icon] {
-  color: #008eab;
   margin: 0.5rem 0;
 }
 
 #notification-bar .title-container {
   display: flex;
-  width: calc(100% - 3.7rem);
-  -moz-margin-start: .7rem;
+  width: calc(100% - 4rem);
+  -moz-margin-start: 1rem;
   float: left;
   font: italic 300 1.8rem/4.2rem auto;
 }
@@ -260,8 +259,9 @@
 #notifications-container .notification.disappearing,
 #notifications-container .notification.disappearing-via-clear-all,
 .notification-toaster.disappearing {
-  transition: transform var(--transition-duration) linear;
+  transition: transform var(--transition-duration) linear, opacity var(--transition-duration);
   transform: translateX(100%);
+  opacity: 0;
 }
 
 #notifications-container .notification.disappearing.left,

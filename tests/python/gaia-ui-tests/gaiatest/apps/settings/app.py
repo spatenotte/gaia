@@ -3,12 +3,11 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 from marionette_driver import expected, By, Wait
-
 from gaiatest.apps.base import Base
+from gaiatest.form_controls.binarycontrol import InvisibleHtmlBinaryControl
 
 
 class Settings(Base):
-
     name = 'Settings'
 
     _header_locator = (By.CSS_SELECTOR, '.current gaia-header')
@@ -66,6 +65,7 @@ class Settings(Base):
     _do_not_track_menu_item_locator = (By.ID, 'menuItem-doNotTrack')
     _browsing_privacy_item_locator = (By.ID, 'menuItem-browsingPrivacy')
     _privacy_controls_item_locator = (By.ID, 'menuItem-privacyPanel')
+    _usb_storage_menu_item_locator = (By.ID, 'menuItem-enableStorage')
     _media_storage_menu_item_locator = (By.CSS_SELECTOR, '.menuItem-mediaStorage')
     _application_storage_menu_item_locator = (By.CSS_SELECTOR, '.menuItem-applicationStorage')
 
@@ -79,6 +79,9 @@ class Settings(Base):
 
     _main_title_locator = (By.ID, 'main-list-title')
 
+    def __init__(self, marionette):
+        Base.__init__(self, marionette)
+
     def launch(self):
         Base.launch(self)
         Wait(self.marionette).until(
@@ -89,31 +92,55 @@ class Settings(Base):
             expected.element_present(*self._bluetooth_menu_item_locator))
 
     def switch_to_settings_app(self):
-        Wait(self.marionette).until(lambda m: self.apps.displayed_app.name == self.name)
+        self.wait_to_be_displayed()
         self.apps.switch_to_displayed_app()
 
-    def wait_for_airplane_toggle_ready(self):
-        self._wait_for_toggle_ready(*self._airplane_checkbox_locator)
+    def enable_airplane_mode(self):
+        self._airplane_checkbox.enable()
 
-    def toggle_airplane_mode(self):
-        checkbox = self.marionette.find_element(*self._airplane_checkbox_locator)
-        label = self.marionette.find_element(*self._airplane_switch_locator)
-        state = checkbox.is_selected()
-        label.tap()
-        Wait(self.marionette).until(lambda m: state is not checkbox.is_selected())
+    def disable_airplane_mode(self):
+        self._airplane_checkbox.disable()
 
-    def wait_for_usb_storage_toggle_ready(self):
-        self._wait_for_toggle_ready(*self._usb_storage_checkbox_locator)
+    @property
+    def _airplane_checkbox(self):
+        return InvisibleHtmlBinaryControl(self.marionette,
+                                          self._airplane_checkbox_locator,
+                                          self._airplane_switch_locator)
 
-    def toggle_usb_storage(self):
-        # The left hand side of the usb storage switch is overlayed by menuItem-enableStorage
-        # So we do the tapping on the right hand side
-        element = self.marionette.find_element(*self._usb_storage_switch_locator)
-        element.tap(x=(element.size['width']-5))
+    def enable_usb_storage(self):
+        self._usb_checkbox.enable()
 
     @property
     def is_usb_storage_enabled(self):
-        return self.marionette.find_element(*self._usb_storage_checkbox_locator).is_selected()
+        return self._usb_checkbox.is_checked
+
+    @property
+    def _usb_checkbox(self):
+        class UsbSwitch(InvisibleHtmlBinaryControl):
+
+            def __init__(self, marionette, control_locator, element_to_tap_locator, menu_item_locator):
+                InvisibleHtmlBinaryControl.__init__(self, marionette,  control_locator, element_to_tap_locator)
+                self.menu_item = self.marionette.find_element(*menu_item_locator)
+
+            def _toggle(self):
+                # There are 2 parts on that entry. The left part allows you to choose the
+                # USB transfer protocol, and the right part is the switch.
+                # In case where RTL is enabled, the left part needs to be tapped since the left/right switches
+                if self.menu_item.location['x'] == 0:  # left-centered
+                    switch_area = self._element_to_tap.rect['width'] - 5
+                else:  # right-centered
+                    switch_area = 5
+                self._element_to_tap.tap(x=switch_area)
+
+            # because toggling causes the confirmation prompt when toggled for 1st time, the post-state cannot
+            # be verified. Use is_usb_storage_enabled to check the post-state
+            def _toggle_and_verify_state(self, final_state):
+                Wait(self.marionette).until(expected.element_enabled(self.root_element))
+                Wait(self.marionette).until(lambda m: self.is_checked is not final_state)
+                self._toggle()
+
+        return UsbSwitch(self.marionette, self._usb_storage_checkbox_locator, self._usb_storage_switch_locator,
+                         self._usb_storage_menu_item_locator)
 
     def confirm_usb_storage(self):
         element = Wait(self.marionette).until(
@@ -121,6 +148,7 @@ class Settings(Base):
                 *self._usb_storage_confirm_button_locator))
         Wait(self.marionette).until(expected.element_displayed(element))
         element.tap()
+        Wait(self.marionette).until(lambda m: self.is_usb_storage_enabled is True)
 
     def cancel_usb_storage(self):
         element = Wait(self.marionette).until(
@@ -130,19 +158,18 @@ class Settings(Base):
         element.tap()
 
     def enable_gps(self):
-        self.marionette.find_element(*self._gps_switch_locator).tap()
-        checkbox = self.marionette.find_element(*self._gps_enabled_locator)
-        Wait(self.marionette).until(expected.element_selected(checkbox))
+        return self._gps_checkbox.enable()
 
     def disable_gps(self):
-        self.marionette.find_element(*self._gps_switch_locator).tap()
-        checkbox = self.marionette.find_element(*self._gps_enabled_locator)
-        Wait(self.marionette).until(expected.element_not_selected(checkbox))
+        return self._gps_checkbox.disable()
 
     @property
     def is_gps_enabled(self):
-        return self.marionette.find_element(
-            *self._gps_enabled_locator).is_selected()
+        return self._gps_checkbox.is_checked
+
+    @property
+    def _gps_checkbox(self):
+        return InvisibleHtmlBinaryControl(self.marionette, self._gps_enabled_locator, self._gps_switch_locator)
 
     @property
     def header_text(self):
@@ -199,10 +226,10 @@ class Settings(Base):
         return self._open_subpage(self._sim_manager_menu_item_locator, 'sim_manager', 'SimManager')
 
     def open_call(self):
-        return self._open_subpage(self._call_settings_menu_item_locator)
+        return self._open_subpage(self._call_settings_menu_item_locator, 'call_settings', 'CallSettings')
 
     def open_message(self):
-        return self._open_subpage(self._message_settings_menu_item_locator)
+        return self._open_subpage(self._message_settings_menu_item_locator, 'message', 'Message')
 
     def open_cell_and_data(self):
         return self._open_subpage(self._cell_data_menu_item_locator, 'cell_data', 'CellData')
@@ -230,10 +257,10 @@ class Settings(Base):
         return self._open_subpage(self._search_menu_item_locator, 'search', 'Search')
 
     def open_navigation(self):
-        return self._open_subpage(self._navigation_menu_item_locator)
+        return self._open_subpage(self._navigation_menu_item_locator, 'navigation', 'Navigation')
 
     def open_notification(self):
-        return self._open_subpage(self._notification_menu_item_locator)
+        return self._open_subpage(self._notification_menu_item_locator, 'notifications', 'Notifications')
 
     def open_date_and_time(self):
         return self._open_subpage(self._date_and_time_menu_item_locator, 'date_and_time', 'DateAndTime')
@@ -247,7 +274,7 @@ class Settings(Base):
         return self._open_subpage(self._keyboard_menu_item_locator, 'keyboard', 'Keyboard')
 
     def open_themes(self):
-        return self._open_subpage(self._theme_menu_item_locator)
+        return self._open_subpage(self._theme_menu_item_locator, 'themes', 'Themes')
 
     def open_addons(self):
         return self._open_subpage(self._addon_menu_item_locator, 'addons', 'Addons')
@@ -276,6 +303,9 @@ class Settings(Base):
     def open_privacy_controls(self):
         return self._open_subpage(self._privacy_controls_item_locator, 'privacy_controls', 'PrivacyControls')
 
+    def open_usb_storage(self):
+        return self._open_subpage(self._usb_storage_menu_item_locator, 'usb_storage', 'USBStorage')
+
     def open_media_storage(self):
         return self._open_subpage(self._media_storage_menu_item_locator, 'media_storage', 'MediaStorage')
 
@@ -303,13 +333,13 @@ class Settings(Base):
     def open_help(self):
         return self._open_subpage(self._help_menu_item_locator)
 
-    def _open_subpage(self, locator, file_name=None, class_name=None):
+    def _open_subpage(self, locator, file_name = None, class_name = None):
         self._tap_menu_item(locator)
         class_object = self._get_class_by_name(file_name, class_name)
         if class_object is not None:
             return class_object(self.marionette)
 
-    def _get_class_by_name(self, file_name=None, class_name=None):
+    def _get_class_by_name(self, file_name = None, class_name = None):
         if file_name is not None:
             package_path = 'gaiatest.apps.settings.regions.{}'.format(file_name.lower())
             mod = __import__(package_path, fromlist = [class_name])
@@ -359,14 +389,20 @@ class Settings(Base):
         Wait(self.marionette).until(expected.element_enabled(checkbox))
 
     # this method is a copy of go_back() method in regions/keyboard.py
-    def return_to_prev_menu(self, parent_view, gaia_header=True):
+    def return_to_prev_menu(self, parent_view, exit_view, back_button = None):
 
         # TODO: remove tap with coordinates after Bug 1061698 is fixed
-        if gaia_header:
-            _header_locator = self._header_locator
-        else:
-            _header_locator = self._non_gaia_header_locator
-        Wait(self.marionette).until(expected.element_displayed(*_header_locator))
+        if back_button is None:
+            # because of th Bug 1061698, we need to locate the
+            # right edge of the header and tap it
+            # if we have the back_button, then tapping anywhere
+            # within it should give the same result
+            back_button = self.marionette.find_element(*self._header_locator)
 
-        self.marionette.find_element(*_header_locator).tap(25, 25)
-        Wait(self.marionette).until(expected.element_displayed(parent_view))
+        Wait(self.marionette).until(expected.element_enabled(back_button) and
+                                    expected.element_displayed(back_button))
+        back_button.tap(25, 25)
+
+        Wait(self.marionette).until(lambda m: 'current' not in exit_view.get_attribute('class'))
+        Wait(self.marionette).until(lambda m: parent_view.rect['x'] == 0)
+        Wait(self.marionette).until(lambda m: 'current' in parent_view.get_attribute('class'))
