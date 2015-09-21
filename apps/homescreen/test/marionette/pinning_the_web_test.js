@@ -36,9 +36,13 @@ marionette('Homescreen - Pin the web', function() {
     var url = server.url('sample.html');
 
     client.switchToFrame();
+    console.log('1');
     pinning.openAndPinSite(url);
+    console.log('2');
     system.tapHome();
+    console.log('3');
     client.switchToFrame(system.getHomescreenIframe());
+    console.log('4');
 
     client.waitFor(function() {
       return numIcons + 1 === home.visibleIcons.length;
@@ -50,9 +54,13 @@ marionette('Homescreen - Pin the web', function() {
     var url = server.url('sample.html');
 
     client.switchToFrame();
+    console.log('1');
     pinning.openAndPinSiteFromBrowser(url);
+    console.log('2');
     system.tapHome();
+    console.log('3');
     client.switchToFrame(system.getHomescreenIframe());
+    console.log('4');
 
     client.waitFor(function() {
       return numIcons + 1 === home.visibleIcons.length;
@@ -63,10 +71,13 @@ marionette('Homescreen - Pin the web', function() {
     var url = server.url('sample.html');
 
     client.switchToFrame();
+    console.log('1');
     pinning.openAndPinPage(url);
-
+    console.log('2');
     system.tapHome();
+    console.log('3');
     client.switchToFrame(system.getHomescreenIframe());
+    console.log('4');
 
     client.waitFor(function() {
       return home.visibleCards.length === 1;

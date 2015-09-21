@@ -32,6 +32,7 @@
     <link rel="stylesheet" type="text/css" href="shared/style/action_menu.css"/>
     <link rel="stylesheet" type="text/css" href="shared/style/confirm.css"/>
     <link rel="stylesheet" type="text/css" href="shared/style/progress_activity.css"/>
+    <link rel="stylesheet" type="text/css" href="style/homescreens.css"/>
     <link rel="stylesheet" type="text/css" href="style/achievements.css"/>
     <link rel="stylesheet" type="text/css" href="style/apps.css"/>
     <link rel="stylesheet" type="text/css" href="style/screen_lock.css"/>
@@ -80,6 +81,7 @@
 
     <script src="shared/js/l10n.js"></script>
     <script src="shared/js/l10n_date.js"></script>
+    <script defer src="shared/js/date_time_helper.js"></script>
 
     <!-- Lazy loader -->
     <script src="shared/js/lazy_loader.js"></script>
@@ -169,15 +171,15 @@
     <link rel="import" href="/elements/hotspot.html">
     <link rel="import" href="/elements/sound.html">
     <link rel="import" href="/elements/display.html">
-    <link rel="import" href="/elements/homescreen.html">
+    <link rel="import" href="/elements/homescreens.html">
+    <link rel="import" href="/elements/homescreens_list.html">
+    <link rel="import" href="/elements/homescreen_details.html">
     <link rel="import" href="/elements/search.html">
     <link rel="import" href="/elements/navigation.html">
     <link rel="import" href="/elements/notifications.html">
     <link rel="import" href="/elements/date_time.html">
     <link rel="import" href="/elements/languages.html">
     <link rel="import" href="/elements/simcard_manager.html">
-    <link rel="import" href="/elements/homescreens_details.html">
-    <link rel="import" href="/elements/homescreens.html">
     <link rel="import" href="/elements/keyboard.html">
     <link rel="import" href="/elements/keyboard_selection_add_more.html">
     <link rel="import" href="/elements/themes.html">
@@ -223,7 +225,7 @@
     <link rel="import" href="/elements/full_developer_mode.html">
     <link rel="import" href="/elements/full_developer_mode_warning.html">
     <link rel="import" href="/elements/full_developer_mode_final_warning.html">
-    <link rel="import" href="/elements/partial_ums_warning.html">
+    <link rel="import" href="/elements/ums_partial_warning.html">
     <link rel="import" href="/elements/templates/messaging.html">
     <link rel="import" href="/elements/root.html">
     <link rel="import" href="/elements/settings_alert_dialog.html">
@@ -328,8 +330,12 @@
     <section role="region" is="sound" id="sound"></section>
     <!-- Personalization :: Display -->
     <section role="region" is="display" id="display"></section>
-    <!-- Personalization :: Homescreen -->
-    <section role="region" is="homescreen" id="homescreen"></section>
+    <!-- Personalization :: Home Screens -->
+    <section role="region" is="homescreens" id="homescreens"></section>
+    <!-- Personalization :: Home Screens :: Home Screens List -->
+    <section role="region" is="homescreens-list" id="homescreens-list"></section>
+    <!-- Personalization :: Home Screens :: Home Screens List :: Home Screen Details -->
+    <section role="region" is="homescreen-details" id="homescreen-details"></section>
     <!-- Personalization :: Search -->
     <section role="region" is="search" id="search"></section>
     <!-- Personalization :: Navigation -->
@@ -342,10 +348,6 @@
     <section role="region" is="languages" id="languages"></section>
     <!-- Personalization :: SIM card manager -->
     <section role="region" is="sim-manager" id="sim-manager"></section>
-    <!-- Personalization :: Homescreens :: details -->
-    <section role="region" is="homescreens-details" id="homescreens-details"></section>
-    <!-- Personalization :: Homescreens -->
-    <section role="region" is="homescreens" id="homescreens"></section>
     <!-- Personalization :: Keyboard :: Select Keyboard :: Add More Keyboards -->
     <section role="region" is="keyboard-selection-addMore" id="keyboard-selection-addMore"></section>
     <!-- Personalization :: Keyboard :: Select Keyboard -->
@@ -445,8 +447,8 @@
     <section role="region" class="dialog" is="full-developer-mode-warning" id="full-developer-mode-warning"></section>
     <!-- Full Developer Mode Final Warning -->
     <section role="region" class="dialog" is="full-developer-mode-final-warning" id="full-developer-mode-final-warning"></section>
-    <!-- Parital Ums Warning -->
-    <section role="region" class="dialog" is="partial-ums-warning" id="partial-ums-warning"></section>
+    <!-- Partial Ums Warnings -->
+    <section role="region" class="dialog" is="ums-partial-warning" id="ums-partial-warning"></section>
     <!-- SettingsDialog :: AlertDialog -->
     <section role="region" class="dialog" is="settings-alert-dialog" id="settings-alert-dialog"></section>
     <!-- SettingsDialog :: ConFirmDialog -->
@@ -470,19 +472,6 @@
       <menu>
         <button class="incompatible-settings-cancel-btn" data-l10n-id="cancel">Cancel</button>
         <button class="incompatible-settings-ok-btn recommend" data-l10n-id="enable">Enable</button>
-      </menu>
-    </form>
-
-    <form role="dialog" data-type="confirm" class="turn-on-ums-dialog" hidden>
-      <section>
-        <h1 data-l10n-id="ums-warning-title">Enable USB storage?</h1>
-        <p data-l10n-id="ums-confirm">
-          Enabling USB storage allows another computer or device connected using USB to access files on this phone.
-        </p>
-      </section>
-      <menu>
-        <button data-l10n-id="cancel" class="ums-cancel-option">Cancel</button>
-        <button data-l10n-id="ok" class="ums-confirm-option recommend">OK</button>
       </menu>
     </form>
 

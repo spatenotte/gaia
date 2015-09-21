@@ -4,12 +4,12 @@
 
 /* global ActivityHandler */
 /* global COMMS_APP_ORIGIN */
+/* global Contacts */
 /* global ContactsButtons */
 /* global ContactPhotoHelper */
 /* globals ContactToVcardBlob */
 /* global fb */
 /* global NFC */
-/* global Contacts */
 /* global ICEData */
 /* global LazyLoader */
 /* global MozActivity */
@@ -622,7 +622,9 @@ contacts.Details = (function() {
           data: {
             type: 'text/vcard',
             number: 1,
-            blobs: [new window.File([vcardBlob], filename)],
+            blobs: [new window.File([vcardBlob], filename, {
+              type: 'text/x-vcard'
+            })],
             filenames: [filename]
           }
         });

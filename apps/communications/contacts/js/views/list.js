@@ -207,16 +207,6 @@ contacts.List = (function() {
       resetDom();
     }
 
-    window.addEventListener('list-shown', function() {
-      if (!loading) {
-        return;
-      }
-      
-      ContactsService.resume(function isRendered(contact) {
-        return !!loadedContacts[contact.id];
-      });
-    });
-
     createPhotoTemplate();
 
     Cache.oneviction = onCacheEvicted;
@@ -391,16 +381,6 @@ contacts.List = (function() {
 
     var config = utils.cookie.load();
     if (config) {
-      if (config.shouldEvict) {
-        resetDom(function() {
-          Cache.evict(
-            false /* undo applied cache */,
-            true /* instant eviction */
-          );
-          utils.cookie.update({shouldEvict: false});
-        });
-        return;
-      }
       orderByLastName = config.order;
       defaultImage = config.defaultImage;
       callback();
@@ -1343,6 +1323,7 @@ contacts.List = (function() {
     initConfiguration(function onInitConfiguration() {
       var num = 0;
       var chunk = [];
+
       ContactsService.getAllStreamed(
         (orderByLastName === true ? 'familyName' : 'givenName'),
         function onContact(contact) {
@@ -1612,9 +1593,14 @@ contacts.List = (function() {
       return;
     }
 
-
-    ContactsService.get(idOrContact, function(contact) {
-      refreshContact(contact, null, callback);
+    // Passed an ID, so look up contact
+    LazyLoader.load([
+     '/contacts/js/fb/fb_init.js',
+     '/contacts/js/fb_loader.js'
+    ], () => {
+      ContactsService.get(idOrContact, function(contact) {
+        refreshContact(contact, null, callback);
+      });
     });
   };
 

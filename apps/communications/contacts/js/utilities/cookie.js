@@ -19,8 +19,7 @@
     fbScheduleDone: false,
     defaultImage: true,
     accessTokenMigrated: false,
-    fbCleaningInProgress: 0,
-    shouldEvict: false
+    fbCleaningInProgress: 0
   };
 
   // Only allow these properties to be stored in the config
@@ -45,7 +44,17 @@
       return null;
     }
 
-    return JSON.parse(decodeURIComponent(cookieVal));
+    // Setup default value for cookie with version that will trigger update
+    var result = {
+      version: -1
+    };
+    try {
+      result = JSON.parse(decodeURIComponent(cookieVal));
+    } catch (error) {
+      console.warn('Could not parse current cookie, rebuilding it');
+    }
+
+    return result;
   }
 
   // Load and return the cookie config if present.  Returns null if the
@@ -101,11 +110,14 @@
 
     document.cookie = COOKIE_NAME + '=' +
                                 encodeURIComponent(JSON.stringify(newCookie)) +
-                                ';expires=' + EXPIRATION_DATE + ';path=/';
+                                ';expires=' + EXPIRATION_DATE;
 
   }
 
   utils.cookie.getDefault = function(prop) {
-    return COOKIE_DEFAULTS(prop);
+    return COOKIE_DEFAULTS[prop];
   };
+
+  utils.cookie.COOKIE_DEFAULTS = COOKIE_DEFAULTS;
+  utils.cookie.COOKIE_VERSION = COOKIE_VERSION;
 })();

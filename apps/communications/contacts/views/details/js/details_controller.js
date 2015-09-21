@@ -1,50 +1,29 @@
 'use strict';
 
-/* global ContactsService */
-/* global ContactToVcardBlob */
-/* global LazyLoader */
-/* global MatchService */
-/* global MozActivity */
-/* global NFC */
-/* global ParamUtils */
 /* global utils */
+/* global MatchService */
+/* global ContactsService */
+/* global LazyLoader */
+/* global ContactToVcardBlob */
 /* global VcardFilename */
+/* global MozActivity */
 
 /* exported Details */
 
 /*
- * Once the details view is loaded, we will listen for events dispatched
- * from the UI. These events will come with the info needed in order
+ * Once the deatils view is loaded, we will listen events dispatched
+ * from the UI. This events will come with the info needed in order
  * to execute actions related with the UI (back, toggle favorite, share...).
  *
  * Controller will *not* contain any code related with the DOM/UI,
- * and will rely on the info provided by the events.
+ * and will rely on the info provided by the event.
  */
 (function(exports) {
 
   var _activity = null;
-  var _contactID;
 
   function setActivity(activity) {
     _activity = activity;
-  }
-
-  function saveChanges(event) {
-    var eventsStringified = sessionStorage.getItem('contactChanges');
-    var events = [];
-    if (eventsStringified && eventsStringified !== 'null') {
-      var candidates = JSON.parse(eventsStringified);
-      // Remove old events related with the same action on
-      // the contact (i.e. marking as 'favourite')
-      events = candidates.filter(function(a) {
-        return a.reason !== event.reason;
-      });
-    }
-    events.push({
-      contactID: event.contactID,
-      reason: event.reason
-    });
-    sessionStorage.setItem('contactChanges', JSON.stringify(events));
   }
 
   function findDuplicates(evt) {
@@ -54,61 +33,7 @@
     }
 
     var contactId = evt.detail.contactId;
-    var dependencies = [
-      '/contacts/js/match_service.js'
-    ];
-
-    function onContactMerged(event) {
-      // Save in session storage
-      saveChanges(event);
-      // Close the window
-      window.postMessage({
-        type: 'window_close'
-      }, location.origin);
-      // Go back in history until reaching the list
-      window.history.back();
-    }
-
-    LazyLoader.load(
-      dependencies,
-      function onLoaded() {
-        window.addEventListener('message', function handler(e) {
-          // Filter by origin
-          if (e.origin !== location.origin) {
-            return;
-          }
-
-          switch(e.data.type) {
-            case 'ready':
-              ContactsService.addListener(
-                'contactchange',
-                onContactMerged
-              );
-              break;
-            case 'window_close':
-              window.removeEventListener('message', handler);
-              ContactsService.removeListener(
-                'contactchange',
-                onContactMerged
-              );
-              break;
-          }
-        });
-        MatchService.match(contactId);
-      }
-    );
-  }
-
-  function listenContactChanges() {
-    return new Promise(function(resolve, reject) {
-      ContactsService.addListener('contactchange',
-        function oncontactchange(event) {
-          ContactsService.removeListener('contactchange', oncontactchange);
-          saveChanges(event);
-          resolve();
-        }
-      );
-    });
+    MatchService.match(contactId);
   }
 
   function toggleFavorite(evt){
@@ -150,17 +75,6 @@
       dispatchEvent('toggleFavoriteDone', {contact: contact});
     }
 
-    // Listening to oncontactchange event, we can save the evt
-    // and send it via sessionStorage to the main list in order to
-    // update it accordingly with the changes made by the user in this view.
-
-    listenContactChanges().then(function() {
-      ContactsService.get(contact.id, function(savedContact) {
-        dispatchEvent('toggleFavoriteDone', {contact: savedContact});
-      }, onError);
-    });
-
-    // Save contact with 'favorite' param updated properly
     ContactsService.save(
       utils.misc.toMozContact(contact),
       function(e) {
@@ -168,6 +82,14 @@
           onError(e);
           return;
         }
+
+        // TODO: Listening to oncontactchange event, we can save the evt
+        // and send it via sessionStorage to the main list in order to
+        // update it accordingly with the changes made by the user in this view.
+
+        ContactsService.get(contact.id, function(savedContact) {
+          dispatchEvent('toggleFavoriteDone', {contact: savedContact});
+        }, onError);
       }
     );
   }
@@ -178,6 +100,10 @@
     window.addEventListener('toggleFavoriteAction', toggleFavorite);
     window.addEventListener('shareAction', shareContact);
     window.addEventListener('findDuplicatesAction', findDuplicates);
+
+    // TODO: Need to save the oncontactchange event in order to update
+    // the main list when the user go back from this view. It could be done
+    // by saving the event in sessionStorage
   }
 
   function shareContact(evt) {
@@ -222,26 +148,9 @@
     }
   }
 
-  function setContact(contactID) {
-    _contactID = contactID;
-    LazyLoader.load('/contacts/js/nfc.js', () => {
-      ContactsService.get(contactID, contact => {
-        NFC.startListening(contact);
-      }, error => {
-        console.error('Could not get contact from ID %s. ' +
-                      'Unable to initialize NFC. %s', contactID, error);
-      });
-    });
-  }
-
   function handleEditAction(evt) {
-    window.location.href = ParamUtils.generateUrl(
-      'form',
-      {
-        'action': 'update',
-        'contact': _contactID
-      }
-    );
+    // In the future the navigation will change the URL to navigate
+    // to #update view: Bug 1169579
   }
 
   function dispatchEvent(name, data) {
@@ -250,7 +159,6 @@
 
   exports.DetailsController = {
     'init': init,
-    'setActivity': setActivity,
-    'setContact': setContact
+    'setActivity': setActivity
   };
 })(window);
