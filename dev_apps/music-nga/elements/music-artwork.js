@@ -27,7 +27,7 @@ var template =
     object-fit: contain;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.2s linear, visibility 0s linear 0.2s;
+    transition: opacity 150ms linear, visibility 0s linear 150ms;
   }
   #container > img.active {
     opacity: 1;
@@ -42,7 +42,7 @@ var template =
     flex: 0 0 auto;
     margin: 0 1rem;
     width: 6rem;
-    transition: background 0.2s ease;
+    transition: background 200ms ease;
   }
   #container button:hover {
     background: transparent;
@@ -71,7 +71,7 @@ var template =
     width: 100%;
     height: 5rem;
     visibility: hidden;
-    transition: transform 0.5s ease-in-out, visibility 0s linear 0.5s;
+    transition: transform 300ms ease-in-out, visibility 0s linear 300ms;
   }
   #caption {
     top: 0;
@@ -126,12 +126,24 @@ var template =
       <h1 id="artist"></h1>
       <h2 id="album"></h2>
     </div>
-    <button type="button" data-action="share" data-icon="share"></button>
+    <button type="button"
+        data-action="share"
+        data-icon="share"
+        data-l10n-id="share-song">
+    </button>
   </div>
   <div id="controls">
-    <button type="button" data-action="repeat" data-icon="repeat"></button>
+    <button type="button"
+        data-action="repeat"
+        data-icon="repeat"
+        data-l10n-id="repeat-off">
+    </button>
     <music-rating id="rating"></music-rating>
-    <button type="button" data-action="shuffle" data-icon="shuffle"></button>
+    <button type="button"
+        data-action="shuffle"
+        data-icon="shuffle"
+        data-l10n-id="shuffle-toggle">
+    </button>
   </div>
 </div>`;
 
@@ -154,6 +166,32 @@ proto.createdCallback = function() {
     shuffle:   $('[data-action="shuffle"]'),
     rating:    $('#rating')
   };
+
+  var onImageLoad = (evt) => {
+    window.requestAnimationFrame(() => {
+      var newActiveImage = evt.target.closest('img:not(.active)');
+      if (!newActiveImage) {
+        return;
+      }
+
+      var oldActiveImage = this.els.container.querySelector('img.active');
+      newActiveImage.classList.add('active');
+      oldActiveImage.classList.remove('active');
+    });
+  };
+
+  [].forEach.call(this.els.container.querySelectorAll('img'), (img) => {
+    img.addEventListener('load', onImageLoad);
+  });
+
+  this.els.container.addEventListener('transitionend', (evt) => {
+    if (!evt.target.matches('img:not(.active)')) {
+      return;
+    }
+
+    var oldActiveImage = evt.target;
+    oldActiveImage.src = null;
+  });
 
   this.els.container.addEventListener('click', (evt) => {
     var button = evt.target.closest('button');
@@ -187,10 +225,26 @@ proto.createdCallback = function() {
     }));
   });
 
+  this.onDOMLocalized = () => {
+    // XXX: Bug 1205799 - view.formatValue errors when called before first
+    // language is resolved
+    document.l10n.ready.then(() => {
+      document.l10n.translateFragment(shadowRoot);
+    });
+  };
+
   this.repeat = this.getAttribute('repeat');
   this.shuffle = this.getAttribute('shuffle');
 
   this.overlayVisible = true;
+};
+
+proto.attachedCallback = function() {
+  document.addEventListener('DOMLocalized', this.onDOMLocalized);
+};
+
+proto.detachedCallback = function() {
+  document.removeEventListener('DOMLocalized', this.onDOMLocalized);
 };
 
 proto.attributeChangedCallback = function(attr, oldVal, newVal) {
@@ -210,14 +264,7 @@ proto.attributeChangedCallback = function(attr, oldVal, newVal) {
         SHUFFLE_VALUES.indexOf(newVal) !== -1 ? newVal : SHUFFLE_VALUES[0];
       break;
     case 'src':
-      (() => {
-        var newActiveImage = this.els.container.querySelector('img:not(.active)');
-        var oldActiveImage = this.els.container.querySelector('img.active');
-
-        newActiveImage.src = newVal;
-        newActiveImage.classList.add('active');
-        oldActiveImage.classList.remove('active');
-      })();
+      this.els.container.querySelector('img:not(.active)').src = newVal;
       break;
   }
 };
@@ -250,6 +297,10 @@ Object.defineProperty(proto, 'repeat', {
   set: function(value) {
     value = REPEAT_VALUES.indexOf(value) !== -1 ? value : REPEAT_VALUES[0];
     this.setAttribute('repeat', value);
+
+    this.els.repeat.dataset.l10nId = 'repeat-' + value;
+
+    this.onDOMLocalized();
   }
 });
 

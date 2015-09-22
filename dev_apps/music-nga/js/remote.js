@@ -2,6 +2,10 @@
 'use strict';
 
 var Remote = (function() {
+  const PLAY_STATUS_INTERRUPTED = 'mozinterruptbegin';
+  const PLAY_STATUS_PAUSED      = 'PAUSED';
+  const PLAY_STATUS_PLAYING     = 'PLAYING';
+
   var Remote = {
     enabled: false,
     isSCOEnabled: false,
@@ -15,14 +19,20 @@ var Remote = (function() {
             }
 
             client.method('getSongThumbnail', status.filePath).then((blob) => {
-              mrc.notifyMetadataChanged({
-                title:  song.metadata.title  || navigator.mozL10n.get('unknownTitle'),
-                artist: song.metadata.artist || navigator.mozL10n.get('unknownArtist'),
-                album:  song.metadata.album  || navigator.mozL10n.get('unknownAlbum'),
-                mediaNumber:     status.queueRawIndex,
-                totalMediaCount: status.queueLength,
-                duration:        status.duration,
-                picture: blob
+              Promise.all([
+                document.l10n.formatValue('unknownTitle'),
+                document.l10n.formatValue('unknownArtist'),
+                document.l10n.formatValue('unknownAlbum')
+              ]).then(([unknownTitle, unknownArtist, unknownAlbum]) => {
+                mrc.notifyMetadataChanged({
+                  title:  song.metadata.title  || unknownTitle,
+                  artist: song.metadata.artist || unknownArtist,
+                  album:  song.metadata.album  || unknownAlbum,
+                  mediaNumber:     status.queueRawIndex,
+                  totalMediaCount: status.queueLength,
+                  duration:        status.duration,
+                  picture: blob
+                });
               });
             });
           });
@@ -33,8 +43,13 @@ var Remote = (function() {
     updatePlaybackStatus: function() {
       if (Remote.enabled) {
         client.method('getPlaybackStatus').then((status) => {
+          var playStatus = status.paused ? PLAY_STATUS_PAUSED : PLAY_STATUS_PLAYING;
+          if (status.isInterrupted) {
+            playStatus = PLAY_STATUS_INTERRUPTED;
+          }
+
           mrc.notifyStatusChanged({
-            playStatus: status.paused ? 'PAUSED' : 'PLAYING',
+            playStatus: playStatus,
             duration: status.duration,
             position: status.elapsedTime
           });
@@ -151,6 +166,8 @@ var Remote = (function() {
     client.on('play', Remote.updatePlaybackStatus);
     client.on('pause', Remote.updatePlaybackStatus);
     client.on('elapsedTimeChange', Remote.updatePlaybackStatus);
+    client.on('interruptBegin', Remote.updatePlaybackStatus);
+    client.on('interruptEnd', Remote.updatePlaybackStatus);
 
     Remote.enabled = true;
   });
