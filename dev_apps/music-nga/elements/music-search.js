@@ -28,7 +28,8 @@ var template =
     color: #fff;
     line-height: 4rem;
     margin: 0;
-    padding: 0 0 0 3rem;
+    padding: 0;
+    padding-inline-start: 3rem; /* padding-left */
     width: calc(100% - 11.6rem);
   }
   #clear {
@@ -58,7 +59,7 @@ var template =
     position: absolute;
     top: 0.7rem;
     bottom: 0.7rem;
-    left: -0.1rem;
+    offset-inline-start: -0.1rem; /* left */
     width: 0.1rem;
   }
   #results {
@@ -93,9 +94,9 @@ var template =
 </style>
 <div id="container">
   <form id="form" role="search">
-    <input type="search" id="input" placeholder="Search Music" x-inputmode="verbatim">
+    <input type="search" id="input" x-inputmode="verbatim" data-l10n-id="search-music">
     <button type="reset" id="clear" data-icon="search"></button>
-    <button type="button" id="close">close</button>
+    <button type="button" id="close" data-l10n-id="search-close"></button>
   </form>
   <section id="results">
     <gaia-fast-list id="list"></gaia-fast-list>
@@ -161,6 +162,22 @@ proto.createdCallback = function() {
   });
 
   this.scrollOutOfView();
+
+  this.onDOMLocalized = () => {
+    // XXX: Bug 1205799 - view.formatValue errors when called before first
+    // language is resolved
+    document.l10n.ready.then(() => {
+      document.l10n.translateFragment(shadowRoot);
+    });
+  };
+};
+
+proto.attachedCallback = function() {
+  document.addEventListener('DOMLocalized', this.onDOMLocalized);
+};
+
+proto.detachedCallback = function() {
+  document.removeEventListener('DOMLocalized', this.onDOMLocalized);
 };
 
 proto.scrollOutOfView = function() {

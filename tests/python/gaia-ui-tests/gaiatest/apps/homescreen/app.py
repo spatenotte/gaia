@@ -14,9 +14,11 @@ from gaiatest.apps.base import PageRegion
 class Homescreen(Base):
 
     name = 'Default Home Screen'
+    manifest_url = '{}verticalhome{}/manifest.webapp'.format(Base.DEFAULT_PROTOCOL,Base.DEFAULT_APP_HOSTNAME)
 
     _homescreen_icon_locator = (By.CSS_SELECTOR, 'gaia-grid .icon')
     _homescreen_all_icons_locator = (By.CSS_SELECTOR, 'gaia-grid .icon:not(.placeholder)')
+    _homescreen_collection_icon = (By.CSS_SELECTOR, 'gaia-grid .collection')
     _edit_mode_locator = (By.CSS_SELECTOR, 'body.edit-mode')
     _search_bar_icon_locator = (By.ID, 'search-input')
     _landing_page_locator = (By.ID, 'icons')
@@ -123,7 +125,7 @@ class Homescreen(Base):
              *self._edit_mode_locator))
 
     def tap_collection(self, collection_name):
-        for root_el in self.marionette.find_elements(*self._homescreen_all_icons_locator):
+        for root_el in self.marionette.find_elements(*self._homescreen_collection_icon):
             if root_el.text == collection_name:
                 # TODO bug 1043293 introduced a timing/tap race issue here
                 time.sleep(0.5)

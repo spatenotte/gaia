@@ -41,7 +41,7 @@ require.config({
       exports: 'LazyLoader'
     },
     'shared/passcode_helper': {
-        exports: 'PasscodeHelper'
+      exports: 'PasscodeHelper'
     },
     'shared/search_provider': {
       exports: 'SearchProvider'
@@ -143,6 +143,7 @@ require.config({
         'main',
         'modules/bluetooth/version_detector',
         'modules/app_storage',
+        'modules/media_storage',
         'modules/battery',
         'modules/wifi_context',
         'modules/sim_security'
@@ -306,10 +307,7 @@ require.config({
     },
     {
       name: 'panels/homescreens/panel',
-      exclude: [
-        'main',
-        'modules/apps_cache'
-      ]
+      exclude: ['main']
     },
     {
       name: 'panels/sound/panel',

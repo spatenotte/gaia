@@ -15,6 +15,10 @@ var styles =
   -moz-user-select: none;
 }
 
+.-content {
+  direction: ltr;
+}
+
 .-content > *,
 .more-button {
   transition: none;
@@ -31,11 +35,18 @@ proto.createdCallback = function() {
 
   this.addEventListener('click', (evt) => {
     var tab = evt.target.closest('button');
-    if (!tab) {
+    if (!tab || tab === this.selectedElement) {
       return;
     }
 
     this.selectedElement = tab;
+
+    this.dispatchEvent(new CustomEvent('change', {
+      detail: {
+        selectedElement: this.selectedElement,
+        selectedIndex: this.selectedIndex
+      }
+    }));
   });
 
   this.selectedIndex = 0;
@@ -75,13 +86,6 @@ Object.defineProperty(proto, 'selectedIndex', {
 
       tab.classList.remove('selected');
     });
-
-    this.dispatchEvent(new CustomEvent('change', {
-      detail: {
-        selectedElement: this.selectedElement,
-        selectedIndex: this._selectedIndex
-      }
-    }));
   }
 });
 

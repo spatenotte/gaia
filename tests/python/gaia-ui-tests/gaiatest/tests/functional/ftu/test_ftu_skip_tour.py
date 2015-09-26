@@ -92,11 +92,9 @@ class TestFtu(GaiaTestCase):
             'geolocation.enabled'), self.ftu.is_geolocation_enabled,
             msg='Geolocation internal state should match UI state')
 
-        # Toggle geolocation and verify that it also toggled internal state
-        self.ftu.toggle_geolocation()
+        self.ftu.disable_geolocation()
         self.assertEqual(self.data_layer.get_setting(
-            'geolocation.enabled'), not geolocation_default,
-            msg='Geolocation internal state should be changed by UI')
+            'geolocation.enabled'), not geolocation_default)
         self.ftu.tap_next_to_import_contacts_section()
 
         # If there's a SIM, try importing from it
@@ -123,11 +121,9 @@ class TestFtu(GaiaTestCase):
             'debug.performance_data.shared'), self.ftu.is_share_data_enabled,
             msg='Send Data internal state should match UI state')
 
-        # Toggle "Share Data" and verify that it also toggled internal state
-        self.ftu.toggle_share_data()
+        self.ftu.disable_share_data()
         self.assertEqual(self.data_layer.get_setting(
-            'debug.performance_data.shared'), not share_data_default,
-            msg='Send Data internal state should be changed by UI')
+            'debug.performance_data.shared'), not share_data_default)
 
         self.ftu.tap_next_to_privacy_browser_section()
 
@@ -140,4 +136,4 @@ class TestFtu(GaiaTestCase):
         self.ftu.tap_skip_tour()
 
         # Switch back to top level now that FTU app is gone
-        self.wait_for_condition(lambda m: self.apps.displayed_app.name == Homescreen.name)
+        Homescreen(self.marionette).wait_to_be_displayed()

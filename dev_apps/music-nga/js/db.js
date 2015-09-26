@@ -20,6 +20,46 @@ var TitleBar = (function() {
 })();
 
 var Database = (function() {
+  var playlists = [
+    {
+      id: 'shuffle-all',
+      index: 'metadata.title',
+      direction: 'next',
+      shuffle: true
+    },
+    {
+      id: 'highest-rated',
+      index: 'metadata.rated',
+      direction: 'prev',
+      shuffle: false
+    },
+    {
+      id: 'recently-added',
+      index: 'date',
+      direction: 'prev',
+      shuffle: false
+    },
+    {
+      id: 'most-played',
+      index: 'metadata.played',
+      direction: 'prev',
+      shuffle: false
+    },
+    {
+      id: 'least-played',
+      index: 'metadata.played',
+      direction: 'next',
+      shuffle: false
+    }
+  ];
+
+  var status = {
+    upgrading: false,
+    unavailable: false,
+    enumerable: false,
+    ready: false
+  };
+
   var resolveEnumerable;
   var enumerable = new Promise((resolve) => {
     resolveEnumerable = resolve;
@@ -31,6 +71,8 @@ var Database = (function() {
   });
 
   var dbChange = debounce(() => service.broadcast('databaseChange'), 500);
+
+  document.addEventListener('DOMLocalized', dbChange);
 
   function debounce(fn, ms) {
     var timeout;
@@ -103,6 +145,10 @@ var Database = (function() {
 
     // show dialog in upgradestart, when it finished, it will turned to ready.
     musicdb.onupgrading = function(event) {
+      status.upgrading = true;
+      status.enumerable = false;
+      status.ready = false;
+
       service.broadcast('databaseUpgrade');
     };
 
@@ -111,7 +157,7 @@ var Database = (function() {
     // This may be called before onready if it is unavailable to begin with
     musicdb.onunavailable = function(event) {
       var reason = event.detail === MediaDB.UNMOUNTED ? 'pluggedin' : event.detail;
-      service.broadcast('databaseUnavailable', reason);
+      onUnavailable(reason);
     };
 
     // If the user removed the sdcard (but there is still internal storage)
@@ -119,20 +165,39 @@ var Database = (function() {
     // This event will be followed by deleted events to remove the songs
     // that were on the sdcard and are no longer playable.
     musicdb.oncardremoved = function() {
-      service.broadcast('databaseUnavailable', 'cardremoved');
+      service.broadcast('databaseChange');
     };
 
-    musicdb.onenumerable = startupOnEnumerable;
+    function onUnavailable(reason) {
+      status.unavailable = reason;
+      status.enumerable = false;
+      status.ready = false;
+
+      enumerable = new Promise((resolve) => {
+        resolveEnumerable = resolve;
+      });
+
+      ready = new Promise((resolve) => {
+        resolveReady = resolve;
+      });
+
+      service.broadcast('databaseUnavailable', reason);
+    }
+
+    musicdb.onenumerable = onEnumerable;
     // Don't refresh the UI on the first onready event, since onenumerable will
     // have already handled the refresh.
     var refreshOnReady = false;
 
-    function startupOnEnumerable() {
+    function onEnumerable() {
       if (musicdb.state === MediaDB.READY) {
         onReady();
       } else {
         musicdb.onready = onReady;
       }
+
+      status.upgrading = false;
+      status.enumerable = true;
 
       resolveEnumerable();
 
@@ -142,6 +207,9 @@ var Database = (function() {
     function onReady() {
       // Start scanning for new music
       musicdb.scan();
+
+      status.unavailable = false;
+      status.ready = true;
 
       resolveReady();
 
@@ -248,13 +316,21 @@ var Database = (function() {
   }
 
   function incrementPlayCount(fileinfo) {
-    fileinfo.metadata.played++;
-    musicdb.updateMetadata(fileinfo.name, {played: fileinfo.metadata.played});
+    return new Promise((resolve) => {
+      fileinfo.metadata.played++;
+      musicdb.updateMetadata(fileinfo.name, {
+        played: fileinfo.metadata.played
+      }, resolve);
+    });
   }
 
   function setSongRating(fileinfo, rated) {
-    fileinfo.metadata.rated = rated;
-    musicdb.updateMetadata(fileinfo.name, {rated: fileinfo.metadata.rated});
+    return new Promise((resolve) => {
+      fileinfo.metadata.rated = rated;
+      musicdb.updateMetadata(fileinfo.name, {
+        rated: fileinfo.metadata.rated
+      }, resolve);
+    });
   }
 
   function getFile(fileinfo, decrypt = false) {
@@ -348,9 +424,8 @@ var Database = (function() {
     count: count,
     search: search,
     cancelEnumeration: cancelEnumeration,
-
-    enumerable: enumerable,
-    ready: ready,
+    playlists: playlists,
+    status: status,
 
     // This is just here for testing.
     get initialScanComplete() {

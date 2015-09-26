@@ -1,4 +1,4 @@
-/* global Database, PlaybackQueue, bridge */
+/* global Database, PlaybackQueue, bridge, navigateToURL */
 'use strict';
 
 var audio = document.getElementById('audio');
@@ -7,11 +7,15 @@ var loadQueueSettings = PlaybackQueue.loadSettings();
 
 var currentFilePath;
 var currentQueue;
+var isInterrupted = false;
+var isFastSeeking = false;
 
 var service = bridge.service('music-service')
   .method('play', play)
   .method('pause', pause)
   .method('seek', seek)
+  .method('startFastSeek', startFastSeek)
+  .method('stopFastSeek', stopFastSeek)
   .method('getPlaybackStatus', getPlaybackStatus)
 
   .method('currentSong', currentSong)
@@ -19,6 +23,7 @@ var service = bridge.service('music-service')
   .method('nextSong', nextSong)
   .method('queueAlbum', queueAlbum)
   .method('queueArtist', queueArtist)
+  .method('queuePlaylist', queuePlaylist)
   .method('queueSong', queueSong)
   .method('getRepeatSetting', getRepeatSetting)
   .method('setRepeatSetting', setRepeatSetting)
@@ -31,42 +36,62 @@ var service = bridge.service('music-service')
   .method('getArtists', getArtists)
   .method('getArtist', getArtist)
 
+  .method('getPlaylists', getPlaylists)
+  .method('getPlaylist', getPlaylist)
+
   .method('getSongs', getSongs)
   .method('getSongCount', getSongCount)
   .method('getSong', getSong)
   .method('getSongFile', getSongFile)
   .method('getSongArtwork', getSongArtwork)
   .method('getSongThumbnail', getSongThumbnail)
+  .method('setSongRating', setSongRating)
 
   .method('share', share)
   .method('open', open)
 
+  .method('getDatabaseStatus', getDatabaseStatus)
+
+  .method('navigate', navigate)
+
   .listen()
   .listen(new BroadcastChannel('music-service'));
 
-audio.onloadeddata = function() {
+audio.addEventListener('loadeddata', function() {
   URL.revokeObjectURL(audio.src);
-};
+});
 
-audio.onplay = function() {
+audio.addEventListener('play', function() {
   service.broadcast('play');
-};
+});
 
-audio.onpause = function() {
+audio.addEventListener('pause', function() {
   service.broadcast('pause');
-};
+});
 
-audio.ondurationchange = function() {
+audio.addEventListener('durationchange', function() {
   service.broadcast('durationChange', audio.duration);
-};
+});
 
-audio.ontimeupdate = function() {
+audio.addEventListener('timeupdate', function() {
   service.broadcast('elapsedTimeChange', audio.currentTime);
-};
+});
 
-audio.onended = function() {
+audio.addEventListener('ended', function() {
   nextSong(true);
-};
+});
+
+audio.addEventListener('mozinterruptbegin', function() {
+  isInterrupted = true;
+
+  service.broadcast('interruptBegin');
+});
+
+audio.addEventListener('mozinterruptend', function() {
+  isInterrupted = false;
+
+  service.broadcast('interruptEnd');
+});
 
 function play(filePath) {
   if (!filePath) {
@@ -85,6 +110,10 @@ function play(filePath) {
     audio.load();
     audio.play();
 
+    getSong(filePath).then((song) => {
+      Database.incrementPlayCount(song);
+    });
+
     service.broadcast('songChange');
   });
 }
@@ -94,15 +123,46 @@ function pause() {
 }
 
 function seek(time) {
+  time = parseInt(time, 10);
   audio.currentTime = time;
+}
+
+function startFastSeek(reverse) {
+  if (isFastSeeking) {
+    return;
+  }
+
+  reverse = reverse === true || reverse === 'reverse';
+
+  isFastSeeking = true;
+
+  function fastSeek() {
+    if (!isFastSeeking) {
+      return;
+    }
+
+    seek(audio.currentTime + (reverse ? -2 : 2));
+    setTimeout(fastSeek, 50);
+  }
+
+  fastSeek();
+}
+
+function stopFastSeek() {
+  isFastSeeking = false;
 }
 
 function getPlaybackStatus() {
   return Promise.resolve({
-    filePath: currentFilePath,
-    paused: audio.paused,
-    duration: audio.duration,
-    elapsedTime: audio.currentTime
+    queueIndex:    currentQueue ? currentQueue.index    : -1,
+    queueRawIndex: currentQueue ? currentQueue.rawIndex : -1,
+    queueLength:   currentQueue ? currentQueue.length   : -1,
+    filePath:      currentFilePath,
+    paused:        audio.paused,
+    duration:      audio.duration,
+    elapsedTime:   audio.currentTime,
+    isInterrupted: isInterrupted,
+    isFastSeeking: isFastSeeking
   });
 }
 
@@ -156,6 +216,22 @@ function queueAlbum(filePath) {
   });
 }
 
+function queuePlaylist(id, filePath) {
+  return loadQueueSettings.then(() => {
+    return getPlaylist(id).then((songs) => {
+      var playlist = Database.playlists.find(playlist => playlist.id === id);
+      return setShuffleSetting(playlist.shuffle).then(() => {
+        var index = filePath ?
+          songs.findIndex(song => song.name === filePath) :
+          (playlist.shuffle ? Math.floor(Math.random() * songs.length) : 0);
+        currentQueue = new PlaybackQueue.StaticQueue(songs, index);
+
+        return currentSong().then(song => play(song.name));
+      });
+    });
+  });
+}
+
 function queueSong(filePath) {
   return loadQueueSettings.then(() => {
     return getSongs().then((songs) => {
@@ -181,7 +257,10 @@ function getShuffleSetting() {
 }
 
 function setShuffleSetting(shuffle) {
-  shuffle = shuffle !== 'false' && parseInt(shuffle || 0, 10) !== 0;
+  if (typeof shuffle !== 'boolean') {
+    shuffle = shuffle !== 'false' && parseInt(shuffle || 0, 10) !== 0;
+  }
+
   return loadQueueSettings.then(() => PlaybackQueue.shuffle = shuffle);
 }
 
@@ -214,6 +293,18 @@ function getArtist(filePath) {
     return new Promise((resolve) => {
       Database.enumerateAll('metadata.artist', artist, 'next', songs => resolve(songs));
     });
+  });
+}
+
+function getPlaylists() {
+  return Promise.resolve(Database.playlists);
+}
+
+function getPlaylist(id) {
+  var playlist = Database.playlists.find(playlist => playlist.id === id);
+
+  return new Promise((resolve) => {
+    Database.enumerateAll(playlist.index, null, playlist.direction, songs => resolve(songs));
   });
 }
 
@@ -253,6 +344,21 @@ function getSongThumbnail(filePath) {
       return AlbumArtCache.getThumbnailBlob(song);
     });
   });
+}
+
+function setSongRating(rating, filePath) {
+  rating = parseInt(rating, 10) || 0;
+  return getSong(filePath).then((song) => {
+    return Database.setSongRating(song, rating);
+  });
+}
+
+function getDatabaseStatus() {
+  return Promise.resolve(Database.status);
+}
+
+function navigate(url) {
+  navigateToURL(url);
 }
 
 function share(filePath) {

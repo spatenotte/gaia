@@ -10,13 +10,9 @@ function ArtworkService(worker) {
 
   worker.get('/api/artwork/original/:filePath', stopAfter((request) => {
     return new Promise((resolve) => {
-      var filePath = '/' + decodeURIComponent(request.parameters.filePath);
+      var filePath = decodeURIComponent(request.parameters.filePath);
       client.method('getSongArtwork', filePath)
-        .then((file) => {
-          resolve(new Response(file, {
-            headers: { 'Content-Type': file.type || 'application/octet-stream' }
-          }));
-        })
+        .then(file => resolve(respond(file)))
         .catch((error) => {
           resolve(new Response('', { status: 404 }));
         });
@@ -25,16 +21,18 @@ function ArtworkService(worker) {
 
   worker.get('/api/artwork/thumbnail/:filePath', stopAfter((request) => {
     return new Promise((resolve) => {
-      var filePath = '/' + decodeURIComponent(request.parameters.filePath);
+      var filePath = decodeURIComponent(request.parameters.filePath);
       client.method('getSongThumbnail', filePath)
-        .then((file) => {
-          resolve(new Response(file, {
-            headers: { 'Content-Type': file.type || 'application/octet-stream' }
-          }));
-        })
+        .then(file => resolve(respond(file)))
         .catch((error) => {
           resolve(new Response('', { status: 404 }));
         });
     });
   }));
+
+  function respond(response) {
+    return new Response(JSON.stringify(response), {
+      headers: { 'Content-Type': response.type || 'application/octet-stream' }
+    });
+  }
 }

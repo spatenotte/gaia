@@ -255,8 +255,8 @@ suite('system/Card', function() {
     test('subTitle when private browser splash', function() {
       var app = makeApp({
         name: 'shortname',
-        origin: 'app://system.gaiamobile.org',
-        url: 'app://system.gaiamobile.org/private_browser.html'
+        origin: 'app://search.gaiamobile.org',
+        url: 'app://search.gaiamobile.org/newtab.html'
       });
       this.sinon.stub(app, 'isBrowser').returns(true);
       var appCard = new Card({
@@ -278,6 +278,17 @@ suite('system/Card', function() {
       assert.ok(app.getSiteIconUrl.called);
       assert.ok(Icon.prototype.renderBlob.called);
       assert.isTrue(card.iconValue.indexOf(iconDataURI) > -1);
+    });
+
+    test('no icon available from appWindow', function() {
+      var card = this.card;
+      var app = card.app;
+      card.render();
+      getIconPromise.mFulfillToValue();
+
+      assert.ok(app.getSiteIconUrl.called);
+      assert.isFalse(card.iconButton.classList.contains('pending'));
+      assert.equal(card.iconButton.style.backgroundImage, '');
     });
 
   });

@@ -86,6 +86,7 @@ PRODUCTION?=0
 GAIA_OPTIMIZE?=0
 GAIA_DEV_PIXELS_PER_PX?=1
 NGA_SERVICE_WORKERS?=0
+FIREFOX_SYNC?=0
 
 # Parallel build for multicores CPU
 P?=1
@@ -337,7 +338,11 @@ endif # Firefox build workaround
 # XULRUNNERSDK used to be run-mozilla.sh, but some builds don't include it
 # Without that, Linux needs to reference the directory containing libxul.so
 ifeq (,$(XULRUNNERSDK)$(findstring Darwin,$(SYS))$(findstring MINGW32_,$(SYS)))
+ifeq (,$(LD_LIBRARY_PATH))
 XULRUNNERSDK := LD_LIBRARY_PATH="$(dir $(XPCSHELLSDK))"
+else
+XULRUNNERSDK := LD_LIBRARY_PATH="$(dir $(XPCSHELLSDK)):$(LD_LIBRARY_PATH)"
+endif
 endif
 
 # It's difficult to figure out XULRUNNERSDK in subprocesses; it's complex and
@@ -564,7 +569,8 @@ define BUILD_CONFIG
   "DEFAULT_GAIA_ICONS_FONT": "$(DEFAULT_GAIA_ICONS_FONT)", \
   "RAPTOR_TRANSFORM": "$(RAPTOR_TRANSFORM)", \
   "RAPTOR_TRANSFORMER_PATH": "$(RAPTOR_TRANSFORMER_PATH)", \
-  "NGA_SERVICE_WORKERS": "$(NGA_SERVICE_WORKERS)" \
+  "NGA_SERVICE_WORKERS": "$(NGA_SERVICE_WORKERS)", \
+  "FIREFOX_SYNC": "$(FIREFOX_SYNC)" \
 }
 endef
 
@@ -572,6 +578,7 @@ export BUILD_CONFIG
 
 # Generate profile/
 $(PROFILE_FOLDER): profile-dir build-app test-agent-config contacts extensions b2g_sdk .git/hooks/pre-commit
+	@echo "[DEBUG_LOG]: LD_LIBRARY_PATH=$(LD_LIBRARY_PATH)"
 ifeq ($(BUILD_APP_NAME),*)
 	@echo "Profile Ready: please run [b2g|firefox] -profile $(CURDIR)$(SEP)$(PROFILE_FOLDER)"
 endif
@@ -788,9 +795,9 @@ ifndef APPS
   endif
 endif
 
-b2g: node_modules
+mulet: node_modules
 	DEBUG=* ./node_modules/.bin/mozilla-download \
-	--product b2g-desktop \
+	--product mulet \
 	--branch mozilla-central \
 	$(shell pwd)
 	touch -c $@
@@ -807,11 +814,11 @@ test-integration: clean $(PROFILE_FOLDER) test-integration-test
 #
 # Remember to remove this target after bug-969215 is finished !
 .PHONY: test-integration-test
-test-integration-test: b2g node_modules
+test-integration-test: mulet node_modules
 	TEST_MANIFEST=$(TEST_MANIFEST) $(NPM) run marionette -- --buildapp="$(BUILDAPP)" --reporter="$(REPORTER)"
 
 .PHONY: jsmarionette-unit-tests
-jsmarionette-unit-tests: b2g node_modules $(PROFILE_FOLDER) tests/jsmarionette/runner/marionette-js-runner/venv
+jsmarionette-unit-tests: mulet node_modules $(PROFILE_FOLDER) tests/jsmarionette/runner/marionette-js-runner/venv
 	PROFILE_FOLDER=$(PROFILE_FOLDER) ./tests/jsmarionette/run_tests.js
 
 tests/jsmarionette/runner/marionette-js-runner/venv:
@@ -1078,7 +1085,7 @@ clean:
 
 # clean out build products and tools
 really-clean: clean
-	rm -rf b2g-* .b2g-* b2g_sdk node_modules b2g modules.tar js-marionette-env "$(NODE_MODULES_CACHEDIR)"
+	rm -rf b2g-* .b2g-* b2g_sdk node_modules mulet modules.tar js-marionette-env "$(NODE_MODULES_CACHEDIR)"
 
 .git/hooks/pre-commit: tools/pre-commit
 	test -d .git && cp tools/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit || true

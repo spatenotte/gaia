@@ -67,7 +67,7 @@ var template =
     width: 100%;
   }
   #menu > button {
-    background-color: #d8d8d8;
+    background: #d8d8d8;
     border: none;
     border-radius: 2rem;
     color: #333;
@@ -83,39 +83,39 @@ var template =
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition: background-color 200ms 280ms, color 200ms 280ms;
+    transition: background 200ms 280ms, color 200ms 280ms;
   }
   #menu > button:active {
-    background-color: #00aacc;
+    background: #00aacc;
     color: #fff;
     transition: none;
   }
   #menu > button.primary {
-    background-color: #00caf2;
+    background: #00caf2;
     color: #fff;
   }
   #menu > button.danger {
-    background-color: #e51e1e;
+    background: #e51e1e;
     color: #fff;
   }
   #menu > button.primary:active {
-    background-color: #006579;
+    background: #006579;
     color: #c8c8c8;
   }
   #menu > button.danger:active {
-    background-color: #730f0f;
+    background: #730f0f;
     color: #c8c8c8;
   }
   #menu > button[disabled] {
-    background-color: #565656;
+    background: #565656;
     color: rgba(255, 255, 255, 0.4);
     pointer-events: none;
   }
   #menu > button.primary[disabled] {
-    background-color: #006579;
+    background: #006579;
   }
   #menu > button.danger[disabled] {
-    background-color: #730f0f;
+    background: #730f0f;
   }
   #menu > button + button {
     margin-left: 1rem;
@@ -157,6 +157,25 @@ proto.createdCallback = function() {
 
   this.els.heading.textContent = this.getAttribute('heading');
   this.els.message.textContent = this.getAttribute('message');
+
+  this.els.heading.dataset.l10nId = this.getAttribute('heading-l10n-id');
+  this.els.message.dataset.l10nId = this.getAttribute('message-l10n-id');
+
+  this.onDOMLocalized = () => {
+    // XXX: Bug 1205799 - view.formatValue errors when called before first
+    // language is resolved
+    document.l10n.ready.then(() => {
+      document.l10n.translateFragment(shadowRoot);
+    });
+  };
+};
+
+proto.attachedCallback = function() {
+  document.addEventListener('DOMLocalized', this.onDOMLocalized);
+};
+
+proto.detachedCallback = function() {
+  document.removeEventListener('DOMLocalized', this.onDOMLocalized);
 };
 
 proto.attributeChangedCallback = function(attr, oldVal, newVal) {
@@ -166,6 +185,14 @@ proto.attributeChangedCallback = function(attr, oldVal, newVal) {
       break;
     case 'message':
       this.els.message.textContent = newVal;
+      break;
+    case 'heading-l10n-id':
+      this.els.heading.dataset.l10nId = newVal;
+      this.onDOMLocalized();
+      break;
+    case 'message-l10n-id':
+      this.els.message.dataset.l10nId = newVal;
+      this.onDOMLocalized();
       break;
   }
 };
@@ -186,7 +213,7 @@ proto.removeActionButton = function(action) {
   [].forEach.call(buttons, button => this.els.menu.removeChild(button));
 };
 
-['heading', 'message'].forEach(function(prop) {
+['heading', 'message'].forEach((prop) => {
   Object.defineProperty(proto, prop, {
     get: function() {
       return this.getAttribute(prop);

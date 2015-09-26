@@ -37,31 +37,34 @@ HomeView.prototype.destroy = function() {
   View.prototype.destroy.call(this); // super(); // Always call *last*
 };
 
-HomeView.prototype.title = 'Music';
-
 HomeView.prototype.render = function() {
   View.prototype.render.call(this); // super();
 
-  var html = '';
+  Promise.all([
+    document.l10n.formatValue('unknownArtist'),
+    document.l10n.formatValue('unknownAlbum')
+  ]).then(([unknownArtist, unknownAlbum]) => {
+    var html = '';
 
-  this.albums.forEach((album) => {
-    var template =
+    this.albums.forEach((album) => {
+      var template =
 `<a class="tile"
     href="/player?id=${album.name}"
-    data-artist="${album.metadata.artist}"
-    data-album="${album.metadata.album}"
+    data-artist="${album.metadata.artist || unknownArtist}"
+    data-album="${album.metadata.album || unknownAlbum}"
     data-file-path="${album.name}">
   <img>
 </a>`;
 
-    html += template;
-  });
+      html += template;
+    });
 
-  this.tiles.innerHTML = html;
+    this.tiles.innerHTML = html;
 
-  [].forEach.call(this.tiles.querySelectorAll('.tile'), (tile) => {
-    this.getSongThumbnail(tile.dataset.filePath)
-      .then(blob => tile.querySelector('img').src = URL.createObjectURL(blob));
+    [].forEach.call(this.tiles.querySelectorAll('.tile'), (tile) => {
+      this.getSongThumbnail(tile.dataset.filePath)
+        .then(blob => tile.querySelector('img').src = URL.createObjectURL(blob));
+    });
   });
 };
 
@@ -70,11 +73,11 @@ HomeView.prototype.getAlbums = function() {
 };
 
 HomeView.prototype.getSongThumbnail = function(filePath) {
-  return this.fetch('/api/artwork/thumbnail' + filePath).then(response => response.blob());
+  return this.fetch('/api/artwork/thumbnail/' + filePath).then(response => response.blob());
 };
 
 HomeView.prototype.queueAlbum = function(filePath) {
-  this.fetch('/api/queue/album' + filePath);
+  this.fetch('/api/queue/album/' + filePath);
 };
 
 window.view = new HomeView();

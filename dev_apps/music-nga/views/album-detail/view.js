@@ -55,8 +55,6 @@ AlbumDetailView.prototype.destroy = function() {
   View.prototype.destroy.call(this); // super(); // Always call *last*
 };
 
-AlbumDetailView.prototype.title = 'Albums';
-
 AlbumDetailView.prototype.render = function() {
   View.prototype.render.call(this); // super();
 
@@ -64,12 +62,12 @@ AlbumDetailView.prototype.render = function() {
 };
 
 AlbumDetailView.prototype.getAlbum = function() {
-  return this.fetch('/api/albums/info' + this.params.id)
+  return this.fetch('/api/albums/info/' + this.params.id)
     .then(response => response.json());
 };
 
 AlbumDetailView.prototype.queueAlbum = function(filePath) {
-  this.fetch('/api/queue/album' + filePath);
+  this.fetch('/api/queue/album/' + filePath);
 };
 
 window.view = new AlbumDetailView();

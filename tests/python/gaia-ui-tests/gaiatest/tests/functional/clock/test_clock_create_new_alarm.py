@@ -77,13 +77,10 @@ class TestClockCreateNewAlarm(GaiaTestCase):
 
         self.assertNotEqual(self.clock.alarms[0].time, alarm_time)
 
-        # turn off the alarm
-        self.clock.alarms[0].tap_checkbox()
-        self.clock.alarms[0].wait_for_checkbox_to_change_state(False)
+        self.clock.alarms[0].disable()
         self.assertFalse(self.clock.alarms[0].is_alarm_active, 'user should be able to turn on the alarm.')
 
-        # turn on the alarm
-        self.clock.alarms[0].tap_checkbox()
+        self.clock.alarms[0].enable()
         self.clock.dismiss_banner()
         self.assertTrue(self.clock.alarms[0].is_alarm_active, 'user should be able to turn off the alarm.')
 
@@ -98,4 +95,4 @@ class TestClockCreateNewAlarm(GaiaTestCase):
         self.alarm_alert.tap_stop_alarm()
 
         # Switch back to top level now that Clock app is gone
-        self.wait_for_condition(lambda m: self.apps.displayed_app.name == Homescreen.name)
+        Homescreen(self.marionette).wait_to_be_displayed()

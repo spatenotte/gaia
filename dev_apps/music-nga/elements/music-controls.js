@@ -3,11 +3,14 @@
 
 var proto = Object.create(HTMLElement.prototype);
 
+var isTouch = 'ontouchstart' in window;
+
 var template =
 `<style scoped>
   #container {
     background-color: #000;
     border-top: 0.1rem solid rgba(255, 255, 255, 0.1);
+    direction: ltr;
     display: flex;
     flex-flow: row nowrap;
     position: relative;
@@ -41,9 +44,18 @@ var template =
   }
 </style>
 <div id="container">
-  <button type="button" id="previous" data-icon="skip-back"></button>
-  <button type="button" id="toggle" data-icon="play"></button>
-  <button type="button" id="next" data-icon="skip-forward"></button>
+  <button type="button" id="previous"
+      data-icon="skip-back"
+      data-l10n-id="playbackPrevious">
+  </button>
+  <button type="button" id="toggle"
+      data-icon="play"
+      data-l10n-id="playbackPlay">
+  </button>
+  <button type="button" id="next"
+      data-icon="skip-forward"
+      data-l10n-id="playbackNext">
+  </button>
 </div>`;
 
 proto.createdCallback = function() {
@@ -61,6 +73,34 @@ proto.createdCallback = function() {
     next:      $id('next')
   };
 
+  var seeking = false;
+
+  this.els.container.addEventListener('contextmenu', (evt) => {
+    evt.preventDefault();
+
+    if (seeking) {
+      return;
+    }
+
+    var button = evt.target.closest('button');
+    if (button.id === 'previous' || button.id === 'next') {
+      seeking = true;
+
+      this.dispatchEvent(new CustomEvent('startseek', {
+        detail: { reverse: button.id === 'previous' }
+      }));
+    }
+  });
+
+  this.els.container.addEventListener(isTouch ? 'touchend' : 'mouseup', (evt) => {
+    if (seeking) {
+      evt.preventDefault();
+
+      this.dispatchEvent(new CustomEvent('stopseek'));
+      seeking = false;
+    }
+  });
+
   this.els.container.addEventListener('click', (evt) => {
     var button = evt.target.closest('button');
     switch (button.id) {
@@ -74,6 +114,22 @@ proto.createdCallback = function() {
         break;
     }
   });
+
+  this.onDOMLocalized = () => {
+    // XXX: Bug 1205799 - view.formatValue errors when called before first
+    // language is resolved
+    document.l10n.ready.then(() => {
+      document.l10n.translateFragment(shadowRoot);
+    });
+  };
+};
+
+proto.attachedCallback = function() {
+  document.addEventListener('DOMLocalized', this.onDOMLocalized);
+};
+
+proto.detachedCallback = function() {
+  document.removeEventListener('DOMLocalized', this.onDOMLocalized);
 };
 
 Object.defineProperty(proto, 'paused', {
@@ -87,7 +143,10 @@ Object.defineProperty(proto, 'paused', {
       return;
     }
 
-    this.els.toggle.dataset.icon = paused ? 'play' : 'pause';
+    this.els.toggle.dataset.icon   = paused ? 'play' : 'pause';
+    this.els.toggle.dataset.l10nId = paused ? 'playbackPlay' : 'playbackPause';
+
+    this.onDOMLocalized();
   }
 });
 

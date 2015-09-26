@@ -4,12 +4,12 @@
 
 /* global ActivityHandler */
 /* global COMMS_APP_ORIGIN */
+/* global Contacts */
 /* global ContactsButtons */
 /* global ContactPhotoHelper */
 /* globals ContactToVcardBlob */
 /* global fb */
 /* global NFC */
-/* global Contacts */
 /* global ICEData */
 /* global LazyLoader */
 /* global MozActivity */
@@ -363,15 +363,9 @@ contacts.Details = (function() {
           }
 
           isAFavoriteChange = true;
-          /*
-             Two contacts are returned because the enrichedContact is readonly
-             and if the Contact is edited we need to prevent saving
-             FB data on the mozContacts DB.
-          */
-
           ContactsService.get(
             contact.id,
-            function onSuccess(savedContact, enrichedContact) {
+            function onSuccess(savedContact) {
               renderFavorite(savedContact);
               setContact(savedContact);
               favoriteMessage.style.pointerEvents = 'auto';
@@ -628,7 +622,9 @@ contacts.Details = (function() {
           data: {
             type: 'text/vcard',
             number: 1,
-            blobs: [new window.File([vcardBlob], filename)],
+            blobs: [new window.File([vcardBlob], filename, {
+              type: 'text/x-vcard'
+            })],
             filenames: [filename]
           }
         });
