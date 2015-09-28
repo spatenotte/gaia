@@ -6,11 +6,26 @@ var debug = 1 ? (...args) => console.log('[HomeView]', ...args) : () => {};
 var HomeView = View.extend(function HomeView() {
   View.call(this); // super();
 
-  this.search = document.getElementById('search');
+  this.searchBox = document.getElementById('search');
   this.tiles = document.getElementById('tiles');
 
-  this.search.addEventListener('open', () => window.parent.onSearchOpen());
-  this.search.addEventListener('close', () => window.parent.onSearchClose());
+  this.searchBox.addEventListener('open', () => window.parent.onSearchOpen());
+  this.searchBox.addEventListener('close', () => window.parent.onSearchClose());
+  this.searchBox.addEventListener('search', (evt) => this.search(evt.detail));
+  this.searchBox.addEventListener('resultclick', (evt) => {
+    var link = evt.detail;
+    if (link) {
+      if (link.dataset.section === 'songs') {
+        this.queueSong(link.dataset.filePath);
+      }
+
+      this.client.method('navigate', link.getAttribute('href'));
+    }
+  });
+
+  this.searchBox.getItemImageSrc = (item) => {
+    return this.getThumbnail(item.name);
+  };
 
   this.tiles.addEventListener('click', (evt) => {
     var link = evt.target.closest('a[data-file-path]');
@@ -62,8 +77,8 @@ HomeView.prototype.render = function() {
     this.tiles.innerHTML = html;
 
     [].forEach.call(this.tiles.querySelectorAll('.tile'), (tile) => {
-      this.getSongThumbnail(tile.dataset.filePath)
-        .then(blob => tile.querySelector('img').src = URL.createObjectURL(blob));
+      this.getThumbnail(tile.dataset.filePath)
+        .then(url => tile.querySelector('img').src = url);
     });
   });
 };
@@ -72,12 +87,92 @@ HomeView.prototype.getAlbums = function() {
   return this.fetch('/api/albums/list').then(response => response.json());
 };
 
-HomeView.prototype.getSongThumbnail = function(filePath) {
-  return this.fetch('/api/artwork/thumbnail/' + filePath).then(response => response.blob());
+HomeView.prototype.getThumbnail = function(filePath) {
+  return this.fetch('/api/artwork/thumbnail/' + filePath)
+    .then(response => response.blob())
+    .then((blob) => {
+      var url = URL.createObjectURL(blob);
+      setTimeout(() => URL.revokeObjectURL(url), 1);
+
+      return url;
+    });
 };
 
 HomeView.prototype.queueAlbum = function(filePath) {
   this.fetch('/api/queue/album/' + filePath);
+};
+
+HomeView.prototype.queueSong = function(filePath) {
+  this.fetch('/api/queue/song/' + filePath);
+};
+
+HomeView.prototype.search = function(query) {
+  var results = [];
+
+  return Promise.all([
+    document.l10n.formatValue('unknownTitle'),
+    document.l10n.formatValue('unknownArtist'),
+    document.l10n.formatValue('unknownAlbum')
+  ]).then(([unknownTitle, unknownArtist, unknownAlbum]) => {
+    var albumResults = this.fetch('/api/search/album/' + query)
+      .then(response => response.json())
+      .then((albums) => {
+        var albumResults = albums.map((album) => {
+          return {
+            name:     album.name,
+            title:    album.metadata.album  || unknownAlbum,
+            subtitle: album.metadata.artist || unknownArtist,
+            section:  'albums',
+            url:      '/album-detail?id=' + album.name
+          };
+        });
+
+        results = results.concat(albumResults);
+
+        this.searchBox.setResults(results);
+        return albumResults;
+      });
+
+    var artistResults = this.fetch('/api/search/artist/' + query)
+      .then(response => response.json())
+      .then((artists) => {
+        var artistResults = artists.map((artist) => {
+          return {
+            name:     artist.name,
+            title:    artist.metadata.artist || unknownArtist,
+            subtitle: '',
+            section:  'artists',
+            url:      '/artist-detail?id=' + artist.name
+          };
+        });
+
+        results = results.concat(artistResults);
+
+        this.searchBox.setResults(results);
+        return artistResults;
+      });
+
+    var songResults = this.fetch('/api/search/title/' + query)
+      .then(response => response.json())
+      .then((songs) => {
+        var songResults = songs.map((song) => {
+          return {
+            name:     song.name,
+            title:    song.metadata.title  || unknownTitle,
+            subtitle: song.metadata.artist || unknownArtist,
+            section:  'songs',
+            url:      '/player?id=' + song.name
+          };
+        });
+
+        results = results.concat(songResults);
+
+        this.searchBox.setResults(results);
+        return songResults;
+      });
+
+    return Promise.all([albumResults, artistResults, songResults]).then(() => results);
+  });
 };
 
 window.view = new HomeView();
