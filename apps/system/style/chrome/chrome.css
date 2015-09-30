@@ -105,6 +105,14 @@
   width: calc(100% - 8rem);
 }
 
+/* Give the urlbar an extra hit target reaching toward the top of the screen. */
+.chrome:not(.maximized) .controls .urlbar-hit-area {
+  position: absolute;
+  width: 100%;
+  height: 3.2rem;
+  top: -0.8rem;
+}
+
 .search-app .chrome .controls .windows-button {
   display: inline;
 }
@@ -503,17 +511,21 @@ section.pin-dialog button[data-action="pin"]::before {
 }
 
 .site-icon {
-  width: 3.2rem;
-  height: 3.2rem;
+  width: 3.4rem;
+  height: 3.4rem;
   background-repeat: no-repeat;
   background-size: cover;
-  background-image: url('images/default_icon.png');
+  background-image: url('images/loading_icon_white.svg');
   position: absolute;
   /* The icon renderer adds 4px padding for getting a smoother
      rounded icon. Reallocating to fit with the url bar
   */
-  top: -.2rem;
-  left: -.2rem;
+  top: -.1rem;
+  left: -.1rem;
+}
+
+.light .site-icon {
+  background-image: url('images/loading_icon_dark.svg');
 }
 
 .homescreen > .chrome .site-icon,

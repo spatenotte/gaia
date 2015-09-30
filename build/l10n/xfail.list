@@ -27,10 +27,6 @@ apps/calendar/test/unit/view_test.js
 apps/calendar/test/unit/views/month_day_agenda_test.js
 apps/calendar/test/unit/views/view_event_test.js
 apps/camera/test/unit/controllers/preview-gallery_test.js
-apps/clock/js/banner/main.js
-apps/clock/js/panels/alarm/clock_view.js
-apps/clock/js/panels/alarm_edit/main.js
-apps/clock/js/utils.js
 apps/collection/js/create_collection.js
 apps/collection/js/objects.js
 apps/collection/js/suggestions.js
@@ -69,12 +65,6 @@ apps/email/js/toaster.js
 apps/fl/js/utils.js
 apps/homescreen/test/marionette/lib/homescreen.js
 apps/keyboard/js/settings/layout_item_view.js
-apps/music/js/open.js
-apps/music/js/ui/views/mode_manager.js
-apps/music/js/ui/views/player_view.js
-apps/music/js/ui/views/subList_view.js
-apps/music/js/ui/views/tiles_view.js
-apps/music/js/utils.js
 apps/network-alerts/js/attention/attention.js
 apps/pdfjs/content/web/viewer.js
 apps/privacy-panel/js/ala/define_custom_location.js
@@ -136,7 +126,6 @@ dev_apps/geoloc/js/geoloc.js
 shared/elements/gaia_grid/js/items/collection.js
 shared/js/contact2vcard.js
 shared/js/contacts/contacts_buttons.js
-shared/js/contacts/import/utilities/misc.js
 shared/js/dialer/keypad.js
 shared/js/dialer/utils.js
 shared/js/l10n_date.js
