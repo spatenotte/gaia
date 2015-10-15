@@ -44,18 +44,6 @@ if (navigator.mozSetMessageHandler) {
   navigator.mozSetMessageHandler('activity', activity => onActivity(activity));
 }
 
-var unknownArtist;
-var unknownTitle;
-
-document.addEventListener('DOMLocalized', () => {
-  document.l10n.formatValue('unknownArtist').then((value) => {
-    unknownArtist = value;
-  });
-  document.l10n.formatValue('unknownTitle').then((value) => {
-    unknownTitle = value;
-  });
-});
-
 var client = bridge.client({
   service: 'music-service',
   endpoint: window,
@@ -63,6 +51,18 @@ var client = bridge.client({
 });
 
 client.on('play', () => isPlaying = true);
+
+client.on('stop', () => {
+  isPlaying = false;
+
+  var isPlayerView = viewStack.activeView &&
+    viewStack.activeView.url === VIEWS.PLAYER.URL;
+
+  if (isPlayerView) {
+    viewStack.popView(true);
+    window.history.back();
+  }
+});
 
 client.on('databaseChange', () => updateOverlays());
 
@@ -81,10 +81,14 @@ client.on('databaseReady', () => {
 });
 
 client.on('scanProgress', (detail) => {
-  scanProgress.show({
-    value:      detail.count,
-    heading:    detail.artist || unknownArtist,
-    subheading: detail.title  || unknownTitle
+  document.l10n.formatValues(
+    'unknownArtist', 'unknownTitle'
+  ).then(([unknownArtist, unknownTitle]) => {
+    scanProgress.show({
+      value:      detail.count,
+      heading:    detail.artist || unknownArtist,
+      subheading: detail.title  || unknownTitle
+    });
   });
 });
 
@@ -112,7 +116,7 @@ header.addEventListener('action', (evt) => {
   }
 
   var isPlayerView = viewStack.activeView &&
-    viewStack.activeView.frame.src.endsWith(VIEWS.PLAYER.URL);
+    viewStack.activeView.url === VIEWS.PLAYER.URL;
 
   if (viewStack.views.length > 1) {
     // Don't destroy the popped view if it is the "Player" view.
@@ -181,7 +185,8 @@ viewStack.addEventListener('titlechange', (evt) => {
   setHeaderTitle(evt.detail);
 });
 
-viewStack.addEventListener('rendered', onVisuallyLoaded);
+viewStack.addEventListener('loaded', onVisuallyLoaded);
+viewStack.addEventListener('rendered', onFullyLoaded);
 
 tabBar.addEventListener('change', (evt) => {
   var tab = evt.detail.selectedElement;
@@ -303,7 +308,7 @@ function onSearchClose() {
 }
 
 function onVisuallyLoaded() {
-  viewStack.removeEventListener('rendered', onVisuallyLoaded);
+  viewStack.removeEventListener('loaded', onVisuallyLoaded);
 
   // PERFORMANCE MARKER (3): visuallyLoaded
   // Designates that the app is visually loaded (e.g.: all of the
@@ -316,6 +321,10 @@ function onVisuallyLoaded() {
   // set of functionality to allow the user to interact with the
   // "above-the-fold" content.
   perfMark('contentInteractive');
+}
+
+function onFullyLoaded() {
+  viewStack.removeEventListener('rendered', onFullyLoaded);
 
   // PERFORMANCE MARKER (5): fullyLoaded
   // Designates that the app is *completely* loaded and all relevant

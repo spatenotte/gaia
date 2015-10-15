@@ -1,4 +1,4 @@
-/* global View */
+/* global View, IntlHelper */
 'use strict';
 
 var AlbumDetailView = View.extend(function AlbumDetailView() {
@@ -41,7 +41,10 @@ AlbumDetailView.prototype.render = function() {
 };
 
 AlbumDetailView.prototype.getAlbum = function() {
-  return this.fetch('/api/albums/info/' + this.params.id)
+  var unpaddedIndex = IntlHelper.get('unpaddedIndex');
+  var paddedIndex = IntlHelper.get('paddedIndex');
+
+  return this.fetch('/api/albums/info/' + decodeURIComponent(this.params.id))
     .then(response => response.json())
     .then(songs => {
       var maxDiscNumber = Math.max(
@@ -49,13 +52,19 @@ AlbumDetailView.prototype.getAlbum = function() {
         songs[songs.length - 1].metadata.discnum
       );
 
-      songs.forEach((song) => {
-        song.index = maxDiscNumber > 1 && song.metadata.tracknum ?
-          song.metadata.discnum + '.' + formatNumber(song.metadata.tracknum) :
-          song.metadata.tracknum;
+      return songs.map((song) => {
+        return {
+          index: maxDiscNumber > 1 &&
+            song.metadata.discnum && song.metadata.tracknum ?
+              unpaddedIndex.format(song.metadata.discnum) + '.' +
+                paddedIndex.format(song.metadata.tracknum) :
+              (song.metadata.tracknum ?
+                unpaddedIndex.format(song.metadata.tracknum) : ''),
+          name:  song.name,
+          title: song.metadata.title
+        };
       });
 
-      return songs;
     });
 };
 
@@ -63,8 +72,16 @@ AlbumDetailView.prototype.queueAlbum = function(filePath) {
   this.fetch('/api/queue/album/' + filePath);
 };
 
-function formatNumber(number) {
-  return (number < 10 ? '0' : '') + number;
-}
+IntlHelper.define('unpaddedIndex', 'number', {
+  style: 'decimal',
+  useGrouping: false,
+  minimumIntegerDigits: 1
+});
+
+IntlHelper.define('paddedIndex', 'number', {
+  style: 'decimal',
+  useGrouping: false,
+  minimumIntegerDigits: 2
+});
 
 window.view = new AlbumDetailView();

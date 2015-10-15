@@ -16,11 +16,10 @@ Homescreen.Selectors = {
   apps: '#apps',
   icon: '#apps gaia-app-icon',
   card: '#pages gaia-pin-card',
-  uninstall: '#uninstall',
+  remove: '#remove',
   edit: '#edit',
   cancelDownload: '#cancel-download',
-  resumeDownload: '#resume-download',
-  settingsDialog: '#settings'
+  resumeDownload: '#resume-download'
 };
 
 Homescreen.prototype = {
@@ -60,8 +59,8 @@ Homescreen.prototype = {
     });
   },
 
-  get uninstallTray() {
-    return this.client.findElement(Homescreen.Selectors.uninstall);
+  get removeTray() {
+    return this.client.findElement(Homescreen.Selectors.remove);
   },
 
   get editTray() {
@@ -74,15 +73,6 @@ Homescreen.prototype = {
 
   get resumeDownloadDialog() {
     return this.client.findElement(Homescreen.Selectors.resumeDownload);
-  },
-
-  get settingsDialog() {
-    return this.client.findElement(Homescreen.Selectors.settingsDialog);
-  },
-
-  get settingsDialogButtons() {
-    return this.client.findElements(
-      Homescreen.Selectors.settingsDialog + ' button');
   },
 
   /**
@@ -249,22 +239,6 @@ Homescreen.prototype = {
       var midPoint = scrollable.clientHeight / 2;
       scrollable.scrollTop = scrollable.scrollTop + (position - midPoint);
     }, [icon, this.appsScrollable, icon.location().y]);
-  },
-
-  /**
-   * Opens the settings menu by long-pressing on the empty space at the bottom
-   * of the icon grid.
-   */
-  openSettingsMenu: function() {
-    var rect = this.appsScrollable.scriptWith(function(el) {
-      el.scrollTop = el.scrollTopMax;
-      return el.getBoundingClientRect();
-    });
-    var actions = this.client.loader.getActions();
-    actions.press(this.appsScrollable, rect.width / 2, rect.height - 1).
-            wait(0.5).
-            release().
-            perform();
   },
 
   /**

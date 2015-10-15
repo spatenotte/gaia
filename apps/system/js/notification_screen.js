@@ -1,5 +1,5 @@
 /* global LazyLoader, MediaPlaybackWidget, Service,
-          SettingsListener, SettingsURL, toneUpgrader */
+          SettingsListener, SettingsURL, toneUpgrader, mozIntl */
 
 'use strict';
 
@@ -372,16 +372,15 @@ var NotificationScreen = {
   },
 
   updateTimestamps: function ns_updateTimestamps() {
-    var timestamps = document.getElementsByClassName('timestamp');
-    var formatter = navigator.mozL10n.DateTimeFormat();
+    var timestamps = [...document.querySelectorAll('.timestamp')];
+    var formatter = mozIntl._gaia.RelativeDate(navigator.languages, {
+      style: 'short'
+    });
 
-    for (var i = 0, l = timestamps.length; i < l; i++) {
-      formatter.relativeDate(new Date(timestamps[i].dataset.timestamp)).then(
-        str => {
-          timestamps[i].textContent = str;
-        }
-      );
-    }
+    timestamps.forEach(timestamp => {
+      formatter.formatElement(
+        timestamp, new Date(timestamp.dataset.timestamp));
+    });
   },
 
   updateToaster: function ns_updateToaster(detail, type, dir) {
@@ -470,11 +469,10 @@ var NotificationScreen = {
     var timestamp = detail.timestamp ? new Date(detail.timestamp) : new Date();
     time.classList.add('timestamp');
     time.dataset.timestamp = timestamp;
-    navigator.mozL10n.DateTimeFormat().relativeDate(timestamp, true).then(
-      str => {
-        time.textContent = str;
-      }
-    );
+    var formatter = mozIntl._gaia.RelativeDate(navigator.languages, {
+      style: 'short'
+    });
+    formatter.formatElement(time, timestamp);
     titleContainer.appendChild(time);
 
     notificationNode.appendChild(titleContainer);

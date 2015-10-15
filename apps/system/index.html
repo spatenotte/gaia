@@ -8,7 +8,7 @@
 
     <!-- Shared code -->
     <script src="shared/js/l10n.js"></script>
-    <script src="shared/js/l10n_date.js"></script>
+    <script src="shared/js/moz_intl.js"></script>
     <script src="shared/js/dump.js"></script>
 
     <link rel="resource" type="image/png" href="shared/resources/branding/browser_84.png"/>
@@ -39,12 +39,14 @@
     <link rel="stylesheet" type="text/css" href="shared/elements/gaia-icons/gaia-icons.css">
     <link rel="stylesheet" type="text/css" href="style/fake-notification.css"/>
     <link rel="stylesheet" type="text/css" href="style/view_source.css"/>
+    <link rel="stylesheet" type="text/css" href="style/tracking_notice/tracking_notice.css"/>
 
     <script defer src="shared/elements/config.js"></script>
     <script defer src="shared/js/component_utils.js"></script>
     <!-- <script defer src="/shared/js/homescreens/confirm_dialog_helper.js"></script> -->
     <!-- <script defer src="/shared/elements/gaia_confirm/script.js"></script> -->
     <!-- <script defer src="/shared/elements/gaia_menu/script.js"></script> -->
+    <!-- <script defer src="/shared/elements/gaia_switch/script.js"></script> -->
     <script defer src="shared/elements/gaia_buttons/script.js"></script>
     <script defer src="shared/elements/gaia_checkbox/script.js"></script>
     <script defer src="shared/elements/gaia_progress/script.js"></script>
@@ -343,6 +345,10 @@
 
       <!-- XXX: Before we can make LockScreen as a iframe or app, we need this to split LockScreen and System part in this way (Bug 1057198) -->
       <div id="lockscreen-frame-placeholder"></div>
+
+      <!-- This overlay is used for dialogs that need to be in top of the statusbar, but below
+      other divs like the lockscreen or sleep-menu -->
+      <div id="fullscreen-dialog-overlay" data-z-index-level="fullscreen-dialog-overlay"></div>
 
       <div id="dialog-overlay" data-z-index-level="dialog-overlay">
         <!-- Unlock SIM Pin dialog -->
@@ -664,9 +670,15 @@
       <div id="global-overlays" data-z-index-level="global-overlays"></div>
 
       <!-- cards view -->
-      <div id="cards-view" data-z-index-level="cards-view">
-        <ul id="cards-list"></ul>
-        <span id="cards-no-recent-windows" class="no-recent-apps" data-l10n-id="no-recent-app-windows"></span>
+      <div id="task-manager" data-z-index-level="cards-view">
+        <div id="cards-view">
+          <ul id="cards-list"></ul>
+          <span id="cards-no-recent-windows" class="no-recent-apps" data-l10n-id="no-recent-app-windows"></span>
+        </div>
+        <div id="task-manager-buttons">
+          <button id="task-manager-new-private-sheet-button"></button>
+          <button id="task-manager-new-sheet-button"></button>
+        </div>
       </div>
 
       <!-- icc / stk -->

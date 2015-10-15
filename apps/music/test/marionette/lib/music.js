@@ -56,19 +56,17 @@ Music.Selector = Object.freeze({
   playerCover: '#artwork',
 
   // search fields
-  searchField: '#views-search-input',
-  searchTiles: '#views-tiles-search',
-  searchTilesField: '#views-tiles-search-input',
-  searchList: '#views-list-search',
-  searchListField: '#views-list-search-input',
+  searchBox: 'music-search-box',
+  searchResults: 'music-search-results',
+  searchField: '#input',
   // search results
   searchArtists: '#views-search-artists',
   searchAlbums: '#views-search-albums',
   searchTitles: '#views-search-titles',
   searchNoResult: '#views-search-no-result',
 
-  tilesView: '#views-tiles',
-  firstSong: '#list a',
+  tilesView: '#tiles',
+  listItem: '#list .gfl-item',
   playButton: '#player-controls-play',
   progressBar: '#player-seek-bar-progress',
   shareButton: 'button[data-action="share"]',
@@ -88,6 +86,13 @@ Music.prototype = {
     var debug = this.client.executeScript(function() {
       return document.documentElement.innerHTML;
     });
+    console.log('debug', debug);
+  },
+
+  debugShadowRootDocument: function(element) {
+    var debug = this.client.executeScript(function(element) {
+      return element.shadowRoot.innerHTML;
+    }, [element]);
     console.log('debug', debug);
   },
 
@@ -169,7 +174,7 @@ Music.prototype = {
 
   // get the first song from the active frame.
   get firstSong() {
-    return this.client.helper.waitForElement(Music.Selector.firstSong);
+    return this.client.helper.waitForElement(Music.Selector.listItem);
   },
 
   getStarRating: function() {
@@ -192,21 +197,39 @@ Music.prototype = {
     return value ? parseInt(value, 10) : 0;
   },
 
-  // Helper for the getter.
-  _getListItemsData: function(frame) {
-    assert.ok(frame, 'Frame must be valid.' + frame);
+  getShuffleSetting: function() {
+    var frame = this.playerViewFrame;
+    assert.ok(frame);
 
     this.client.switchToFrame(frame);
 
-    var listItems = this.client.executeScript(function () {
-      var list = document.getElementById('list');
+    var artwork = this.client.findElement(Music.Selector.playerCover);
+    this.client.switchToShadowRoot(artwork);
+    assert.ok(artwork);
+
+    var shuffleBtn = this.client.findElement(
+      '#controls button[data-action="shuffle"]');
+    assert.ok(shuffleBtn);
+
+    var value = shuffleBtn.getAttribute('data-value');
+    assert.ok(value);
+
+    this.client.switchToShadowRoot();
+    this.switchToMe();
+
+    return value;
+  },
+
+  // Helper for the getter.
+
+  parseListItemsData: function(elements) {
       var elementsData = [];
-      var elements = list.querySelectorAll('a');
       for(var i = 0; i < elements.length; i++) {
         var data = {};
         var a = elements[i];
         data.filePath = a.dataset.filePath;
         data.href = a.href;
+        data.section = a.dataset.section;
         var em = elements[i].getElementsByTagName('em');
         if (em.length) {
           data.index = em[0].textContent;
@@ -226,7 +249,19 @@ Music.prototype = {
         elementsData.push(data);
       }
       return elementsData;
-    });
+  },
+
+  _getListItemsData: function(frame) {
+    assert.ok(frame, 'Frame must be valid.' + frame);
+
+    this.client.switchToFrame(frame);
+
+    var listItems = this.client.executeScript(
+      'var parse = ' + this.parseListItemsData.toString() + '\n' +
+      'var elements = document.querySelectorAll(\'.gfl-item\');\n' +
+      'return parse(elements);\n'
+    );
+
     this.switchToMe();
     return listItems;
   },
@@ -454,22 +489,36 @@ Music.prototype = {
   },
 
   showSearchInput: function(viewSelector) {
-    var tilesView = this.client.findElement(viewSelector);
-    var chain = this.actions.press(tilesView, 10, 10).perform();
+    var frame = this.activeViewFrame;
+    assert.ok(frame);
+    this.client.switchToFrame(frame);
+
+    var view = this.client.findElement(viewSelector);
+    var chain = this.actions.press(view, 10, 10).perform();
     chain.moveByOffset(0, 110).perform();
     chain.release().perform();
+
+    this.switchToMe();
   },
 
   searchArtists: function(searchTerm) {
-    this.search(Music.Selector.searchList, searchTerm);
+    this.search(Music.Selector.artistsViewFrame, searchTerm);
   },
 
   searchTiles: function(searchTerm) {
-    this.search(Music.Selector.searchTiles, searchTerm);
+    this.search(Music.Selector.homeViewFrame, searchTerm);
   },
 
   search: function(viewSelector, searchTerm) {
-    this.client.findElement(viewSelector).tap();
+
+    assert.ok(viewSelector, 'Not a valid selector. Fix your test.');
+
+    var frame = this.client.findElement(viewSelector);
+    assert.ok(frame, viewSelector, 'can\'t be foun.');
+    this.client.switchToFrame(frame);
+
+    var searchBox = this.client.helper.waitForElement(Music.Selector.searchBox);
+    this.client.switchToShadowRoot(searchBox);
 
     var input = this.client.helper.waitForElement(Music.Selector.searchField);
     assert.ok(input);
@@ -477,6 +526,10 @@ Music.prototype = {
     input.clear();
     this.client.waitFor(input.displayed.bind(input));
     input.sendKeys(searchTerm);
+
+    this.client.switchToShadowRoot();
+
+    this.switchToMe();
   },
 
   switchToArtistsView: function() {
@@ -500,14 +553,16 @@ Music.prototype = {
   },
 
   _selectItem: function(name, frame) {
+    assert.ok(frame, 'expected a valid frame');
     this.client.switchToFrame(frame);
 
-    var elements = this.client.findElements('#list a');
+    var elements = this.client.findElements('#list .gfl-item');
     assert.ok(elements.length > 0);
 
     var matching = elements.filter(function (element) {
       return element.findElement('h3').text() === name;
     });
+
     assert.ok(matching.length > 0);
     matching[0].tap();
 

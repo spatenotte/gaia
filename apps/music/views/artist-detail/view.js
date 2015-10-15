@@ -1,4 +1,4 @@
-/* global View */
+/* global View, IntlHelper */
 'use strict';
 
 var ArtistDetailView = View.extend(function ArtistDetailView() {
@@ -13,6 +13,12 @@ var ArtistDetailView = View.extend(function ArtistDetailView() {
     var link = evt.target.closest('a[data-file-path]');
     if (link) {
       this.queueArtist(link.dataset.filePath);
+    }
+  });
+
+  this.list.configure({
+    getSectionName: (item) => {
+      return item.section;
     }
   });
 
@@ -41,21 +47,20 @@ ArtistDetailView.prototype.render = function() {
 };
 
 ArtistDetailView.prototype.getArtist = function() {
-  return this.fetch('/api/artists/info/' + this.params.id)
+  var unpaddedIndex = IntlHelper.get('unpaddedIndex');
+
+  return this.fetch('/api/artists/info/' + decodeURIComponent(this.params.id))
     .then(response => response.json())
     .then(songs => {
-      var maxDiscNumber = Math.max(
-        songs[songs.length - 1].metadata.disccount,
-        songs[songs.length - 1].metadata.discnum
-      );
-
-      songs.forEach((song) => {
-        song.index = maxDiscNumber > 1 && song.metadata.tracknum ?
-          song.metadata.discnum + '.' + formatNumber(song.metadata.tracknum) :
-          song.metadata.tracknum;
+      return songs.map((song) => {
+        return {
+          index:   song.metadata.tracknum ?
+            unpaddedIndex.format(song.metadata.tracknum) : '',
+          name:    song.name,
+          title:   song.metadata.title,
+          section: song.metadata.album
+        };
       });
-
-      return songs;
     });
 };
 
@@ -63,8 +68,10 @@ ArtistDetailView.prototype.queueArtist = function(filePath) {
   this.fetch('/api/queue/artist/' + filePath);
 };
 
-function formatNumber(number) {
-  return (number < 10 ? '0' : '') + number;
-}
+IntlHelper.define('unpaddedIndex', 'number', {
+  style: 'decimal',
+  useGrouping: false,
+  minimumIntegerDigits: 1
+});
 
 window.view = new ArtistDetailView();

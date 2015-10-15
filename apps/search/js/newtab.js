@@ -1,5 +1,5 @@
 'use strict';
-/* global asyncStorage, SettingsListener */
+/* global asyncStorage, MozActivity, SettingsListener */
 
 (function(exports) {
 
@@ -16,10 +16,6 @@
    * Instantiates places to populate history and top sites.
    */
   function Newtab() {
-    var privateWindow = document.getElementById('private-window');
-    privateWindow.addEventListener('click',
-      this.requestPrivateWindow.bind(this));
-
     // Initialize the parent port connection
     var self = this;
     navigator.mozApps.getSelf().onsuccess = function() {
@@ -66,15 +62,6 @@
     },
 
     /**
-     * Requests that the system app opens a new private window.
-     */
-    requestPrivateWindow: function() {
-      this._port.postMessage({
-        'action': 'private-window'
-      });
-    },
-
-    /**
      * Pretends to be a private window.
      * Makes this window look like a private window by applying the necessary
      * theme color and background. The window can't be truly private,
@@ -100,6 +87,10 @@
         this.privateBrowserDialogClose = document.getElementById(
           'private-window-hide-dialog');
         this.privateBrowserDialogClose.addEventListener('click', this);
+
+        this.privateBrowserLearnMore = document.getElementById(
+          'private-learn-more');
+        this.privateBrowserLearnMore.addEventListener('click', this);
       });
     },
 
@@ -130,6 +121,9 @@
         case this.privateBrowserDialogClose:
           this.hidePrivateBrowserDialog();
           break;
+        case this.privateBrowserLearnMore:
+          this.learnAboutPrivateBrowsing(e);
+          break;
       }
     },
 
@@ -145,6 +139,21 @@
       if (checkbox.checked) {
         asyncStorage.setItem('shouldSuppressPrivateDialog', true);
       }
+    },
+
+    /**
+     * Opens the learn more dialog.
+     */
+    learnAboutPrivateBrowsing: function(e) {
+      e.preventDefault();
+      /* jshint nonew: false */
+      new MozActivity({
+        name: 'view',
+        data: {
+          type: 'url',
+          url: e.target.href
+        }
+      });
     }
   };
 

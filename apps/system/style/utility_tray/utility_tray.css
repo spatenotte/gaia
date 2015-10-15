@@ -85,13 +85,8 @@
 
 #statusbar-tray > .sb-start-upper {
   position: absolute;
-  left: 0;
+  offset-inline-start: 0;
   line-height: var(--statusbar-height);
-}
-
-html[dir="rtl"] #statusbar-tray > .sb-start-upper {
-  left: unset;
-  right: 0;
 }
 
 /* Notifications indicator */

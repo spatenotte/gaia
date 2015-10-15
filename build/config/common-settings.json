@@ -1,6 +1,7 @@
 {
    "accessibility.invert": false,
    "accessibility.screenreader": false,
+   "accessibility.screenreader-ftu-timeout-seconds": 15,
    "achievements": [{
      "issuer": "fxos-customizer",
      "criteria": "achievements/customize-champ"
@@ -134,6 +135,7 @@
    "keyboard.launch-on-boot": true,
    "langpack.channel": "2.5",
    "language.current": "en-US",
+   "latecustomization.url": "https://marketplace.mozilla.org/api/v2/late-customization/",
    "layers.draw-borders": false,
    "layers.dump": false,
    "layers.enable-tiles": true,
@@ -234,11 +236,15 @@
    "support.callsupport2.title": "",
    "support.callsupport2.href": "",
    "sync.collections.history.enabled": true,
-   "sync.collections.passwords.enabled": true,
+   "sync.collections.passwords.enabled": false,
+   "sync.collections.bookmarks.enabled": true,
    "sync.collections.history.readonly": true,
    "sync.collections.passwords.readonly": true,
+   "sync.collections.bookmarks.readonly": true,
+   "sync.fxa.audience": "https://token.services.mozilla.com/",
    "sync.scheduler.interval": 3600,
    "sync.scheduler.wifionly": false,
+   "sync.server.url": "https://syncto.dev.mozaws.net/v1/",
    "telephony.speaker.enabled": false,
    "tethering.usb.enabled": false,
    "tethering.usb.ip": "192.168.0.1",

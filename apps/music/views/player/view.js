@@ -45,9 +45,6 @@ var PlayerView = View.extend(function PlayerView() {
     this.seekBar.elapsedTime = elapsedTime;
   });
 
-  this.getRepeatSetting().then(repeat => this.artwork.repeat = repeat);
-  this.getShuffleSetting().then(shuffle => this.artwork.shuffle = shuffle);
-
   this.update();
 });
 
@@ -58,11 +55,9 @@ PlayerView.prototype.update = function() {
         return;
       }
 
-      Promise.all([
-        document.l10n.formatValue('unknownTitle'),
-        document.l10n.formatValue('unknownArtist'),
-        document.l10n.formatValue('unknownAlbum')
-      ]).then(([unknownTitle, unknownArtist, unknownAlbum]) => {
+      document.l10n.formatValues(
+        'unknownTitle', 'unknownArtist', 'unknownAlbum'
+      ).then(([unknownTitle, unknownArtist, unknownAlbum]) => {
         this.title          = song.metadata.title  || unknownTitle;
         this.artwork.artist = song.metadata.artist || unknownArtist;
         this.artwork.album  = song.metadata.album  || unknownAlbum;
@@ -72,10 +67,12 @@ PlayerView.prototype.update = function() {
     });
 
     this.getSongArtwork(status.filePath)
-      .then(blob => this.artwork.src = URL.createObjectURL(blob));
+      .then((url) => this.artwork.src = url);
 
-    this.controls.paused = status.paused;
-    this.seekBar.duration = status.duration;
+    this.artwork.repeat      = REPEAT_VALUES[status.repeat];
+    this.artwork.shuffle     = SHUFFLE_VALUES[status.shuffle];
+    this.controls.paused     = status.paused;
+    this.seekBar.duration    = status.duration;
     this.seekBar.elapsedTime = status.elapsedTime;
     this.render();
   });
@@ -129,20 +126,8 @@ PlayerView.prototype.getPlaybackStatus = function() {
   return this.fetch('/api/audio/status').then(response => response.json());
 };
 
-PlayerView.prototype.getRepeatSetting = function() {
-  return this.fetch('/api/queue/repeat')
-    .then(response => response.json())
-    .then(index => REPEAT_VALUES[index]);
-};
-
 PlayerView.prototype.setRepeatSetting = function(repeat) {
   this.fetch('/api/queue/repeat/' + REPEAT_VALUES.indexOf(repeat));
-};
-
-PlayerView.prototype.getShuffleSetting = function() {
-  return this.fetch('/api/queue/shuffle')
-    .then(response => response.json())
-    .then(index => SHUFFLE_VALUES[index]);
 };
 
 PlayerView.prototype.setShuffleSetting = function(shuffle) {
@@ -162,9 +147,10 @@ PlayerView.prototype.getSong = function(filePath) {
 };
 
 PlayerView.prototype.getSongArtwork = function(filePath) {
-  return this.fetch('/api/artwork/original/' + filePath).then((response) => {
-    return response.blob();
-  });
+  return this.fetch('/api/artwork/url/original/' + filePath)
+    .then((response) => {
+      return response.json();
+    });
 };
 
 window.view = new PlayerView();

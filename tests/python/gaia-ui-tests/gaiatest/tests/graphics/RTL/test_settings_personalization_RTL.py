@@ -20,7 +20,6 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
                                         screen=sound_page.screen_element)
         self.take_screenshot('sound')
         ringtone_page = sound_page.tap_ring_tone_selector()
-
         self.take_screenshot('sound-ringtones')
         for i in range(0, 5):
             GaiaImageCompareTestCase.scroll(self.marionette, 'down', ringtone_page.screen_element.size['height'],
@@ -140,8 +139,7 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
         ############## Themes ######################
         themes_page = settings.open_themes()
         self.take_screenshot('themes')
-        settings.return_to_prev_menu(settings.screen_element, themes_page.screen_element,
-                                     back_button=themes_page.back_btn_element)
+        settings.return_to_prev_menu(settings.screen_element, themes_page.screen_element)
 
         ############# Addons ######################
         addons_page = settings.open_addons()
@@ -154,7 +152,3 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
         addons_page.toggle_addon_status()  # revert to original state
         settings.return_to_prev_menu(addons_page.screen_element, addons_page.details_screen_element)
         settings.return_to_prev_menu(settings.screen_element, addons_page.screen_element)
-
-        ############# Achievements ######################
-        settings.open_achievements()
-        self.take_screenshot('achievements')

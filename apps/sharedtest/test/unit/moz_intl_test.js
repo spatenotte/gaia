@@ -48,6 +48,19 @@ suite('MozIntl', function() {
   });
 
   suite('DateTimeFormat', function() {
+    test('with no arguments use defaults', function() {
+
+      var intlFormatter = Intl.DateTimeFormat();
+
+      var formatter = mozIntl.DateTimeFormat();
+      var options = formatter.resolvedOptions();
+      var intlOptions = intlFormatter.resolvedOptions();
+
+      assert.equal(options.locale, intlOptions.locale);
+      assert.equal(options.hour12, intlOptions.hour12);
+      assert.equal(options.dayperiod, intlOptions.hour12);
+    });
+
     test('get time with dayperiod', function() {
       var formatter = mozIntl.DateTimeFormat(navigator.languages, {
         hour: 'numeric',
@@ -214,14 +227,76 @@ suite('MozIntl', function() {
   suite('DurationFormat', function() {
     setup(function() {
       this.sinon.stub(navigator.mozL10n, 'formatValue', function(...args) {
-        if (args[0] === 'timePattern_hms') {
-          return Promise.resolve('hh:mm:ss');
-        }
-        if (args[0] === 'timePattern_msS') {
-          return Promise.resolve('mm:ss.SS');
+        if (args[0] === 'durationPattern') {
+          return Promise.resolve('hh:mm:ss.SS');
         }
         return MockL10n.formatValue(...args);
       });
+    });
+
+    test('with no arguments use defaults', function(done) {
+      mozIntl.DurationFormat().then(formatter => {
+        const options = formatter.resolvedOptions();
+        assert.equal(options.maxUnit, 'hour');
+        assert.equal(options.minUnit, 'second');
+        assert.equal(options.locale, navigator.language);
+      }).then(done, done);
+    });
+
+    test('hh:mm', function(done) {
+      // 2 min, 1 sec
+      var ms = (2 * 1000 * 60) + (1 * 1000);
+
+      mozIntl.DurationFormat(navigator.languages, {
+        maxUnit: 'hour',
+        minUnit: 'minute',
+      }).then(formatter => {
+        var string = formatter.format(ms);
+
+        assert.strictEqual(string, '00:02');
+      }).then(done, done);
+    });
+
+    test('mm:ss', function(done) {
+      // 0 min, 1 sec
+      var ms = (1 * 1000);
+
+      mozIntl.DurationFormat(navigator.languages, {
+        maxUnit: 'minute',
+        minUnit: 'second',
+      }).then(formatter => {
+        var string = formatter.format(ms);
+
+        assert.strictEqual(string, '00:01');
+      }).then(done, done);
+    });
+
+    test('hh:mm:ss', function(done) {
+      // 0 min, 1 sec
+      var ms = (1 * 1000);
+
+      mozIntl.DurationFormat(navigator.languages, {
+        maxUnit: 'hour',
+        minUnit: 'second',
+      }).then(formatter => {
+        var string = formatter.format(ms);
+
+        assert.strictEqual(string, '00:00:01');
+      }).then(done, done);
+    });
+
+    test('hh:mm:ss.SS', function(done) {
+      // 0 min, 1 sec
+      var ms = (1 * 1000);
+
+      mozIntl.DurationFormat(navigator.languages, {
+        maxUnit: 'hour',
+        minUnit: 'millisecond',
+      }).then(formatter => {
+        var string = formatter.format(ms);
+
+        assert.strictEqual(string, '00:00:01.00');
+      }).then(done, done);
     });
 
     suite('hms duration', function() {
@@ -230,7 +305,8 @@ suite('MozIntl', function() {
         var ms = (2 * 1000 * 60) + (1 * 1000);
 
         mozIntl.DurationFormat(navigator.languages, {
-          type: 'hms'
+          maxUnit: 'hour',
+          minUnit: 'second',
         }).then(formatter => {
           var string = formatter.format(ms);
 
@@ -243,7 +319,8 @@ suite('MozIntl', function() {
         var ms = (13 * 1000 * 60 * 60) + (10 * 1000 * 60) + (21 * 1000);
 
         mozIntl.DurationFormat(navigator.languages, {
-          type: 'hms'
+          maxUnit: 'hour',
+          minUnit: 'second',
         }).then(formatter => {
           var string = formatter.format(ms);
 
@@ -256,7 +333,8 @@ suite('MozIntl', function() {
         var ms = (13 * 1000 * 60 * 60) + (10 * 1000 * 60) + (21 * 1000) + 400;
 
         mozIntl.DurationFormat(navigator.languages, {
-          type: 'hms'
+          maxUnit: 'hour',
+          minUnit: 'second',
         }).then(formatter => {
           var string = formatter.format(ms);
 
@@ -269,11 +347,54 @@ suite('MozIntl', function() {
         var ms = (13 * 1000 * 60 * 60) + (10 * 1000 * 60) + (21 * 1000) + 600;
 
         mozIntl.DurationFormat(navigator.languages, {
-          type: 'hms'
+          maxUnit: 'hour',
+          minUnit: 'second',
         }).then(formatter => {
           var string = formatter.format(ms);
 
           assert.strictEqual(string, '13:10:22');
+        }).then(done, done);
+      });
+
+      test('with negative values', function(done) {
+        // - 13h, 10 min, 21 sec
+        var ms = ((13 * 1000 * 60 * 60) + (10 * 1000 * 60) + (21 * 1000)) * -1;
+
+        mozIntl.DurationFormat(navigator.languages, {
+          maxUnit: 'hour',
+          minUnit: 'second',
+        }).then(formatter => {
+          var string = formatter.format(ms);
+
+          assert.strictEqual(string, '-13:10:21');
+        }).then(done, done);
+      });
+
+      test('rounding of seconds pushes to a minute', function(done) {
+        // 1 min
+        var ms = 1 * 1000 * 60 - 20;
+
+        mozIntl.DurationFormat(navigator.languages, {
+          maxUnit: 'hour',
+          minUnit: 'second',
+        }).then(formatter => {
+          var string = formatter.format(ms);
+
+          assert.strictEqual(string, '00:01:00');
+        }).then(done, done);
+      });
+
+      test('rounding of seconds pushes to an hour', function(done) {
+        // 1 hour
+        var ms = 1 * 60 * 60 * 1000 - 20;
+
+        mozIntl.DurationFormat(navigator.languages, {
+          maxUnit: 'hour',
+          minUnit: 'second',
+        }).then(formatter => {
+          var string = formatter.format(ms);
+
+          assert.strictEqual(string, '01:00:00');
         }).then(done, done);
       });
     });
@@ -284,7 +405,8 @@ suite('MozIntl', function() {
         var ms = (5 * 1000) + 200;
 
         mozIntl.DurationFormat(navigator.languages, {
-          type: 'msS'
+          maxUnit: 'minute',
+          minUnit: 'millisecond',
         }).then(formatter => {
           var string = formatter.format(ms);
 
@@ -297,7 +419,8 @@ suite('MozIntl', function() {
         var ms = (10 * 1000 * 60) + (21 * 1000) + 150;
 
         mozIntl.DurationFormat(navigator.languages, {
-          type: 'msS'
+          maxUnit: 'minute',
+          minUnit: 'millisecond',
         }).then(formatter => {
           var string = formatter.format(ms);
 
@@ -310,7 +433,8 @@ suite('MozIntl', function() {
         var ms = (10 * 1000 * 60) + (21 * 1000) + 154;
 
         mozIntl.DurationFormat(navigator.languages, {
-          type: 'msS'
+          maxUnit: 'minute',
+          minUnit: 'millisecond',
         }).then(formatter => {
           var string = formatter.format(ms);
 
@@ -323,7 +447,8 @@ suite('MozIntl', function() {
         var ms = (10 * 1000 * 60) + (21 * 1000) + 156;
 
         mozIntl.DurationFormat(navigator.languages, {
-          type: 'msS'
+          maxUnit: 'minute',
+          minUnit: 'millisecond',
         }).then(formatter => {
           var string = formatter.format(ms);
 
@@ -336,11 +461,40 @@ suite('MozIntl', function() {
         var ms = (10 * 1000 * 60) + (21 * 1000) + 4;
 
         mozIntl.DurationFormat(navigator.languages, {
-          type: 'msS'
+          maxUnit: 'minute',
+          minUnit: 'millisecond',
         }).then(formatter => {
           var string = formatter.format(ms);
 
           assert.strictEqual(string, '10:21.00');
+        }).then(done, done);
+      });
+
+      test('with negative values', function(done) {
+        // 10 min, 21 sec, 156ms
+        var ms = ((10 * 1000 * 60) + (21 * 1000)) * -1;
+
+        mozIntl.DurationFormat(navigator.languages, {
+          maxUnit: 'minute',
+          minUnit: 'millisecond',
+        }).then(formatter => {
+          var string = formatter.format(ms);
+
+          assert.strictEqual(string, '-10:21.00');
+        }).then(done, done);
+      });
+
+      test('rounding of ms pushes to seconds', function(done) {
+        // 1 hour
+        var ms = 1 * 1000 - 2;
+
+        mozIntl.DurationFormat(navigator.languages, {
+          maxUnit: 'minute',
+          minUnit: 'millisecond',
+        }).then(formatter => {
+          var string = formatter.format(ms);
+
+          assert.strictEqual(string, '00:01.00');
         }).then(done, done);
       });
     });
@@ -1103,14 +1257,18 @@ suite('MozIntl', function() {
 
       test('maxDiff is null', function(done) {
         var time = Date.now() - 86400 * 20 * 1000;
-        mozIntl._gaia.relativeDate(time).then(result => {
+        var formatter = mozIntl._gaia.RelativeDate(navigator.languages);
+        formatter.format(time).then(result => {
           assert.ok(result.indexOf('/') !== -1);
         }).then(done, done);
       });
 
       test('maxDiff is specified', function(done) {
         var time = Date.now() - 86400 * 20 * 1000;
-        mozIntl._gaia.relativeDate(time, false, (86400 * 21)).then(result => {
+        var formatter = mozIntl._gaia.RelativeDate(navigator.languages, {
+          style: 'long'
+        });
+        formatter.format(time, (86400 * 21)).then(result => {
           assert.deepEqual(result, {
             id: 'weeks-ago-long',
             args: {
@@ -1120,9 +1278,10 @@ suite('MozIntl', function() {
         }).then(done, done);
       });
 
-      test('useCompactFormat is null', function(done) {
+      test('default style', function(done) {
         var time = Date.now() - 86400 * 5 * 1000;
-        mozIntl._gaia.relativeDate(time).then(result => {
+        var formatter = mozIntl._gaia.RelativeDate(navigator.languages);
+        formatter.format(time).then(result => {
           assert.deepEqual(result, {
             id: 'days-ago-long',
             args: {
@@ -1132,9 +1291,12 @@ suite('MozIntl', function() {
         }).then(done, done);
       });
 
-      test('useCompactFormat is true', function(done) {
+      test('style is short', function(done) {
         var time = Date.now() - 86400 * 5 * 1000;
-        mozIntl._gaia.relativeDate(time, true).then(result => {
+        var formatter = mozIntl._gaia.RelativeDate(navigator.languages, {
+          style: 'short'
+        });
+        formatter.format(time).then(result => {
           assert.deepEqual(result, {
             id: 'days-ago-short',
             args: {
@@ -1146,7 +1308,8 @@ suite('MozIntl', function() {
 
       test('now', function(done) {
         var time = Date.now() - 29 * 1000;
-        mozIntl._gaia.relativeDate(time).then(result => {
+        var formatter = mozIntl._gaia.RelativeDate(navigator.languages);
+        formatter.format(time).then(result => {
           assert.deepEqual(result, {
             id: 'minutes-until-long',
             args: {
@@ -1159,7 +1322,8 @@ suite('MozIntl', function() {
       test('in a minute', function(done) {
         // pretty date used 35
         var time = Date.now() + 45 * 1000;
-        mozIntl._gaia.relativeDate(time).then(result => {
+        var formatter = mozIntl._gaia.RelativeDate(navigator.languages);
+        formatter.format(time).then(result => {
           assert.deepEqual(result, {
             id: 'minutes-until-long',
             args: {
@@ -1171,7 +1335,8 @@ suite('MozIntl', function() {
 
       test('in two minutes', function(done) {
         var time = Date.now() + 1.8 * 60 * 1000;
-        mozIntl._gaia.relativeDate(time).then(result => {
+        var formatter = mozIntl._gaia.RelativeDate(navigator.languages);
+        formatter.format(time).then(result => {
           assert.deepEqual(result, {
             id: 'minutes-until-long',
             args: {
@@ -1183,7 +1348,8 @@ suite('MozIntl', function() {
 
       test('should discard ms if diff is over 1 minute', function(done) {
         var time = Date.now() + 2 * 60 * 1000 - 500;
-        mozIntl._gaia.relativeDate(time).then(result => {
+        var formatter = mozIntl._gaia.RelativeDate(navigator.languages);
+        formatter.format(time).then(result => {
           assert.deepEqual(result, {
             id: 'minutes-until-long',
             args: {

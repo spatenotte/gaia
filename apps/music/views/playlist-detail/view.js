@@ -1,4 +1,4 @@
-/* global View */
+/* global View, IntlHelper */
 'use strict';
 
 var PlaylistDetailView = View.extend(function PlaylistDetailView() {
@@ -38,17 +38,30 @@ PlaylistDetailView.prototype.render = function() {
 };
 
 PlaylistDetailView.prototype.getPlaylist = function() {
+  var unpaddedIndex = IntlHelper.get('unpaddedIndex');
+
   return this.fetch('/api/playlists/info/' + this.params.id)
     .then(response => response.json())
     .then(songs => {
-      songs.forEach((song, index) => song.index = index + 1);
-
-      return songs;
+      return songs.map((song, index) => {
+        return {
+          index: unpaddedIndex.format(index + 1),
+          name: song.name,
+          title: song.metadata.title,
+          artist: song.metadata.artist
+        };
+      });
     });
 };
 
 PlaylistDetailView.prototype.queuePlaylist = function(filePath) {
   this.fetch('/api/queue/playlist/' + this.params.id + '/song/' + filePath);
 };
+
+IntlHelper.define('unpaddedIndex', 'number', {
+  style: 'decimal',
+  useGrouping: false,
+  minimumIntegerDigits: 1
+});
 
 window.view = new PlaylistDetailView();

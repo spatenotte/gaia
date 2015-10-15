@@ -1,4 +1,4 @@
-/* global View */
+/* global View, Sanitizer */
 'use strict';
 
 var HomeView = View.extend(function HomeView() {
@@ -6,13 +6,23 @@ var HomeView = View.extend(function HomeView() {
 
   this.thumbnailCache = {};
 
-  this.searchBox = document.getElementById('search');
+  this.searchBox = document.getElementById('search-box');
+  this.searchResults = document.getElementById('search-results');
   this.tiles = document.getElementById('tiles');
 
-  this.searchBox.addEventListener('open', () => window.parent.onSearchOpen());
-  this.searchBox.addEventListener('close', () => window.parent.onSearchClose());
   this.searchBox.addEventListener('search', (evt) => this.search(evt.detail));
-  this.searchBox.addEventListener('resultclick', (evt) => {
+
+  this.searchResults.addEventListener('open', () => {
+    this.client.method('searchOpen');
+    document.body.dataset.search = true;
+  });
+
+  this.searchResults.addEventListener('close', () => {
+    this.client.method('searchClose');
+    document.body.removeAttribute('data-search');
+  });
+
+  this.searchResults.addEventListener('resultclick', (evt) => {
     var link = evt.detail;
     if (link) {
       if (link.dataset.section === 'songs') {
@@ -23,9 +33,7 @@ var HomeView = View.extend(function HomeView() {
     }
   });
 
-  this.searchBox.getItemImageSrc = (item) => {
-    return this.getThumbnail(item.name);
-  };
+  this.searchResults.getItemImageSrc = (item) => this.getThumbnail(item.name);
 
   this.tiles.addEventListener('click', (evt) => {
     var link = evt.target.closest('a[data-file-path]');
@@ -55,26 +63,25 @@ HomeView.prototype.destroy = function() {
 HomeView.prototype.render = function() {
   View.prototype.render.call(this); // super();
 
-  Promise.all([
-    document.l10n.formatValue('unknownArtist'),
-    document.l10n.formatValue('unknownAlbum')
-  ]).then(([unknownArtist, unknownAlbum]) => {
-    var html = '';
+  document.l10n.formatValues(
+    'unknownArtist', 'unknownAlbum'
+  ).then(([unknownArtist, unknownAlbum]) => {
+    var html = [];
 
     this.albums.forEach((album) => {
       var template =
-`<a class="tile"
-    href="/player?id=${album.name}"
+Sanitizer.createSafeHTML `<a class="tile"
+    href="/player"
     data-artist="${album.metadata.artist || unknownArtist}"
     data-album="${album.metadata.album || unknownAlbum}"
     data-file-path="${album.name}">
   <img>
 </a>`;
 
-      html += template;
+      html.push(template);
     });
 
-    this.tiles.innerHTML = html;
+    this.tiles.innerHTML = Sanitizer.unwrapSafeHTML(...html);
 
     [].forEach.call(this.tiles.querySelectorAll('.tile'), (tile) => {
       this.getThumbnail(tile.dataset.filePath)
@@ -92,11 +99,10 @@ HomeView.prototype.getThumbnail = function(filePath) {
     return Promise.resolve(this.thumbnailCache[filePath]);
   }
 
-  return this.fetch('/api/artwork/thumbnail/' + filePath)
-    .then(response => response.blob())
-    .then((blob) => {
-      var url = this.thumbnailCache[filePath] = URL.createObjectURL(blob);
-
+  return this.fetch('/api/artwork/url/thumbnail/' + filePath)
+    .then((response) => response.json())
+    .then((url) => {
+      this.thumbnailCache[filePath] = url;
       return url;
     });
 };
@@ -110,13 +116,15 @@ HomeView.prototype.queueSong = function(filePath) {
 };
 
 HomeView.prototype.search = function(query) {
+  if (!query) {
+    return Promise.resolve(this.searchResults.clearResults());
+  }
+
   var results = [];
 
-  return Promise.all([
-    document.l10n.formatValue('unknownTitle'),
-    document.l10n.formatValue('unknownArtist'),
-    document.l10n.formatValue('unknownAlbum')
-  ]).then(([unknownTitle, unknownArtist, unknownAlbum]) => {
+  return document.l10n.formatValues(
+    'unknownTitle', 'unknownArtist', 'unknownAlbum'
+  ).then(([unknownTitle, unknownArtist, unknownAlbum]) => {
     var albumResults = this.fetch('/api/search/album/' + query)
       .then(response => response.json())
       .then((albums) => {
@@ -126,13 +134,13 @@ HomeView.prototype.search = function(query) {
             title:    album.metadata.album  || unknownAlbum,
             subtitle: album.metadata.artist || unknownArtist,
             section:  'albums',
-            url:      '/album-detail?id=' + album.name
+            url:      '/album-detail?id=' + encodeURIComponent(album.name)
           };
         });
 
         results = results.concat(albumResults);
 
-        this.searchBox.setResults(results);
+        this.searchResults.setResults(results);
         return albumResults;
       });
 
@@ -145,13 +153,13 @@ HomeView.prototype.search = function(query) {
             title:    artist.metadata.artist || unknownArtist,
             subtitle: '',
             section:  'artists',
-            url:      '/artist-detail?id=' + artist.name
+            url:      '/artist-detail?id=' + encodeURIComponent(artist.name)
           };
         });
 
         results = results.concat(artistResults);
 
-        this.searchBox.setResults(results);
+        this.searchResults.setResults(results);
         return artistResults;
       });
 
@@ -164,13 +172,13 @@ HomeView.prototype.search = function(query) {
             title:    song.metadata.title  || unknownTitle,
             subtitle: song.metadata.artist || unknownArtist,
             section:  'songs',
-            url:      '/player?id=' + song.name
+            url:      '/player'
           };
         });
 
         results = results.concat(songResults);
 
-        this.searchBox.setResults(results);
+        this.searchResults.setResults(results);
         return songResults;
       });
 

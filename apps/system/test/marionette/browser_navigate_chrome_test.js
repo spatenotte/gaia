@@ -44,10 +44,7 @@ marionette('Browser - Chrome on browser navigation',
 
     rocketbar.homescreenFocus();
     rocketbar.enterText(url, true);
-
-    client.waitFor(function() {
-      return system.appChrome.displayed();
-    });
+    system.waitForBrowser(url);
 
     var progressBar = system.appChromeProgressBar;
 
@@ -59,7 +56,10 @@ marionette('Browser - Chrome on browser navigation',
     client.helper.waitForElementToDisappear(progressBar);
   });
 
-  test('should pin the chrome when navigating to a pinned site', function() {
+  // Skip test since we are disabling pinning door hanger in 2.5
+  // See https://bugzilla.mozilla.org/show_bug.cgi?id=1207710
+  test.skip('should pin the chrome when navigating to a pinned site',
+  function() {
     var url = server.url('sample.html');
     var url2 = server.url('darkpage.html');
 
@@ -72,14 +72,8 @@ marionette('Browser - Chrome on browser navigation',
     system.appUrlbar.tap();
 
     rocketbar.enterText(url2, true);
+    system.waitForBrowser(url2);
 
-    client.waitFor(function() {
-      return system.appChrome.displayed();
-    });
-
-    var classes = system.appChrome.getAttribute('class');
-
-    assert(classes.indexOf('maximized') < 0);
-    assert(classes.indexOf('collapsible') < 0);
+    assert(pinTheWeb.chromeIsPinned());
   });
 });
