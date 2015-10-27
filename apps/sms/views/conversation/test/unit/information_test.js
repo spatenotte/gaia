@@ -14,7 +14,7 @@ require('/views/shared/test/unit/mock_utils.js');
 require('/views/shared/test/unit/mock_conversation.js');
 require('/services/test/unit/mock_threads.js');
 require('/views/shared/test/unit/mock_contact.js');
-require('/shared/test/unit/mocks/mock_l10n.js');
+require('/shared/test/unit/mocks/mock_l20n.js');
 require('/views/shared/test/unit/mock_contact.js');
 require('/views/shared/test/unit/mock_contacts.js');
 require('/views/shared/test/unit/mock_messages.js');
@@ -47,8 +47,8 @@ suite('Information view', function() {
   mocksHelperForInformation.attachTestHelpers();
 
   suiteSetup(function(done) {
-    realMozL10n = navigator.mozL10n;
-    navigator.mozL10n = MockL10n;
+    realMozL10n = document.l10n;
+    document.l10n = MockL10n;
 
     AssetsHelper.generateImageBlob(400, 400, 'image/jpeg', 0.5).then(
       (blob) => {
@@ -58,13 +58,13 @@ suite('Information view', function() {
   });
 
   suiteTeardown(function() {
-    navigator.mozL10n = realMozL10n;
+    document.l10n = realMozL10n;
     realMozL10n = null;
   });
 
   setup(function() {
     loadBodyHTML('/index.html');
-    this.sinon.spy(navigator.mozL10n, 'setAttributes');
+    this.sinon.spy(document.l10n, 'setAttributes');
     this.sinon.stub(MessageManager, 'on');
     this.sinon.spy(ConversationView, 'setHeaderContent');
     this.sinon.spy(Contacts, 'findByAddress');
@@ -307,18 +307,29 @@ suite('Information view', function() {
     }
 
     function generalInfoAssertion(opts) {
-      var type = opts.type,
-          delivery = opts.delivery,
-          subjectHide = opts.subjectHide,
-          subjectContent = opts.subjectContent,
-          sentTitle = opts.sentTitle,
-          contactTitle = opts.contactTitle,
-          sizeHide = opts.sizeHide,
-          sizeContent = opts.sizeContent;
+      var {
+        type,
+        delivery,
+        subjectHide,
+        subjectContent,
+        sentTitle,
+        contactTitle,
+        sizeHide,
+        sizeContent,
+        isIncoming
+      } = opts;
 
       assert.equal(reportView.container.dataset.delivery, delivery);
+
+      assert.equal(
+        reportView.container.classList.contains('incoming-message'), isIncoming
+      );
+      assert.equal(
+        reportView.container.classList.contains('outgoing-message'), !isIncoming
+      );
+
       sinon.assert.calledWith(
-        navigator.mozL10n.setAttributes,
+        document.l10n.setAttributes,
         reportView.type,
         type
       );
@@ -330,18 +341,18 @@ suite('Information view', function() {
       }
 
       if (delivery === 'error') {
-        assert.isFalse(navigator.mozL10n.setAttributes.calledWith(
+        assert.isFalse(document.l10n.setAttributes.calledWith(
           reportView.sentTitle, sentTitle));
       } else {
         sinon.assert.calledWith(
-          navigator.mozL10n.setAttributes,
+          document.l10n.setAttributes,
           reportView.sentTitle,
           sentTitle
         );
       }
 
       sinon.assert.calledWith(
-        navigator.mozL10n.setAttributes,
+        document.l10n.setAttributes,
         reportView.contactTitle,
         contactTitle
       );
@@ -349,7 +360,7 @@ suite('Information view', function() {
       assert.equal(reportView.sizeBlock.classList.contains('hide'), sizeHide);
       if (!sizeHide && sizeContent) {
         sinon.assert.calledWith(
-          navigator.mozL10n.setAttributes,
+          document.l10n.setAttributes,
           reportView.size,
           'attachmentSizeKB',
           sizeContent
@@ -377,7 +388,8 @@ suite('Information view', function() {
         subjectHide: true,
         sentTitle: 'message-sending',
         contactTitle: 'report-to-title',
-        sizeHide: true
+        sizeHide: true,
+        isIncoming: false
       });
     });
 
@@ -397,7 +409,8 @@ suite('Information view', function() {
         subjectHide: true,
         sentTitle: 'message-sent',
         contactTitle: 'report-to-title',
-        sizeHide: true
+        sizeHide: true,
+        isIncoming: false
       });
     });
 
@@ -416,7 +429,8 @@ suite('Information view', function() {
         subjectHide: true,
         sentTitle: 'message-error',
         contactTitle: 'report-to-title',
-        sizeHide: true
+        sizeHide: true,
+        isIncoming: false
       });
     });
 
@@ -439,7 +453,8 @@ suite('Information view', function() {
         subjectContent: messageOpts.subject,
         sentTitle: 'message-sent',
         contactTitle: 'report-to-title',
-        sizeHide: true
+        sizeHide: true,
+        isIncoming: false
       });
     });
 
@@ -461,7 +476,8 @@ suite('Information view', function() {
         sentTitle: 'message-sent',
         contactTitle: 'report-to-title',
         sizeHide: false,
-        sizeContent: { n: (testImageBlob.size / 1024).toFixed(1) }
+        sizeContent: { n: (testImageBlob.size / 1024).toFixed(1) },
+        isIncoming: false
       });
     });
 
@@ -477,7 +493,8 @@ suite('Information view', function() {
         subjectHide: true,
         sentTitle: 'message-sent',
         contactTitle: 'report-from-title',
-        sizeHide: true
+        sizeHide: true,
+        isIncoming: true
       });
     });
 
@@ -497,7 +514,8 @@ suite('Information view', function() {
         sentTitle: 'message-sent',
         contactTitle: 'report-from-title',
         sizeHide: false,
-        sizeContent: { n: (testImageBlob.size / 1024).toFixed(1) }
+        sizeContent: { n: (testImageBlob.size / 1024).toFixed(1) },
+        isIncoming: true
       });
     });
 
@@ -515,7 +533,8 @@ suite('Information view', function() {
         subjectHide: true,
         sentTitle: 'message-sent',
         contactTitle: 'report-from-title',
-        sizeHide: true
+        sizeHide: true,
+        isIncoming: true
       });
     });
 
@@ -713,7 +732,7 @@ suite('Information view', function() {
         reportView.render();
 
         sinon.assert.calledWithMatch(
-          navigator.mozL10n.setAttributes,
+          document.l10n.setAttributes,
           simDetail,
           'dsds-unknown-sim'
         );
@@ -739,7 +758,7 @@ suite('Information view', function() {
         reportView.render();
 
         sinon.assert.calledWithMatch(
-          navigator.mozL10n.setAttributes,
+          document.l10n.setAttributes,
           Object,
           'sim-detail',
           {
@@ -769,7 +788,7 @@ suite('Information view', function() {
         reportView.render();
 
         sinon.assert.calledWithMatch(
-          navigator.mozL10n.setAttributes,
+          document.l10n.setAttributes,
           Object,
           'sim-detail',
           {
@@ -799,7 +818,7 @@ suite('Information view', function() {
         reportView.render();
 
         sinon.assert.calledWithMatch(
-          navigator.mozL10n.setAttributes,
+          document.l10n.setAttributes,
           Object,
           'sim-detail',
           {
@@ -1247,7 +1266,7 @@ suite('Information view', function() {
     test('view status before show method', function() {
       sinon.assert.calledWith(groupView.renderContactList, participants);
       sinon.assert.calledWithMatch(
-        navigator.mozL10n.setAttributes,
+        document.l10n.setAttributes,
         groupView.headerText, 'participant', { n:participants.length }
       );
       sinon.assert.calledWith(ContactRenderer.flavor, 'group-view');

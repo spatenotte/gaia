@@ -74,6 +74,7 @@
     }
     this.isCrashed = false;
     this.launchTime = Date.now();
+    this.metachangeDetails = [];
 
     return this;
   };
@@ -227,10 +228,10 @@
     if (!this.isBrowser()) {
       return false;
     }
-
-    var url = new URL(this.config.url);
-    var path = url.hostname + url.pathname;
-    return path.indexOf(scope) === 0;
+    // within-scope per http://www.w3.org/TR/appmanifest/#dfn-within-scope
+    // except we also support paths
+    var target = this.config.url;
+    return scope && target.startsWith(scope);
   };
 
   /**
@@ -449,7 +450,7 @@
     this.inError = false;
     this.loading = false;
     this.loaded = false;
-    this.metachangeDetail = null;
+    this.metachangeDetails = [];
     this.suspended = true;
     this.element && this.element.classList.add('suspended');
     this.browserContainer.removeChild(this.browser.element);
@@ -873,10 +874,16 @@
         }
       }
 
-      // Need to wait for mozbrowserloadend to get allowedAudioChannels.
-      this.browser.element.addEventListener('mozbrowserloadend', () => {
-        this._registerAudioChannels();
-      });
+      // Need to wait for mozbrowserloadstart to get allowedAudioChannels.
+      this.browser.element.addEventListener(
+        'mozbrowserloadstart',
+        function onloadstart() {
+          this.browser.element.removeEventListener(
+            'mozbrowserloadstart', onloadstart
+          );
+          this._registerAudioChannels();
+        }.bind(this)
+      );
 
       if (this.isInputMethod) {
         return;
@@ -897,9 +904,12 @@
             that.appChrome.handleEvent({type: 'mozbrowserloadstart'});
             that.appChrome.handleEvent({type: '_loading'});
           }
-          if (that.metachangeDetail) {
-            that.appChrome.handleEvent({type: 'mozbrowsermetachange',
-                                        detail: that.metachangeDetail});
+          if (that.metachangeDetails && that.metachangeDetails.length) {
+            that.metachangeDetails.forEach(function(detail) {
+              that.appChrome.handleEvent({type: 'mozbrowsermetachange',
+                                          detail: detail});
+            });
+            that.metachangeDetails = [];
           }
         });
       } else {
@@ -1111,23 +1121,24 @@
 
   AppWindow.prototype._handle_mozbrowserlocationchange =
     function aw__handle_mozbrowserlocationchange(evt) {
-      this.favicons = {};
-      this.webManifestURL = null;
-      this.webManifest = null;
-      this.config.url = evt.detail;
-      this.title = evt.detail;
       if (!this.manifest) {
         this.name = new URL(evt.detail).hostname;
       }
       // Integration test needs to locate the frame by this attribute.
       this.browser.element.dataset.url = evt.detail;
+      if (this.config.url !== evt.detail) {
+        this.title = evt.detail;
+        this.favicons = {};
+        this.webManifestURL = null;
+        this.webManifest = null;
+        this.config.url = evt.detail;
+      }
       this.publish('locationchange');
     };
 
 
   AppWindow.prototype._handle_mozbrowsericonchange =
     function aw__handle_mozbrowsericonchange(evt) {
-
       var href = evt.detail.href;
       var sizes = evt.detail.sizes;
 
@@ -1162,24 +1173,13 @@
   AppWindow.prototype._handle_mozbrowsermetachange =
     function aw__handle_mozbrowsermetachange(evt) {
 
-      var detail = this.metachangeDetail = evt.detail;
+      var detail = evt.detail;
+      if (!this.appChrome) {
+        this.metachangeDetails = this.metachangeDetails || [];
+        this.metachangeDetails.push(detail);
+      }
 
       switch (detail.name) {
-        case 'theme-color':
-          if (!detail.type) {
-            return;
-          }
-          // If the theme-color meta is removed, let's reset the color.
-          var color = '';
-
-          // Otherwise, set it to the color that has been asked.
-          if (detail.type !== 'removed') {
-            color = detail.content;
-          }
-          this.themeColor = color;
-
-          this.publish('themecolorchange');
-          break;
         case 'theme-group':
           if (!detail.type) {
             return;
@@ -1196,7 +1196,6 @@
             }
           }
 
-          this.publish('themecolorchange');
           break;
 
         case 'application-name':
@@ -2117,12 +2116,12 @@
 
   AppWindow.prototype._handle__closed = function aw_closed() {
     if (!this.loaded ||
-        (Service.query('isBusyLoading') &&
-          this.getBottomMostWindow().isHomescreen)) {
+        this.getBottomMostWindow().isHomescreen) {
       // We will eventually get screenshot when being requested from
       // task manager.
       return;
     }
+
     // Update screenshot blob here to avoid slowing down closing transitions.
     this.getScreenshot();
   };
@@ -2515,6 +2514,7 @@
       }
       siteObj.manifestUrl = this.manifestURL;
       siteObj.manifest = this.manifest;
+      siteObj.origin = new URL(this.origin).origin;
     }
 
     if (this.webManifestURL && !this.webManifest) {

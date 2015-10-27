@@ -3,7 +3,7 @@
 
 /* global FxaModuleStates, FxaModuleUI, FxaModule, FxaModuleNavigation,
    FxModuleServerRequest, FxaModuleOverlay, FxaModuleManager, EntrySheet,
-   BrowserFrame */
+   BrowserFrame, KeyEvent, FxaModuleKeyNavigation */
 /* exported FxaModuleEnterEmail */
 
 'use strict';
@@ -50,6 +50,7 @@ var FxaModuleEnterEmail = (function() {
     // Cache static HTML elements
     this.importElements(
       'fxa-email-input',
+      'fxa-email-clean-btn',
       'fxa-logo',
       'fxa-notice'
     );
@@ -88,19 +89,39 @@ var FxaModuleEnterEmail = (function() {
     this.fxaEmailInput.addEventListener(
       'input',
       function onInput(event) {
+        if(this.fxaEmailInput.value) {
+          this.fxaEmailCleanBtn.classList.add('show');
+        } else {
+          this.fxaEmailCleanBtn.classList.remove('show');
+        }
         _enableNext(event.target);
-      }
+      }.bind(this)
     );
     this.fxaEmailInput.addEventListener(
       'focus',
       function onFocus() {
         this.fxaLogo.setAttribute('hidden', true);
+        if(this.fxaEmailInput.value) {
+          this.fxaEmailCleanBtn.classList.add('show');
+          // The input can only be selected at the next event queue
+          setTimeout(this.fxaEmailInput.select.bind(this.fxaEmailInput));
+        }
       }.bind(this)
     );
     this.fxaEmailInput.addEventListener(
       'blur',
       function onBlur() {
         this.fxaLogo.removeAttribute('hidden');
+      }.bind(this)
+    );
+
+    this.fxaEmailCleanBtn.addEventListener(
+      'click',
+      function onMouseDown(e) {
+        if(e.button === 0 ||
+          (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN)) {
+          this.fxaEmailInput.value = '';
+        }
       }.bind(this)
     );
 
@@ -176,8 +197,27 @@ var FxaModuleEnterEmail = (function() {
       }.bind(this)
     );
 
+    // There are 3 reasons why using setTimeout at this place:
+    // 1. Focus() only works in the setTimeout callback here
+    // 2. The input will be focused first and the keyboard will be brought
+    //    up. We need to do this after the slide up animation of the parent
+    //    fxa_dialog. But the fxa iframe has no way to know when the slide up
+    //    animation is finished.
+    // 3. Put the FxaModuleKeyNavigation.add in the onanimate callback in
+    //    fxam_navigation.js doesn't work, since there is no animation for the
+    //    first page in the flow.
+    setTimeout(() => {
+      FxaModuleKeyNavigation.add(
+        ['#fxa-email-input', '#fxa-email-clean-btn', '#fxa-module-next']);
+    }, 500);
+
     // Avoid to add listener twice
     this.initialized = true;
+  };
+
+  Module.onAnimate = function onAnimate() {
+    FxaModuleKeyNavigation.add(
+      ['#fxa-email-input', '#fxa-email-clean-btn', '#fxa-module-next']);
   };
 
   Module.onNext = function onNext(gotoNextStepCallback) {
@@ -201,6 +241,9 @@ var FxaModuleEnterEmail = (function() {
         } else {
           _loadCoppa(gotoNextStepCallback);
         }
+
+        FxaModuleKeyNavigation.remove(
+          ['#fxa-email-input', '#fxa-email-clean-btn', '#fxa-module-next']);
       }.bind(this),
       this.showErrorResponse);
   };

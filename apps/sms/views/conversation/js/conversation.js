@@ -526,7 +526,7 @@ var ConversationView = {
   },
 
   showMaxLengthNotice: function conv_showMaxLengthNotice(opts) {
-    navigator.mozL10n.setAttributes(
+    document.l10n.setAttributes(
       this.maxLengthNotice.querySelector('p'), opts.l10nId, opts.l10nArgs
     );
     this.maxLengthNotice.classList.remove('hide');
@@ -565,11 +565,12 @@ var ConversationView = {
 
     // This is useful only the first time it's called. Then it's a no-op.
     this.header.removeAttribute('no-font-fit');
-    this.editHeader.removeAttribute('no-font-fit');
 
     if (!this.multiSimActionButton) {
       // handles the various actions on the send button and encapsulates the
       // DSDS specific behavior
+      var gaiaSimPicker = document.getElementById('sim-picker');
+      gaiaSimPicker.classList.remove('hide');
       this.multiSimActionButton =
         new MultiSimActionButton(
           this.sendButton,
@@ -1257,7 +1258,7 @@ var ConversationView = {
         !isStartingFirstSegment) {
       this.previousSegment = currentSegment;
 
-      navigator.mozL10n.setAttributes(
+      document.l10n.setAttributes(
         this.smsCounterNotice.querySelector('p'),
         'sms-counter-notice-label',
         { number: currentSegment }
@@ -1411,9 +1412,10 @@ var ConversationView = {
   /**
    * Updates header content since it's used for different panels and should be
    * carefully handled for every case. In Thread panel header contains HTML
-   * markup to support bidirectional content, but other panels still use it with
-   * mozL10n.setAttributes as it would contain only localizable text. We should
-   * get rid of this method once bug 961572 and bug 1011085 are landed.
+   * markup to support bidirectional content, but other panels still use it
+   * with document.l10n.setAttributes as it would contain only localizable
+   * text. We should get rid of this method once bug 961572 and bug 1011085 are
+   * landed.
    * @param {string|{ html: string }|{id: string, args: Object }} contentL10n
    * Should be either safe HTML string or l10n properties.
    * @public
@@ -1427,7 +1429,7 @@ var ConversationView = {
       // Remove rich HTML content before we set l10n attributes as l10n lib
       // fails in this case
       this.headerText.firstElementChild && (this.headerText.textContent = '');
-      navigator.mozL10n.setAttributes(
+      document.l10n.setAttributes(
         this.headerText, contentL10n.id, contentL10n.args
       );
       return;
@@ -1722,7 +1724,7 @@ var ConversationView = {
       var lateArrivalNoticeDOM = this.tmpl.lateArrivalNotice.prepare({})
         .toDocumentFragment();
 
-      navigator.mozL10n.setAttributes(
+      document.l10n.setAttributes(
         lateArrivalNoticeDOM.querySelector('.late-arrival-notice'), 
         lateArrivalInfos.l10nId, 
         lateArrivalInfos.l10nArgs
@@ -1912,8 +1914,17 @@ var ConversationView = {
       this.mainWrapper.classList.toggle('edit');
     }
 
+    this.editHeader.removeAttribute('no-font-fit');
+
     if (!this.selectionHandler) {
-      LazyLoader.load('/views/shared/js/selection_handler.js', () => {
+      LazyLoader.load([
+        '/views/shared/js/selection_handler.js',
+        '/shared/style/edit_mode.css',
+        '/shared/style/switches.css',
+        '/shared/style/tabs.css',
+        '/views/shared/style/edit-mode.css',
+        '/views/conversation/style/edit-mode.css'
+        ], () => {
         this.selectionHandler = new SelectionHandler({
           // Elements
           container: this.container,
@@ -1923,6 +1934,7 @@ var ConversationView = {
           getIdIterator: this.getIdIterator.bind(this),
           isInEditMode: this.isInEditMode.bind(this)
         });
+        this.editForm.classList.remove('hide');
         editModeSetup.call(this);
       });
     } else {
@@ -2011,11 +2023,11 @@ var ConversationView = {
 
     if (selected > 0) {
       this.deleteButton.disabled = false;
-      navigator.mozL10n.setAttributes(this.editMode, 'selected-messages',
+      document.l10n.setAttributes(this.editMode, 'selected-messages',
         {n: selected});
     } else {
       this.deleteButton.disabled = true;
-      navigator.mozL10n.setAttributes(this.editMode, 'deleteMessages-title');
+      document.l10n.setAttributes(this.editMode, 'deleteMessages-title');
     }
   },
 

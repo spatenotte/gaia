@@ -15,7 +15,7 @@ require('/views/shared/js/utils.js');
 require('/views/inbox/js/inbox.js');
 
 require('/shared/test/unit/mocks/mock_async_storage.js');
-require('/shared/test/unit/mocks/mock_l10n.js');
+require('/shared/test/unit/mocks/mock_l20n.js');
 require('/views/shared/test/unit/mock_contact.js');
 require('/views/shared/test/unit/mock_contacts.js');
 require('/views/shared/test/unit/mock_time_headers.js');
@@ -58,14 +58,14 @@ var mocksHelperForInboxView = new MocksHelper([
 ]).init();
 
 suite('thread_list_ui', function() {
-  var nativeMozL10n = navigator.mozL10n;
+  var nativeMozL10n = document.l10n;
   var draftSavedBanner;
   var mainWrapper;
 
   mocksHelperForInboxView.attachTestHelpers();
   setup(function() {
     loadBodyHTML('/index.html');
-    navigator.mozL10n = MockL10n;
+    document.l10n = MockL10n;
     draftSavedBanner = document.getElementById('threads-draft-saved-banner');
     mainWrapper = document.getElementById('main-wrapper');
 
@@ -78,7 +78,7 @@ suite('thread_list_ui', function() {
   });
 
   teardown(function() {
-    navigator.mozL10n = nativeMozL10n;
+    document.l10n = nativeMozL10n;
     document.body.textContent = '';
   });
 
@@ -1323,42 +1323,6 @@ suite('thread_list_ui', function() {
         assert.isFalse(InboxView.appendThread(thread));
       });
     });
-
-    suite('respects l10n lib readiness', function() {
-      setup(function() {
-        navigator.mozL10n.readyState = 'loading';
-        this.sinon.stub(navigator.mozL10n, 'once');
-      });
-
-      teardown(function() {
-        navigator.mozL10n.readyState = 'complete';
-      });
-
-      test('waits for l10n to render', function() {
-        var message = MockMessages.sms({
-          threadId: 3,
-          timestamp: +(new Date(2013, 1, 2))
-        });
-
-        var thread = new Thread({
-          id: message.threadId,
-          timestamp: message.timestamp,
-          participants: [message.sender]
-        });
-
-        Threads.get.withArgs(message.threadId).returns(thread);
-
-        var containerId = 'threadsContainer_' + thread.timestamp;
-
-        InboxView.appendThread(thread);
-
-        var container = document.getElementById(containerId);
-
-        container = document.getElementById(containerId);
-        assert.ok(container);
-        assert.equal(container.querySelector('li').id, 'thread-' + thread.id);
-      });
-    });
   });
 
   suite('renderThreads', function() {
@@ -1884,17 +1848,48 @@ suite('thread_list_ui', function() {
   });
 
   suite('beforeEnter()', function() {
+    var drafts;
+
     setup(function() {
       this.sinon.useFakeTimers();
+      this.sinon.stub(Thread, 'create');
+      this.sinon.stub(Threads, 'get');
+      this.sinon.stub(Drafts, 'byDraftId');
+
+      drafts = [100, 200].map((draftId) => {
+        var draft = new Draft({
+          id: draftId,
+          timestamp: Date.now(),
+          type: 'sms',
+          content: ['content']
+        });
+
+        Drafts.byDraftId.withArgs(draftId).returns(draft);
+
+        var thread = new Thread({
+          id: draft.id,
+          timestamp: draft.timestamp,
+          participants: [],
+          lastMessageType: draft.type,
+          body: draft.content[0],
+          isDraft: true
+        });
+
+        Thread.create.withArgs(draft).returns(thread);
+        Threads.get.withArgs(thread.id).returns(thread);
+        this.sinon.stub(thread, 'getDraft').returns(draft);
+
+        return draft;
+      });
     });
 
     test('Shows draft saved banner only if requested', function() {
-      InboxView.notifyAboutSavedDraft = false;
+      // No one requested "draft saved banner".
       InboxView.beforeEnter();
 
       assert.isTrue(draftSavedBanner.classList.contains('hide'));
 
-      InboxView.notifyAboutSavedDraft = true;
+      Drafts.on.withArgs('saved').yield(drafts[0]);
       InboxView.beforeEnter();
 
       assert.isFalse(draftSavedBanner.classList.contains('hide'));
@@ -1904,14 +1899,30 @@ suite('thread_list_ui', function() {
 
       this.sinon.clock.tick(1);
       assert.isTrue(draftSavedBanner.classList.contains('hide'));
-      assert.isFalse(InboxView.notifyAboutSavedDraft);
+
+      // State should be correctly updated so the next time we visit Inbox we
+      // won't see banner once again.
+      InboxView.beforeEnter();
+      assert.isTrue(draftSavedBanner.classList.contains('hide'));
     });
 
-    test('Sets up the gaia header for the edit form', function() {
-      var editHeader = document.getElementById('threads-edit-header');
-      assert.isTrue(editHeader.hasAttribute('no-font-fit'));
+    test('Does not show draft saved banner if it has been deleted', function() {
+      Drafts.on.withArgs('saved').yield(drafts[0]);
+      Drafts.on.withArgs('deleted').yield(drafts[0]);
+
       InboxView.beforeEnter();
-      assert.isFalse(editHeader.hasAttribute('no-font-fit'));
+
+      assert.isTrue(draftSavedBanner.classList.contains('hide'));
+    });
+
+    test('Shows draft saved banner if another draft has been deleted',
+    function() {
+      Drafts.on.withArgs('saved').yield(drafts[0]);
+      Drafts.on.withArgs('deleted').yield(drafts[1]);
+
+      InboxView.beforeEnter();
+
+      assert.isFalse(draftSavedBanner.classList.contains('hide'));
     });
   });
 
@@ -2248,8 +2259,6 @@ suite('thread_list_ui', function() {
           threadNode.dataset.lastMessageType, thread.lastMessageType
         );
       });
-
-      InboxView.notifyAboutSavedDraft = false;
     });
 
     test('updates thread if thread draft is updated', function() {
@@ -2270,7 +2279,6 @@ suite('thread_list_ui', function() {
         threadDraft.content[0]
       );
       assert.equal(threadNode.dataset.lastMessageType, threadDraft.type);
-      assert.isFalse(InboxView.notifyAboutSavedDraft);
     });
 
     test('updates thread-less draft if it is updated', function() {
@@ -2299,25 +2307,6 @@ suite('thread_list_ui', function() {
         newDraft.content[0]
       );
       assert.equal(threadNode.dataset.lastMessageType, newDraft.type);
-      assert.isFalse(InboxView.notifyAboutSavedDraft);
-    });
-
-    test('Requests to shows draft saved banner if Inbox view is not active',
-    function() {
-      Navigation.isCurrentPanel.withArgs('thread-list').returns(false);
-
-      var threadDraft = new Draft({
-        id: 101,
-        threadId: realThread.id,
-        content: ['draft content'],
-        type: 'mms',
-        timestamp: realThread.timestamp + 600
-      });
-      realThread.getDraft.returns(threadDraft);
-
-      Drafts.on.withArgs('saved').yield(threadDraft);
-
-      assert.isTrue(InboxView.notifyAboutSavedDraft);
     });
   });
 

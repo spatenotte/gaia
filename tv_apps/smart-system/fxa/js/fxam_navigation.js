@@ -1,7 +1,8 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
-/* global LazyLoader, FxaModuleUI, View, FxaModuleManager, FxaModuleStates */
+/* global LazyLoader, FxaModuleUI, View, FxaModuleManager, FxaModuleStates,
+          FxaModuleKeyNavigation */
 /* exported FxaModuleNavigation */
 
 'use strict';
@@ -27,6 +28,8 @@ var FxaModuleNavigation = {
     LazyLoader.load('view/view_' + flow + '.js', function loaded() {
       FxaModuleUI.setMaxSteps(View.length);
       window.location.hash = View.start.id;
+
+      FxaModuleKeyNavigation.init();
     }.bind(this));
   },
   hashchangeHandler: function fxam_nav_hashchangeHandler() {
@@ -36,6 +39,9 @@ var FxaModuleNavigation = {
 
     var panel = document.querySelector(location.hash);
     if (!panel || !panel.classList.contains('screen')) {
+      // After a user presses backspace key at the first step of the flow,
+      // the panel will be null and we should close the dialog.
+      FxaModuleManager.close('DIALOG_CLOSED_BY_USER');
       return;
     }
 
@@ -64,6 +70,8 @@ var FxaModuleNavigation = {
       onanimate: function() {
         this.backAnim = false;
         this.updatingStep = false;
+        this.currentModule.onAnimate &&
+          this.currentModule.onAnimate();
       }.bind(this)
     });
   },

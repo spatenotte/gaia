@@ -44,6 +44,7 @@
 
     <script defer src="js/service.js"></script>
     <script defer src="js/base_ui.js"></script>
+    <script defer src="js/audio_channel_controller.js"></script>
 
     <script defer src="js/orientation_manager.js"></script>
     <!--
@@ -353,9 +354,14 @@
     -->
 
     <!-- Sync -->
+    <!--IFDEF_FIREFOX_SYNC
     <script defer src="js/sync_state_machine.js"></script>
     <script defer src="js/sync_manager.js"></script>
+    ENDIF_FIREFOX_SYNC-->
     <!-- <script defer src="shared/js/sync/errors.js"></script> -->
+
+    <!-- Remote Control -->
+    <script defer src="js/remote_control.js"></script>
   </head>
 
   <body class="theme-settings" role="application">

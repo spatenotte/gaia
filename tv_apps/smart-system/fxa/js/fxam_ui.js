@@ -2,7 +2,7 @@
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 /* global HtmlHelper, FxaModule, FxaModuleManager, FxaModuleNavigation,
-   LazyLoader */
+   LazyLoader, KeyEvent */
 /* exported FxaModuleUI */
 
 'use strict';
@@ -30,12 +30,20 @@ var FxaModuleUI = {
       FxaModuleNavigation.back();
     });
 
-    this.fxaModuleNext.addEventListener('mousedown', function() {
-      FxaModuleNavigation.next();
+    this.fxaModuleNext.addEventListener('click', function(e) {
+      // left mouse button or return key
+      if(e.button === 0 ||
+        (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN)) {
+        FxaModuleNavigation.next();
+      }
     });
 
-    this.fxaModuleDone.addEventListener('click', function() {
-      FxaModuleNavigation.done();
+    this.fxaModuleDone.addEventListener('click', function(e) {
+      // left mouse button or return key
+      if(e.button === 0 ||
+        (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN)) {
+        FxaModuleNavigation.done();
+      }
     });
 
     // Give up if the network goes offline for more than 30 seconds straight.
@@ -52,6 +60,14 @@ var FxaModuleUI = {
           error: 'OFFLINE'
         });
       }, OFFLINE_TIMEOUT);
+    });
+
+    window.addEventListener('keypress', function onkeypress(e) {
+      if (e.keyCode === KeyEvent.DOM_VK_BACK_SPACE) {
+        // BACK_SPACE key on TV doesn't work for text input elements,
+        // there's a backspace button to delete text.
+        FxaModuleNavigation.back();
+      }
     });
 
     FxaModuleNavigation.init(flow);
@@ -82,6 +98,7 @@ var FxaModuleUI = {
         if (params.count > 1 && params.count < this.maxSteps) {
           this.fxaModuleNavigation.classList.remove('navigation-single-button');
           this.fxaModuleNavigation.classList.remove('navigation-back-only');
+          this.fxaModuleNavigation.classList.remove('navigation-done');
 
           if (nextScreen.getAttribute('data-navigation') === 'back') {
             this.fxaModuleNavigation.classList.add('navigation-back-only');
@@ -90,6 +107,8 @@ var FxaModuleUI = {
           this.fxaModuleNavigation.classList.add('navigation-single-button');
           if (params.count === this.maxSteps) {
             this.fxaModuleNavigation.classList.add('navigation-done');
+          } else {
+            this.fxaModuleNavigation.classList.remove('navigation-done');
           }
         }
         this.setProgressBar(params.count);
@@ -164,5 +183,9 @@ var FxaModuleUI = {
   },
   enableDoneButton: function() {
     this.fxaModuleDone.removeAttribute('disabled');
+  },
+  focusDoneButton: function() {
+    document.activeElement.blur();
+    this.fxaModuleDone.focus();
   }
 };

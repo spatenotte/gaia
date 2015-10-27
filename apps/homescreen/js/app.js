@@ -57,8 +57,10 @@
     window.performance.mark('navigationLoaded');
 
     // Element references
+    this.header = document.getElementById('page-indicator-header');
     this.indicator = document.getElementById('page-indicator');
     this.panels = document.getElementById('panels');
+    this.panel = document.getElementById('apps-panel');
     this.meta = document.head.querySelector('meta[name="theme-color"]');
     this.shadow = document.querySelector('#apps-panel > .shadow');
     this.scrollable = document.querySelector('#apps-panel > .scrollable');
@@ -97,6 +99,7 @@
     this.pageHeight = 1;
     this.gridHeight = 1;
     this.pendingGridHeight = 1;
+    this.iconsPerPage = 0;
 
     // Scroll behaviour
     this.appsVisible = false;
@@ -113,10 +116,8 @@
 
     this._iconSize = 0;
 
-    // Update the panel indicator
-    this.updatePanelIndicator();
-
     // Signal handlers
+    this.indicator.addEventListener('keypress', this);
     this.panels.addEventListener('scroll', this);
     this.scrollable.addEventListener('scroll', this);
     this.icons.addEventListener('activate', this);
@@ -136,8 +137,10 @@
     // Settings
     this.settings = new Settings();
     this.icons.classList.toggle('small', this.settings.small);
+    this.scrollable.classList.toggle('snapping', this.settings.scrollSnapping);
 
     // Populate apps and bookmarks asynchronously
+    this.metadataLoaded = 0;
     this.startupMetadata = [];
     this.iconsToRetry = [];
     this.pendingIcons = {};
@@ -156,10 +159,10 @@
       // won't save, but it's better than showing a blank screen.
       // If this is the first run, get the app order from the first-run script
       // after initialising the metadata database.
-      this.metadata.init().then(this.settings.firstRun ?
-        LazyLoader.load(['js/firstrun.js'],
+      this.metadata.init().then(this.settings.firstRun ? () => {
+        return LazyLoader.load('js/firstrun.js').then(
           () => {
-            FirstRun().then((results) => {
+            return FirstRun().then((results) => {
               this.toggleSmall(results.small);
               this.startupMetadata = results.order;
               this.settings.save();
@@ -172,14 +175,31 @@
           (e) => {
             console.error('Failed to load first-run script');
             return Promise.resolve();
-          }) :
+          });
+        } :
         () => {
           return this.metadata.getAll(result => {
-            // Process results as they come in
             this.startupMetadata.push(result);
-            if (this.pendingIcons[result.id]) {
-              this.addAppIcon.apply(this, this.pendingIcons[result.id]);
-              delete this.pendingIcons[result.id];
+            this.metadataLoaded++;
+
+            // Process results in batches as they come in
+            var processResult = data => {
+              if (this.pendingIcons[data.id]) {
+                this.addAppIcon.apply(this, this.pendingIcons[data.id]);
+                delete this.pendingIcons[data.id];
+              }
+            };
+
+            if (!this.visualLoadComplete) {
+              processResult(result);
+              this.refreshGridSize();
+            } else if ((this.metadataLoaded % this.iconsPerPage) === 0) {
+              this.icons.freeze();
+              for (var entry of this.startupMetadata) {
+                processResult(entry);
+              }
+              this.refreshGridSize();
+              this.icons.thaw();
             }
           }).then(Promise.resolve(),
             e => {
@@ -304,6 +324,11 @@
       // Store app order of new icons
       if (newIcons) {
         this.storeAppOrder();
+      } else {
+        // Grid size is only refreshed in the non-startup path, so unless we
+        // added new icons post-startup, refresh here to make sure it's the
+        // correct size.
+        this.refreshGridSize();
       }
 
       // All asynchronous loading has finished
@@ -311,6 +336,9 @@
     });
 
     this.pages = new Pages();
+
+    // Update the panel indicator
+    this.updatePanelIndicator();
 
     // Application has finished initialisation
     window.performance.mark('navigationInteractive');
@@ -348,7 +376,7 @@
         return;
       }
 
-      this.scrollable.classList.toggle('snapping', this.scrollSnapping);
+      this.scrollable.classList.toggle('snapping', scrollSnapping);
       this.snapScrollPosition();
     },
 
@@ -399,14 +427,19 @@
           if (child.order !== -1 && child.order < container.order) {
             continue;
           }
-          this.icons.insertBefore(container, child,
-                                  this.iconAdded.bind(this, container));
+          this.icons.insertBefore(container, child);
+          if (this.startupMetadata === null) {
+            this.iconAdded(container);
+          }
           break;
         }
       }
 
       if (!container.parentNode) {
-        this.icons.appendChild(container, this.iconAdded.bind(this, container));
+        this.icons.appendChild(container);
+        if (this.startupMetadata === null) {
+          this.iconAdded(container);
+        }
       }
 
       return container;
@@ -493,10 +526,11 @@
       }.bind(this, icon, id));
 
       // Override default launch behaviour
-      icon.addEventListener('activated', function(e) {
+      icon.addEventListener('activated', e => {
         e.preventDefault();
         this.handleEvent({ type: 'activate',
-                           detail: { target: e.target.parentNode } });
+                           detail: { target: e.target.parentNode },
+                           preventDefault: () => {}});
       });
 
       // Refresh icon data (sets title and refreshes icon)
@@ -553,7 +587,8 @@
       } else {
         var iconHeight = Math.round(children[firstVisibleChild].offsetHeight);
         var scrollHeight = this.scrollable.clientHeight;
-        var pageHeight = Math.floor(scrollHeight / iconHeight) * iconHeight;
+        var rowsPerPage = Math.floor(scrollHeight / iconHeight);
+        var pageHeight = rowsPerPage * iconHeight;
         var gridHeight = (Math.ceil((iconHeight *
           Math.ceil(visibleChildren /
                     (this.settings.small ? 4 : 3))) / pageHeight) *
@@ -561,7 +596,10 @@
 
         this.pageHeight = pageHeight;
         this.pendingGridHeight = gridHeight;
+        this.iconsPerPage = rowsPerPage * (this.settings.small ? 4 : 3);
 
+        // When a full screen of apps is visible, we mark that as visual loading
+        // being complete.
         if (!this.visualLoadComplete &&
             Math.floor(visibleChildren /
                        (this.settings.small ? 4 : 3)) * iconHeight >=
@@ -601,7 +639,7 @@
       var scrollHeight = this.scrollable.clientHeight;
 
       var destination;
-      if (this.scrollSnapping) {
+      if (this.settings.scrollSnapping) {
         destination = Math.min(gridHeight - scrollHeight,
           Math.round(currentScroll / this.pageHeight + bias) * this.pageHeight);
       } else {
@@ -657,10 +695,14 @@
       var appsVisible = this.panels.scrollLeft <= this.panels.scrollLeftMax / 2;
       if (this.appsVisible !== appsVisible) {
         this.appsVisible = appsVisible;
+
+        this.header.setAttribute('data-l10n-id', appsVisible ?
+          'apps-panel' : 'pages-panel');
+        this.indicator.setAttribute('aria-valuenow', appsVisible ? 0 : 1);
         this.indicator.children[0].classList.toggle('active', appsVisible);
         this.indicator.children[1].classList.toggle('active', !appsVisible);
-        this.indicator.setAttribute('data-l10n-id', this.appsVisible ?
-          'apps-panel' : 'pages-panel');
+        this.panel.setAttribute('aria-hidden', !appsVisible);
+        this.pages.panel.setAttribute('aria-hidden', appsVisible);
       }
     },
 
@@ -674,6 +716,24 @@
       var icon, child, id;
 
       switch (e.type) {
+      // Switch between panels
+      case 'keypress':
+        if (!e.ctrlKey) {
+          break;
+        }
+
+        switch (e.keyCode) {
+          case e.DOM_VK_RIGHT:
+            this.panels.scrollTo(
+              { left: this.panels.scrollLeftMax, top: 0, behavior: 'smooth' });
+            break;
+          case e.DOM_VK_LEFT:
+            this.panels.scrollTo(
+              { left: 0, top: 0, behavior: 'smooth' });
+            break;
+        }
+        break;
+
       // Display the top shadow when scrolling down
       case 'scroll':
         if (e.target === this.panels) {
@@ -691,6 +751,7 @@
 
       // App launching
       case 'activate':
+        e.preventDefault();
         icon = e.detail.target.firstElementChild;
 
         switch (icon.state) {
@@ -716,11 +777,6 @@
             break;
 
           default:
-            // Launching an app
-            if (icon.app) {
-              window.performance.mark('appLaunch@' + icon.app.origin);
-            }
-
             icon.launch();
             break;
         }
@@ -775,7 +831,7 @@
             e.detail.clientY <= window.innerHeight - DELETE_DISTANCE) {
           // If the drop target is null, check to see if we're
           // dropping over the icon itself, and if we aren't, we must be
-          // dropping over the end of the container.
+          // dropping over the start or end of the container.
           if (!e.detail.dropTarget) {
             var rect = this.icons.getChildOffsetRect(e.detail.target);
             var x = e.detail.clientX;
@@ -784,7 +840,9 @@
             if (x < rect.left || y < rect.top ||
                 x >= rect.right || y >= rect.bottom) {
               e.preventDefault();
-              this.icons.reorderChild(e.detail.target, null,
+              var bottom = e.detail.clientY < window.innerHeight / 2;
+              this.icons.reorderChild(e.detail.target,
+                                      bottom ? this.icons.firstChild : null,
                                       this.storeAppOrder.bind(this));
             }
           }
@@ -884,6 +942,21 @@
 
       // Add apps installed after startup
       case 'install':
+        // Check if the app already exists, and if so, update it.
+        // This happens when reinstalling an app via WebIDE.
+        var existing = false;
+        for (child of this.icons.children) {
+          icon = child.firstElementChild;
+          if (icon.app && icon.app.manifestURL === e.application.manifestURL) {
+            icon.app = e.application;
+            icon.refresh();
+            existing = true;
+          }
+        }
+        if (existing) {
+          return;
+        }
+
         this.addApp(e.application);
         this.storeAppOrder();
         break;

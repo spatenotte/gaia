@@ -187,6 +187,7 @@ uld be a Function`);
     this._controlCollections = {};
     this._fswc = new FxSyncWebCrypto();
     this._kinto = null;
+    this._xClientState = null;
     this._haveUnsyncedConflicts = {};
     this._ready = false;
   };
@@ -225,6 +226,9 @@ uld be a Function`);
           return this._syncCollection(collectionName).then(() => {
             return this._getItem(collectionName, itemName, false);
           });
+        }
+        if (err.message === 'Record with id=global not found.') {
+          throw new SyncEngine.InvalidAccountError();
         }
         throw err;
       });
@@ -309,6 +313,7 @@ ting to fetch resource.`) {
            assertion: this._assertion,
            xClientState
          });
+         this._xClientState = xClientState;
       }).then(() => {
         return this._syncCollection('meta');
       }).then(() => {
@@ -373,8 +378,8 @@ rse crypto/keys payload as JSON`));
       return this._ensureReady().then(() => {
         var promises = [];
         for (var collectionName in collectionOptions) {
+          collectionOptions[collectionName].userid = this._xClientState;
           promises.push(this._updateCollection(collectionName,
-               //TODO: actually use this, see bug 1209934
                collectionOptions[collectionName]));
         }
         return Promise.all(promises);
@@ -399,6 +404,12 @@ rse crypto/keys payload as JSON`));
     this.message = 'unauthorized';
   };
   SyncEngine.AuthError.prototype = Object.create(Error.prototype);
+
+  SyncEngine.InvalidAccountError = function() {
+    console.error('[SyncEngine InvalidAccount]', arguments);
+    this.message = 'invalid account';
+  };
+  SyncEngine.InvalidAccountError.prototype = Object.create(Error.prototype);
 
   return SyncEngine;
 })();

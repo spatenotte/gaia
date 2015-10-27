@@ -1,16 +1,18 @@
-/* exported open */ // Should not be needed, but JSHint complains
-/* global AlbumArtCache, AudioMetadata, Database, LazyLoader, PlaybackQueue,
-          Remote, bridge, navigateToURL, onSearchOpen, onSearchClose */
+/* global AlbumArtCache, AudioMetadata, Database, LazyLoader, NFCShare,
+          PlaybackQueue, Remote, bridge, navigateToURL, onSearchOpen,
+          onSearchClose */
 'use strict';
 
 var audio           = null;
 var queueSettings   = null;
 var remote          = null;
+var nfcShare        = null;
 var currentFilePath = null;
 var currentQueue    = null;
 var isInterrupted   = false;
 var isFastSeeking   = false;
 var isStopped       = true;
+var externalFile    = null;
 
 var service = bridge.service('music-service')
   .method('play', play)
@@ -52,7 +54,8 @@ var service = bridge.service('music-service')
   .method('getSongThumbnailURL', getSongThumbnailURL)
 
   .method('share', share)
-  .method('open', open)
+  .method('openExternalFile', openExternalFile)
+  .method('enableNFC', enableNFC)
 
   .method('getDatabaseStatus', getDatabaseStatus)
 
@@ -234,7 +237,7 @@ function nextSong(automatic = false) {
   }
 
   var hasNextSong = currentQueue.next(automatic);
-  if (!hasNextSong) {
+  if (!hasNextSong && !externalFile) {
     return Promise.resolve(stop());
   }
 
@@ -259,6 +262,16 @@ function loadRemote() {
   }
 
   return remote;
+}
+
+function loadNFCShare() {
+  if (!nfcShare) {
+    nfcShare = LazyLoader.load('/js/nfc_share.js').then(() => {
+      return NFCShare;
+    });
+  }
+
+  return nfcShare;
 }
 
 function queueArtist(filePath) {
@@ -378,10 +391,18 @@ function getAlbum(filePath) {
 }
 
 function getSong(filePath) {
+  if (externalFile && filePath === externalFile.name) {
+    return Promise.resolve(externalFile);
+  }
+
   return Database.getFileInfo(filePath);
 }
 
 function getSongFile(filePath) {
+  if (externalFile && filePath === externalFile.name) {
+    return Promise.resolve(externalFile.file);
+  }
+
   return getSong(filePath).then((song) => {
     return Database.getFile(song);
   });
@@ -463,51 +484,66 @@ function share(filePath) {
     }
 
     return Promise.all([
-        getSongFile(filePath),
-        getSongThumbnail(filePath)
-      ]).then(([file, thumbnail]) => {
-        var path = song.name;
-        var filename = path.substring(path.lastIndexOf('/') + 1);
+      getSongFile(filePath),
+      getSongThumbnail(filePath)
+    ]).then(([file, thumbnail]) => {
+      var path = song.name;
+      var filename = path.substring(path.lastIndexOf('/') + 1);
 
-        return new window.MozActivity({
-          name: 'share',
-          data: {
-            type: 'audio/*',
-            number: 1,
-            blobs: [file],
-            filenames: [filename],
-            filepaths: [path],
-            metadata: [{
-              title: song.metadata.title,
-              artist: song.metadata.artist,
-              album: song.metadata.album,
-              picture: thumbnail
-            }]
-          }
-        });
+      return new window.MozActivity({
+        name: 'share',
+        data: {
+          type: 'audio/*',
+          number: 1,
+          blobs: [file],
+          filenames: [filename],
+          filepaths: [path],
+          metadata: [{
+            title: song.metadata.title,
+            artist: song.metadata.artist,
+            album: song.metadata.album,
+            picture: thumbnail
+          }]
+        }
       });
+    });
   });
 }
 
-function open(blob) {
+function openExternalFile(file, filename = null) {
   var scripts = [
     '/js/metadata/metadata_scripts.js',
     '/js/metadata/album_art.js'
   ];
 
-  return LazyLoader.load(scripts).then(() => {
-    return AudioMetadata.parse(blob).then((metadata) => {
-      var filePath = blob.name;
+  return loadQueueSettings().then(() => {
+    return LazyLoader.load(scripts);
+  }).then(() => {
+    return AudioMetadata.parse(file, filename);
+  }).then((metadata) => {
+    externalFile = {
+      file: file,
+      name: file.name || URL.createObjectURL(file),
+      metadata: metadata
+    };
 
-      isStopped = false;
-      play(filePath);
+    currentQueue = new PlaybackQueue.StaticQueue([externalFile]);
 
-      return {
-        blob: blob,
-        metadata: metadata,
-        name: filePath
-      };
-    });
+    return currentSong();
+  }).then((song) => {
+    isStopped = false;
+    play(song.name);
+  });
+}
+
+function enableNFC(enabled) {
+  // This function is a no-op until we enable NFC once.
+  if (!nfcShare && !enabled) {
+    return;
+  }
+
+  loadNFCShare().then(() => {
+    NFCShare.enabled = enabled;
   });
 }
 

@@ -602,10 +602,11 @@ function switchPanel() {
   var animationPromise;
   if (doSlideAnimation) {
 
+    var shouldGoRight = isGoingBack ^ (document.dir === 'rtl');
     newPanelElement.style.animationName =
-      isGoingBack ? 'new-slide-right' : 'new-slide-left';
+      shouldGoRight ? 'new-slide-right' : 'new-slide-left';
     oldPanelElement.style.animationName =
-      isGoingBack ? 'old-slide-right' : 'old-slide-left';
+      shouldGoRight ? 'old-slide-right' : 'old-slide-left';
 
     animationPromise = waitForSlideAnimation(newPanelElement).catch(
       () => {}
@@ -622,6 +623,7 @@ function switchPanel() {
     }
 
     newPanelElement.classList.add('panel-active');
+    newPanelElement.classList.remove('panel-hidden');
     newPanelElement.setAttribute('aria-hidden', 'false');
   });
 }
@@ -880,6 +882,10 @@ var Navigation = {
    */
   setReady() {
     debug('setReady()');
+
+    Array.from(document.querySelectorAll('.panel-hidden')).forEach((panel) => {
+      panel.classList.remove('panel-hidden');
+    });
     readyDefer.resolve();
     readyDefer = null;
   }
