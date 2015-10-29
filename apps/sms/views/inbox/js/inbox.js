@@ -40,9 +40,10 @@ var InboxView = {
   inEditMode: false,
 
   /**
-   * Indicates whether user should be notified about newly saved draft.
+   * Indicates that draft with particular id has been saved recently and  user
+   * should be notified about it.
    */
-  notifyAboutSavedDraft: false,
+  notifyAboutSavedDraftWithId: null,
 
   init: function inbox_init() {
     this.tmpl = {
@@ -147,14 +148,13 @@ var InboxView = {
   },
 
   beforeEnter: function inbox_beforeEnter(args = {}) {
-    this.editHeader.removeAttribute('no-font-fit');
     // In case user saved draft when Inbox was not the active view, we want to
     // notify that save operation successfully completed once user returns back
     // to Inbox view.
-    if (this.notifyAboutSavedDraft) {
+    if (this.notifyAboutSavedDraftWithId) {
       this.showDraftSavedBanner();
 
-      this.notifyAboutSavedDraft = false;
+      this.notifyAboutSavedDraftWithId = null;
     }
   },
 
@@ -367,7 +367,7 @@ var InboxView = {
     }
     if (selected.selectedCount) {
       this.deleteButton.disabled = false;
-      navigator.mozL10n.setAttributes(this.editMode, 'selected-threads', {
+      document.l10n.setAttributes(this.editMode, 'selected-threads', {
         n: selected.selectedCount
       });
 
@@ -398,7 +398,7 @@ var InboxView = {
     } else {
       this.deleteButton.disabled = true;
       this.readUnreadButton.disabled = true;
-      navigator.mozL10n.setAttributes(this.editMode, 'selectThreads-title');
+      document.l10n.setAttributes(this.editMode, 'selectThreads-title');
     }
   },
 
@@ -565,8 +565,17 @@ var InboxView = {
       this.mainWrapper.classList.toggle('edit');
     }
 
+    this.editHeader.removeAttribute('no-font-fit');
+
     if (!this.selectionHandler) {
-      LazyLoader.load('/views/shared/js/selection_handler.js', () => {
+      LazyLoader.load([
+        '/views/shared/js/selection_handler.js',
+        '/shared/style/edit_mode.css',
+        '/shared/style/switches.css',
+        '/views/shared/style/edit-mode.css',
+        '/shared/style/tabs.css',
+        '/views/inbox/style/edit-mode.css'
+        ], () => {
         this.selectionHandler = new SelectionHandler({
           // Elements
           container: this.container,
@@ -577,6 +586,7 @@ var InboxView = {
           getIdIterator: this.getIdIterator.bind(this),
           isInEditMode: this.isInEditMode.bind(this)
         });
+        this.editForm.classList.remove('hide');
         editModeSetup.call(this);
       });
     } else {
@@ -986,6 +996,12 @@ var InboxView = {
     } else {
       this.updateThread(thread);
     }
+
+    // If the draft we scheduled notification for has been deleted, we shouldn't
+    // notify user anymore.
+    if (draft.id === this.notifyAboutSavedDraftWithId) {
+      this.notifyAboutSavedDraftWithId = null;
+    }
   },
 
   onDraftSaved: function inbox_onDraftSaved(draft) {
@@ -996,7 +1012,7 @@ var InboxView = {
     // notify that save operation successfully completed once user returns back
     // to Inbox view.
     if (!Navigation.isCurrentPanel('thread-list')) {
-      this.notifyAboutSavedDraft = true;
+      this.notifyAboutSavedDraftWithId = draft.id;
     }
   },
 

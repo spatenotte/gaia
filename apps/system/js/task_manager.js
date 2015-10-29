@@ -289,6 +289,7 @@ TaskManager.prototype = {
       this.screenElement.classList.add('cards-view');
       this.element.classList.remove('from-home');
       this.scrollElement.style.overflowX = 'scroll';
+      this._isTransitioning = false;
     });
   },
 
@@ -318,15 +319,6 @@ TaskManager.prototype = {
       Service.query('AppWindowManager.getActiveWindow') ||
       Service.query('getHomescreen', true);
 
-    // Other apps observe 'cardviewclosed' to note that we've potentially
-    // changed stack positions.
-    var latestStack = StackManager.snapshot();
-    var detail = {};
-    var newStackPosition = newApp ? latestStack.indexOf(newApp) : -1;
-    if (newStackPosition !== -1) {
-      detail.newStackPosition = newStackPosition;
-    }
-
     // Remove '.cards-view' now, so that the incoming app animation begins its
     // transition at the proper scale.
     this.screenElement.classList.remove('cards-view');
@@ -342,12 +334,13 @@ TaskManager.prototype = {
     // ... and when the transition has finished, clean up.
     return eventSafety(newApp.element, 'animationend', (e) => {
       this.setActive(false);
-      this.publish('cardviewclosed', { detail });
+      this.publish('cardviewclosed', { detail: newApp });
       this.element.classList.remove('to-home');
       this.element.classList.remove('filtered');
       this.stack.forEach((app) => {
         this._removeApp(app);
       });
+      this._isTransitioning = false;
     }, 2000);
   },
 
@@ -593,7 +586,6 @@ TaskManager.prototype = {
       return;
     }
 
-    this._isTransitioning = false; // Done opening or closing.
     this._active = active;
     if (active) {
       this.publish('taskmanager-activated');
@@ -621,7 +613,7 @@ TaskManager.prototype = {
     } else {
       config = new BrowserConfigHelper({
         manifestURL: 'app://search.gaiamobile.org/manifest.webapp',
-        url: 'app://search.gaiamobile.org/newtab.html'
+        url: 'app://search.gaiamobile.org/newtab.html?private=0'
       });
     }
 

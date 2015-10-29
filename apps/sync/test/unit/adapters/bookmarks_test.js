@@ -57,26 +57,31 @@ suite('sync/adapters/bookmarks >', () => {
       assert.equal(payload.bmkUri, bookmarksItem.id);
       assert.equal(payload.bmkUri, bookmarksItem.url);
       assert.equal(payload.title, bookmarksItem.name);
+      assert.deepEqual(payload, bookmarksItem.fxsyncRecords[payload.id]);
       assert.equal('url', bookmarksItem.type);
       break;
     case 'query':
       assert.equal(payload.type + '|' + payload.id, bookmarksItem.id);
       assert.equal(payload.bmkUri, bookmarksItem.url);
       assert.equal(payload.title, bookmarksItem.name);
+      assert.deepEqual(payload, bookmarksItem.fxsyncRecords[payload.id]);
       assert.equal('others', bookmarksItem.type);
       break;
     case 'folder':
       assert.equal(payload.type + '|' + payload.id, bookmarksItem.id);
       assert.equal(payload.title, bookmarksItem.name);
+      assert.deepEqual(payload, bookmarksItem.fxsyncRecords[payload.id]);
       assert.equal('others', bookmarksItem.type);
       break;
     case 'livemark':
       assert.equal(payload.type + '|' + payload.id, bookmarksItem.id);
       assert.equal(payload.title, bookmarksItem.name);
+      assert.deepEqual(payload, bookmarksItem.fxsyncRecords[payload.id]);
       assert.equal('others', bookmarksItem.type);
       break;
     case 'separator':
       assert.equal(payload.type + '|' + payload.id, bookmarksItem.id);
+      assert.deepEqual(payload, bookmarksItem.fxsyncRecords[payload.id]);
       assert.equal('others', bookmarksItem.type);
       break;
     case 'microsummary':
@@ -147,10 +152,12 @@ suite('sync/adapters/bookmarks >', () => {
 
   test('update - empty records', done => {
     var bookmarksAdapter = DataAdapters.bookmarks;
-    bookmarksAdapter.update(kintoCollection).then(result => {
+    bookmarksAdapter.update(kintoCollection, { readonly: true, userid: 'foo' })
+        .then(result => {
       assert.equal(result, false);
       assert.equal(updateBookmarksSpy.callCount, 0);
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], null);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          null);
     }).then(done, reason => {
       done(reason || new Error('Rejected by undefined reason.'));
     });
@@ -159,10 +166,12 @@ suite('sync/adapters/bookmarks >', () => {
   test('update - 1 sync request with 5 new records', done => {
     var bookmarksAdapter = DataAdapters.bookmarks;
     testCollectionData = testDataGenerator(1, 1440000000, 5);
-    bookmarksAdapter.update(kintoCollection).then(result => {
+    bookmarksAdapter.update(kintoCollection, { readonly: true, userid: 'foo' })
+        .then(result => {
       assert.equal(result, false);
       var mTime = testCollectionData[0].last_modified;
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], mTime);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          mTime);
       assert.equal(updateBookmarksSpy.callCount, 1);
       return Promise.resolve();
     }).then(getBookmarksStore).then(bookmarksStore => {
@@ -173,7 +182,8 @@ suite('sync/adapters/bookmarks >', () => {
         for (var i = 0; i < ids.length; i++) {
           verifyBookmarks(testCollectionData[i], list[i]);
           assert.equal(
-            asyncStorage.mItems[BOOKMARKS_SYNCTOID_PREFIX + list[i].fxsyncId],
+            asyncStorage.mItems[
+                'foo' + BOOKMARKS_SYNCTOID_PREFIX + list[i].fxsyncId],
             list[i].url);
         }
       });
@@ -187,21 +197,25 @@ suite('sync/adapters/bookmarks >', () => {
     Promise.resolve().then(() => {
       testCollectionData = testDataGenerator(1, 100, 5)
         .concat(testCollectionData);
-      return bookmarksAdapter.update(kintoCollection);
+      return bookmarksAdapter.update(kintoCollection,
+          { readonly: true, userid: 'foo' });
     }).then(result => {
       assert.equal(result, false);
       var mTime = testCollectionData[0].last_modified;
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], mTime);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          mTime);
       assert.equal(updateBookmarksSpy.callCount, 1);
       return Promise.resolve();
     }).then(() => {
       testCollectionData = testDataGenerator(6, 500, 5)
         .concat(testCollectionData);
-      return bookmarksAdapter.update(kintoCollection);
+      return bookmarksAdapter.update(kintoCollection,
+          { readonly: true, userid: 'foo' });
     }).then(result => {
       assert.equal(result, false);
       var mTime = testCollectionData[0].last_modified;
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], mTime);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          mTime);
       assert.equal(updateBookmarksSpy.callCount, 2);
       return Promise.resolve();
     }).then(getBookmarksStore).then(bookmarksStore => {
@@ -212,7 +226,8 @@ suite('sync/adapters/bookmarks >', () => {
         for (var i = 0; i < ids.length; i++) {
           verifyBookmarks(testCollectionData[i], list[i]);
           assert.equal(
-            asyncStorage.mItems[BOOKMARKS_SYNCTOID_PREFIX + list[i].fxsyncId],
+            asyncStorage.mItems[
+                'foo' + BOOKMARKS_SYNCTOID_PREFIX + list[i].fxsyncId],
             list[i].url);
         }
       });
@@ -227,11 +242,13 @@ suite('sync/adapters/bookmarks >', () => {
     Promise.resolve().then(() => {
       testCollectionData = testDataGenerator(1, 100, 5)
         .concat(testCollectionData);
-      return bookmarksAdapter.update(kintoCollection);
+      return bookmarksAdapter.update(kintoCollection,
+          { readonly: true, userid: 'foo' });
     }).then(result => {
       assert.equal(result, false);
       var mTime = testCollectionData[0].last_modified;
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], mTime);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          mTime);
       assert.equal(updateBookmarksSpy.callCount, 1);
       return Promise.resolve();
     }).then(() => {
@@ -250,11 +267,13 @@ suite('sync/adapters/bookmarks >', () => {
         });
       });
       testCollectionData = deletedRecords.concat(testCollectionData);
-      return bookmarksAdapter.update(kintoCollection);
+      return bookmarksAdapter.update(kintoCollection,
+          { readonly: true, userid: 'foo' });
     }).then(result => {
       assert.equal(result, false);
       var mTime = testCollectionData[0].last_modified;
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], mTime);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          mTime);
       assert.equal(updateBookmarksSpy.callCount, 2);
       return Promise.resolve();
     }).then(getBookmarksStore).then(bookmarksStore => {
@@ -267,12 +286,121 @@ suite('sync/adapters/bookmarks >', () => {
           if (list[i]) {
             verifyBookmarks(testCollectionData[i], list[i]);
             assert.equal(
-              asyncStorage.mItems[BOOKMARKS_SYNCTOID_PREFIX + list[i].fxsyncId],
+              asyncStorage.mItems[
+                  'foo' + BOOKMARKS_SYNCTOID_PREFIX + list[i].fxsyncId],
               list[i].url);
           } else {
             assert.notEqual(deletedQueue.indexOf(testCollectionData[i].id), -1);
           }
         }
+      });
+    }).then(done, reason => {
+      done(reason || new Error('Rejected by undefined reason.'));
+    });
+  });
+
+  test('update - Add three records with the same URL and delete one', done => {
+    var bookmarksAdapter = DataAdapters.bookmarks, store;
+    Promise.resolve().then(() => {
+      for (var i = 1; i <= 3; i++) {
+        testCollectionData.unshift({
+          id: 'UNIQUE_ID_' + i,
+          last_modified: 100 + i * 10,
+          payload: {
+            id: 'UNIQUE_ID_' + i,
+            type: 'bookmark',
+            bmkUri: 'http://example.com/',
+            title: 'Example ' + i + ' Title'
+          }
+        });
+      }
+      return bookmarksAdapter.update(kintoCollection,
+          { readonly: true, userid: 'foo' });
+    }).then(result => {
+      assert.equal(result, false);
+      var mTime = testCollectionData[0].last_modified;
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          mTime);
+      assert.equal(updateBookmarksSpy.callCount, 1);
+      return Promise.resolve();
+    }).then(() => {
+      testCollectionData = [
+        {
+          id: 'UNIQUE_ID_2',
+          last_modified: testCollectionData[0].last_modified + 10000,
+          payload: {
+            deleted: true,
+            id: 'UNIQUE_ID_2'
+          }
+        },
+        {
+          id: 'UNIQUE_ID_3',
+          last_modified: 130,
+          payload: {
+            id: 'UNIQUE_ID_3',
+            type: 'bookmark',
+            bmkUri: 'http://example.com/',
+            title: 'Example 3 Title'
+          }
+        },
+        {
+          id: 'UNIQUE_ID_1',
+          last_modified: 110,
+          payload: {
+            id: 'UNIQUE_ID_1',
+            type: 'bookmark',
+            bmkUri: 'http://example.com/',
+            title: 'Example 1 Title'
+          }
+        }
+      ];
+      return bookmarksAdapter.update(kintoCollection,
+          { readonly: true, userid: 'foo' });
+    }).then(result => {
+      assert.equal(result, false);
+      var mTime = testCollectionData[0].last_modified;
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          mTime);
+      assert.equal(updateBookmarksSpy.callCount, 2);
+      return Promise.resolve();
+    }).then(getBookmarksStore).then(bookmarksStore => {
+      store = bookmarksStore;
+      return store.get.apply(store, ['http://example.com/']).then(item => {
+        var expectedBookmark = {
+          id: 'http://example.com/',
+          url: 'http://example.com/',
+          name: 'Example 1 Title',
+          type: 'url',
+          iconable: false,
+          icon: '',
+          syncNeeded: true,
+          fxsyncRecords: {
+            UNIQUE_ID_1: {
+              id: 'UNIQUE_ID_1',
+              type: 'bookmark',
+              bmkUri: 'http://example.com/',
+              title: 'Example 1 Title',
+              timestamp: 110
+            },
+            UNIQUE_ID_2: {
+              id: 'UNIQUE_ID_2',
+              deleted: true
+            },
+            UNIQUE_ID_3: {
+              id: 'UNIQUE_ID_3',
+              type: 'bookmark',
+              bmkUri: 'http://example.com/',
+              title: 'Example 3 Title',
+              timestamp: 130
+            }
+          },
+          fxsyncId: 'UNIQUE_ID_3'
+        };
+        assert.equal(
+          asyncStorage.mItems[
+              'foo' + BOOKMARKS_SYNCTOID_PREFIX + item.fxsyncId],
+          item.url);
+        assert.deepEqual(item, expectedBookmark);
       });
     }).then(done, reason => {
       done(reason || new Error('Rejected by undefined reason.'));
@@ -321,10 +449,12 @@ suite('sync/adapters/bookmarks >', () => {
         type: 'separator'
       }
     });
-    bookmarksAdapter.update(kintoCollection).then(result => {
+    bookmarksAdapter.update(kintoCollection, { readonly: true, userid: 'foo' })
+        .then(result => {
       assert.equal(result, false);
       var mTime = testCollectionData[0].last_modified;
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], mTime);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          mTime);
       assert.equal(updateBookmarksSpy.callCount, 1);
       return Promise.resolve();
     }).then(getBookmarksStore).then(bookmarksStore => {
@@ -337,7 +467,8 @@ suite('sync/adapters/bookmarks >', () => {
           if (list[i]) {
             verifyBookmarks(testCollectionData[i], list[i]);
             assert.equal(
-              asyncStorage.mItems[BOOKMARKS_SYNCTOID_PREFIX + list[i].fxsyncId],
+              asyncStorage.mItems[
+                  'foo' + BOOKMARKS_SYNCTOID_PREFIX + list[i].fxsyncId],
               list[i].id);
           } else {
             assert.ok(false, 'Empty Record!');
@@ -362,9 +493,11 @@ suite('sync/adapters/bookmarks >', () => {
         title: 'Example ' + i + ' Title'
       }
     });
-    bookmarksAdapter.update(kintoCollection).then(result => {
+    bookmarksAdapter.update(kintoCollection, { readonly: true, userid: 'foo' })
+        .then(result => {
       assert.equal(result, false);
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], null);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          null);
       assert.equal(updateBookmarksSpy.callCount, 0);
       return Promise.resolve();
     }).then(done, reason => {
@@ -385,9 +518,11 @@ suite('sync/adapters/bookmarks >', () => {
         title: 'Example ' + i + ' Title'
       }
     });
-    bookmarksAdapter.update(kintoCollection).then(result => {
+    bookmarksAdapter.update(kintoCollection, { readonly: true, userid: 'foo' })
+        .then(result => {
       assert.equal(result, false);
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], null);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          null);
       assert.equal(updateBookmarksSpy.callCount, 0);
       return Promise.resolve();
     }).then(done, reason => {
@@ -408,9 +543,11 @@ suite('sync/adapters/bookmarks >', () => {
         title: 'Example ' + i + ' Title'
       }
     });
-    bookmarksAdapter.update(kintoCollection).then(result => {
+    bookmarksAdapter.update(kintoCollection, { readonly: true, userid: 'foo' })
+        .then(result => {
       assert.equal(result, false);
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], null);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          null);
       assert.equal(updateBookmarksSpy.callCount, 0);
       return Promise.resolve();
     }).then(done, reason => {
@@ -431,9 +568,11 @@ suite('sync/adapters/bookmarks >', () => {
         title: 'Example ' + i + ' Title'
       }
     });
-    bookmarksAdapter.update(kintoCollection).then(result => {
+    bookmarksAdapter.update(kintoCollection, { readonly: true, userid: 'foo' })
+        .then(result => {
       assert.equal(result, false);
-      assert.equal(asyncStorage.mItems[BOOKMARKS_COLLECTION_MTIME], null);
+      assert.equal(asyncStorage.mItems['foo' + BOOKMARKS_COLLECTION_MTIME],
+          null);
       assert.equal(updateBookmarksSpy.callCount, 0);
       return Promise.resolve();
     }).then(done, reason => {
@@ -453,6 +592,9 @@ suite('sync/adapters/bookmarks >', () => {
       url: 'http://www.mozilla.org/en-US/',
       name: 'Mozilla',
       type: 'url',
+      fxsyncRecords: {
+        'XXXXX_ID_XXXXX': {}
+      },
       fxsyncId: 'XXXXX_ID_XXXXX'
     };
 
@@ -493,21 +635,47 @@ suite('sync/adapters/bookmarks >', () => {
   test('BookmarksHelper - merge two records with incorrect fxsyncId', done => {
     var bookmark1 = {
       url: 'http://www.mozilla.org/en-US/',
-      name: 'Mozilla',
+      name: '',
       type: 'url',
-      fxsyncId: 'dummy',
+      fxsyncRecords: {
+        'XXXXX_ID_XXXXX_A': {
+          id: 'XXXXX_ID_XXXXX_A'
+        }
+      },
+      fxsyncId: 'XXXXX_ID_XXXXX_A'
     };
 
     var bookmark2 = {
       url: 'http://www.mozilla.org/en-US/',
       name: 'Mozilla',
       type: 'url',
-      fxsyncId: 'XXXXX_ID_XXXXX'
+      fxsyncRecords: {
+        'XXXXX_ID_XXXXX_B': {
+          id: 'XXXXX_ID_XXXXX_B'
+        }
+      },
+      fxsyncId: 'XXXXX_ID_XXXXX_B'
     };
 
-    assert.throws(() => {
-      BookmarksHelper.mergeRecordsToDataStore(bookmark1, bookmark2);
-    });
+    var result = BookmarksHelper.mergeRecordsToDataStore(bookmark1, bookmark2);
+    var expectedBookmark = {
+      url: 'http://www.mozilla.org/en-US/',
+      name: 'Mozilla',
+      type: 'url',
+      fxsyncRecords: {
+        'XXXXX_ID_XXXXX_A': {
+          id: 'XXXXX_ID_XXXXX_A'
+        },
+        'XXXXX_ID_XXXXX_B': {
+          id: 'XXXXX_ID_XXXXX_B'
+        }
+      },
+      fxsyncId: 'XXXXX_ID_XXXXX_A'
+    };
+
+    assert.equal(result.name, expectedBookmark.name);
+    assert.equal(result.url, expectedBookmark.url);
+    assert.deepEqual(result, expectedBookmark);
     done();
   });
 });

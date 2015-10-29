@@ -13,7 +13,7 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
         settings = Settings(self.marionette)
         settings.launch()
 
-        #################### Sound ######################
+        ################### Sound ######################
         sound_page = settings.open_sound()
         self.take_screenshot('sound')
         GaiaImageCompareTestCase.scroll(self.marionette, 'down', sound_page.screen_element.size['height'],
@@ -27,7 +27,6 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
             self.take_screenshot('sound-ringtones')
 
         ringtone_page.tap_exit()
-        settings.switch_to_settings_app()
         Wait(self.marionette).until(lambda m: sound_page.ring_tone_selector_visible)
 
         alerts_page = sound_page.tap_alerts_selector()
@@ -37,7 +36,6 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
                                             screen=alerts_page.screen_element)
             self.take_screenshot('sound-alerts')
         alerts_page.tap_exit()
-        settings.switch_to_settings_app()
         Wait(self.marionette).until(lambda m: sound_page.ring_tone_selector_visible)
 
         manage_page = sound_page.tap_manage_tones_selector()
@@ -51,7 +49,6 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
         self.take_screenshot('sound-manage_tones-share')
         manage_page.cancel_share()
         manage_page.tap_exit()
-        settings.switch_to_settings_app()
         Wait(self.marionette).until(lambda m: sound_page.ring_tone_selector_visible)
         settings.return_to_prev_menu(settings.screen_element, sound_page.screen_element)
 
@@ -59,21 +56,26 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
         display_page = settings.open_display()
         self.take_screenshot('display')
         display_page.tap_timeout_selector()
-        self.take_screenshot('display-timeout_values')
+        self.take_screenshot('display-timeout_values', top_frame=True)
         display_page.tap_timeout_confirmation()
         settings.return_to_prev_menu(settings.screen_element, display_page.screen_element)
 
         #################### Homescreen ######################
         homescreen_page = settings.open_homescreen()
         self.take_screenshot('homescreen')
+
         homescreen_page.pick_wallpaper()
-        self.take_screenshot('homescreen-wallpaper_pick')
+        self.take_screenshot('wallpaper')
         homescreen_page.cancel_pick_wallpaper()
+
+        homescreen_page.select_change_icon_layout()
+        self.take_screenshot('layout',top_frame=True)
+        homescreen_page.confirm_icon_layout()
 
         homescreen_page.open_change_home_screen()
         self.take_screenshot('homescreen-change_homescreen')
         homescreen_page.open_get_more_home_screen()
-        self.take_screenshot('homescreen-get_more_homescreen')
+        self.take_screenshot('homescreen-get_more_homescreen', top_frame=True)
         homescreen_page.cancel_get_more_home_screen()
         settings.return_to_prev_menu(homescreen_page.screen_element,
                                      homescreen_page.change_homescreen_screen_element)
@@ -106,7 +108,7 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
         self.take_screenshot('date_and_time')
         date_time_page.disable_default_format()
         date_time_page.open_time_format()
-        self.take_screenshot('date_and_time-time_format')
+        self.take_screenshot('date_and_time-time_format',top_frame=True)
         date_time_page.close_time_format()
         settings.return_to_prev_menu(settings.screen_element, date_time_page.screen_element)
 
@@ -115,7 +117,7 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
         language_page = settings.open_language()
         self.take_screenshot('language')
         language_page.open_select_language()
-        self.take_screenshot('language-select')
+        self.take_screenshot('language-select',top_frame=True)
         language_page.close_select_language()
         settings.return_to_prev_menu(settings.screen_element, language_page.screen_element)
 
@@ -144,11 +146,19 @@ class TestSettingsRTLPersonalization(GaiaImageCompareTestCase):
         ############# Addons ######################
         addons_page = settings.open_addons()
         self.take_screenshot('addons')
-        addons_page.tap_first_item()
+
+        addons_page.tap_item(0)
         self.take_screenshot('addons-addon_enabled')
         addons_page.toggle_addon_status()  # addons are enabled by default
         Wait(self.marionette).until(lambda m: not addons_page.is_addon_enabled)
         self.take_screenshot('addons-addon_disabled')
         addons_page.toggle_addon_status()  # revert to original state
         settings.return_to_prev_menu(addons_page.screen_element, addons_page.details_screen_element)
-        settings.return_to_prev_menu(settings.screen_element, addons_page.screen_element)
+
+        addons_page.tap_item(1)
+        self.take_screenshot('addons-nouse_addon')
+        settings.return_to_prev_menu(addons_page.screen_element, addons_page.details_screen_element)
+
+        addons_page.tap_item(2)
+        self.take_screenshot('addons-obsolete_addon')
+        settings.return_to_prev_menu(addons_page.screen_element, addons_page.details_screen_element)

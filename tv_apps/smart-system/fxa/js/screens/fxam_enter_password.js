@@ -1,8 +1,9 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
-/* global FxaModuleStates, FxaModuleUI, FxaModule, FxaModuleNavigation,
-   FxModuleServerRequest, FxaModuleOverlay, FxaModuleManager */
+/* global FxaModuleUI, FxaModule, FxaModuleNavigation,
+   FxModuleServerRequest, FxaModuleOverlay, FxaModuleManager, KeyEvent,
+   FxaModuleKeyNavigation */
 /* exported FxaModuleEnterPassword */
 
 'use strict';
@@ -33,14 +34,6 @@ var FxaModuleEnterPassword = (function() {
     passwordEl.value = '';
     passwordCheck.checked = false;
     passwordEl.setAttribute('type', 'password');
-  }
-
-  function _loadSigninSuccess(done) {
-    done(FxaModuleStates.SIGNIN_SUCCESS);
-  }
-
-  function _notVerifiedUser(done) {
-    done(FxaModuleStates.SIGNUP_SUCCESS);
   }
 
   function _togglePasswordVisibility() {
@@ -100,6 +93,17 @@ var FxaModuleEnterPassword = (function() {
         }.bind(this)
       );
 
+      this.fxaPwInput.addEventListener('focus', () => {
+        setTimeout(this.fxaPwInput.select.bind(this.fxaPwInput));
+      });
+
+      this.fxaShowPw.addEventListener('keypress', e => {
+        if (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN) {
+          this.fxaShowPw.checked = !this.fxaShowPw.checked;
+          _togglePasswordVisibility.bind(this)();
+        }
+      });
+
       this.fxaShowPw.addEventListener(
         'change',
         _togglePasswordVisibility.bind(this),
@@ -137,9 +141,29 @@ var FxaModuleEnterPassword = (function() {
 
     _enableNext(this.fxaPwInput);
 
+    // There are 3 reasons why using setTimeout at this place:
+    // 1. Focus() only works in the setTimeout callback here
+    // 2. The input will be focused first and the keyboard will be brought
+    //    up. We need to do this after the slide up animation of the parent
+    //    fxa_dialog. But the fxa iframe has no way to know when the slide up
+    //    animation is finished.
+    // 3. Put the FxaModuleKeyNavigation.add in the onanimate callback in
+    //    fxam_navigation.js doesn't work, since there is no animation for the
+    //    first page in the flow.
+    setTimeout(() => {
+      FxaModuleKeyNavigation.add([
+        '#fxa-pw-input', '#fxa-forgot-password',
+        '#fxa-show-pw', '#fxa-module-next']);
+    }, 500);
   };
 
-  Module.onNext = function onNext(gotoNextStepCallback) {
+  Module.onBack = function onBack() {
+    FxaModuleKeyNavigation.remove([
+      '#fxa-pw-input', '#fxa-forgot-password',
+      '#fxa-show-pw', '#fxa-module-next']);
+  };
+
+  Module.onDone = function onDone(done) {
     FxaModuleOverlay.show('fxa-connecting');
 
     FxaModuleManager.setParam('success', true);
@@ -148,15 +172,18 @@ var FxaModuleEnterPassword = (function() {
       this.fxaPwInput.value,
       function onServerResponse(response) {
         FxaModuleOverlay.hide();
+        FxaModuleKeyNavigation.remove([
+          '#fxa-pw-input', '#fxa-forgot-password',
+          '#fxa-show-pw', '#fxa-module-next']);
 
         if (!response.authenticated) {
-          _notVerifiedUser(gotoNextStepCallback);
+          // XXX Show inactive sync account. Bug1215463
           return;
         }
-
-        _loadSigninSuccess(gotoNextStepCallback);
+        done();
       }.bind(this),
       function onError(response) {
+        FxaModuleKeyNavigation.disable();
         _cleanForm(
           this.fxaPwInput,
           this.fxaShowPw

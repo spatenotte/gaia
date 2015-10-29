@@ -21,6 +21,13 @@
   will-change: scroll-position;
 }
 
+/* When using a screen reader, disable the invisible gripper.
+   The invisible gripper is useless with the screen reader and
+   interferes with touching the statusbar. */
+#screen.screenreader .tray {
+  --tray-invisible-gripper-height: 0px;
+}
+
 /* NOTE: csslint treats variable-only rules as "empty" errors, per
    <https://github.com/CSSLint/csslint/issues/538>. */
 @media (orientation: portrait) {
@@ -72,6 +79,8 @@
 
 #statusbar-tray {
   background-image: none;
+  background-repeat: no-repeat;
+  background-position: right;
   width: 100%;
   top: 0;
   height: 3rem;
@@ -79,8 +88,9 @@
 }
 
 #screen.utility-tray-in-transition #statusbar-tray,
-#screen:-moz-full-screen-ancestor #statusbar-tray {
-  background-image: -moz-element(#statusbar-maximized);
+#screen:-moz-full-screen-ancestor #statusbar-tray,
+#screen.utility-tray-in-transition #utility-tray #statusbar-tray {
+  background-image: -moz-element(#statusbar-icons);
 }
 
 #statusbar-tray > .sb-start-upper {

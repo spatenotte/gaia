@@ -30,51 +30,54 @@
   LazyLoader
 */
 
-const BOOKMARKS_COLLECTION_MTIME = 'collections::bookmarks::mtime';
-const BOOKMARKS_SYNCTOID_PREFIX = 'synctoid::bookmarks::';
+const BOOKMARKS_COLLECTION_MTIME = '::collections::bookmarks::mtime';
+const BOOKMARKS_SYNCTOID_PREFIX = '::synctoid::bookmarks::';
 
 var BookmarksHelper = (() => {
-  var store;
+  var _store;
   function _ensureStore() {
-    if (store) {
-      return Promise.resolve(store);
+    if (_store) {
+      return Promise.resolve(_store);
     }
-    return navigator.getDataStores('sync_bookmarks_store').then(stores => {
-      store = stores[0];
-      return store;
+    return navigator.getDataStores('bookmarks_store').then(stores => {
+      _store = stores[0];
+      return _store;
     });
   }
 
-  function setSyncedCollectionMtime(mtime) {
+  function setSyncedCollectionMtime(mtime, userid) {
     return new Promise(resolve => {
-      asyncStorage.setItem(BOOKMARKS_COLLECTION_MTIME, mtime, resolve);
+      asyncStorage.setItem(userid + BOOKMARKS_COLLECTION_MTIME, mtime, resolve);
     });
   }
 
-  function getSyncedCollectionMtime() {
+  function getSyncedCollectionMtime(userid) {
     return new Promise(resolve => {
-      asyncStorage.getItem(BOOKMARKS_COLLECTION_MTIME, resolve);
+      asyncStorage.getItem(userid + BOOKMARKS_COLLECTION_MTIME, resolve);
     });
   }
 
   /*
-      setDataStoreId and getDataStoreId are used to create a table for caching
-    SynctoId to DataStoreId matching. When a delete: true record comes from
+    setDataStoreId and getDataStoreId are used to create a table for caching
+    SynctoId to DataStoreId matching. When a `deleted: true` record comes from
     FxSync, getDataStoreId can help to get DataStoreId easily. So a new record
     comes, the adapter has to use setDataStoreId to store the ID matching.
-    Due to this common requirement, bug 1207468 will have an improvement for
-    this case.
+    Since both the synctoId and the dataStoreId for a given URL are unique to
+    the currently logged in user, we store these values prefixed per `userid`
+    (`xClientState` of the currently logged in user).
   */
-  function setDataStoreId(synctoId, dataStoreId) {
+  function setDataStoreId(synctoId, dataStoreId, userid) {
     return new Promise(resolve => {
-      asyncStorage.setItem(
-        BOOKMARKS_SYNCTOID_PREFIX + synctoId, dataStoreId, resolve);
+      asyncStorage.setItem(userid + BOOKMARKS_SYNCTOID_PREFIX + synctoId,
+                           dataStoreId,
+                           resolve);
     });
   }
 
-  function getDataStoreId(synctoId) {
+  function getDataStoreId(synctoId, userid) {
     return new Promise(resolve => {
-      asyncStorage.getItem(BOOKMARKS_SYNCTOID_PREFIX + synctoId, resolve);
+      asyncStorage.getItem(userid + BOOKMARKS_SYNCTOID_PREFIX + synctoId,
+                           resolve);
     });
   }
 
@@ -86,26 +89,17 @@ var BookmarksHelper = (() => {
       console.error('Inconsistent records', localRecord, remoteRecord);
       throw new Error('Inconsistent records');
     }
-    if (!localRecord.fxsyncId && typeof remoteRecord.fxsyncId === 'string') {
-      /* When a localRecord has no fxsyncId, assign fxsyncId to it from a
-         remoteRecord. This case always happens at first synchronization or
-         merging two records with the same URL. */
-      localRecord.fxsyncId = remoteRecord.fxsyncId;
-    } else if (localRecord.fxsyncId !== remoteRecord.fxsyncId) {
-      // Two records have different fxsyncId but have the same url(id).
-      console.log('Records should have the same Firefox Sync ID',
-        localRecord, remoteRecord);
-      throw new Error('Records should have the same Firefox Sync ID',
-        localRecord, remoteRecord);
-    }
 
     localRecord.name = remoteRecord.name;
-    localRecord.fxsyncPayload = remoteRecord.fxsyncPayload;
-
+    if (!localRecord.fxsyncRecords) {
+      localRecord.fxsyncRecords = {};
+    }
+    localRecord.fxsyncRecords[remoteRecord.fxsyncId] =
+        remoteRecord.fxsyncRecords[remoteRecord.fxsyncId];
     return localRecord;
   }
 
-  function addBookmark(remoteRecord) {
+  function addBookmark(remoteRecord, userid) {
     // 1. Get bookmark by url(id of DataStore)
     // 2.A. If the bookmark already exists locally,
     //     we merge it with the remote one.
@@ -116,43 +110,60 @@ var BookmarksHelper = (() => {
     var revisionId;
     return _ensureStore().then(store => {
       revisionId = store.revisionId;
-      return store.get(id);
-    }).then(localRecord => {
-      if (localRecord) {
-        var newBookmark = mergeRecordsToDataStore(localRecord, remoteRecord);
-        return store.put(newBookmark, id, revisionId);
-      }
-      return store.add(remoteRecord, id, revisionId).then(() => {
-        return setDataStoreId(remoteRecord.fxsyncId, id);
+      return store.get(id).then(localRecord => {
+        if (localRecord) {
+          var newBookmark = mergeRecordsToDataStore(localRecord, remoteRecord);
+          return store.put(newBookmark, id, revisionId).then(() => {
+            return setDataStoreId(remoteRecord.fxsyncId, id, userid);
+          });
+        }
+        return store.add(remoteRecord, id, revisionId).then(() => {
+          return setDataStoreId(remoteRecord.fxsyncId, id, userid);
+        });
       });
     }).catch(e => {
       console.error(e);
     });
   }
 
-  function updateBookmarks(records) {
+  function updateBookmarks(records, userid) {
     return new Promise(resolve => {
       records.reduce((reduced, current) => {
         return reduced.then(() => {
           if (current.deleted) {
-            return deleteBookmark(current.fxsyncId);
+            return deleteBookmark(current.id, userid);
           }
-          return addBookmark(current);
+          return addBookmark(current, userid);
         });
       }, Promise.resolve()).then(resolve);
     });
   }
 
-  function deleteBookmark(fxsyncId) {
+  function deleteBookmark(fxsyncId, userid) {
     var url;
-    return getDataStoreId(fxsyncId).then(id => {
+    return getDataStoreId(fxsyncId, userid).then(id => {
       if (!id) {
         console.warn('No DataStore ID corresponded to FxSyncID', fxsyncId);
+        return Promise.resolve();
       }
       url = id;
-      return _ensureStore();
-    }).then(store => {
-      return store.remove(url);
+      return _ensureStore().then(store => {
+        var revisionId = store.revisionId;
+        return store.get(url).then(localRecord => {
+          localRecord.fxsyncRecords[fxsyncId] = {
+            deleted: true,
+            id: fxsyncId
+          };
+          var isEmpty = Object.keys(localRecord.fxsyncRecords).every(value => {
+            return localRecord.fxsyncRecords[value].deleted;
+          });
+          if (isEmpty && localRecord.syncNeeded) {
+            return store.remove(url, revisionId);
+          } else {
+            return store.put(localRecord, url, revisionId);
+          }
+        });
+      });
     });
   }
 
@@ -188,7 +199,11 @@ DataAdapters.bookmarks = {
     "type": "url",
     "iconable": false,
     "icon": "http://www.lego.com/favicon.ico",
-    "fxsyncPayload": Object, // payload from BC
+    "fxsyncRecords": {
+      'fxsyncID_A': fxsync_payload_A,
+      'fxsyncID_B': fxsync_payload_B,
+      'fxsyncID_C': fxsync_payload_C
+    }, // payload from BC
     "fxsyncId": "REMOTE_ID" // [1.1]
   }
 
@@ -259,31 +274,27 @@ DataAdapters.bookmarks = {
   [5] https://docs.services.mozilla.com/sync/objectformats.html#bookmarks
 
 **/
-  _update(remoteRecords, lastModifiedTime) {
+  _update(remoteRecords, lastModifiedTime, userid) {
     var bookmarks = [];
     for (var i = 0; i < remoteRecords.length; i++) {
       var payload = remoteRecords[i].payload;
+      if (remoteRecords[i].last_modified <= lastModifiedTime) {
+        break;
+      }
       if (payload.type === 'microsummary') {
         console.warn('microsummary is OBSOLETED ', payload);
-        continue;
-      }
-      if (['query', 'bookmark', 'folder', 'livemark', 'separator']
-          .every(value => value !== payload.type)) {
-        console.error('Unknown type? ', payload);
         continue;
       }
       if (!Number.isInteger(remoteRecords[i].last_modified)) {
         console.warn('Incorrect payload::last_modified? ', payload);
         continue;
       }
-      if (remoteRecords[i].last_modified <= lastModifiedTime) {
-        break;
-      }
       if (payload.deleted) {
-        bookmarks.push({
-          deleted: true,
-          fxsyncId: payload.id
-        });
+        bookmarks.push(payload);
+        continue;
+      } else if (['query', 'bookmark', 'folder', 'livemark', 'separator']
+          .every(value => value !== payload.type)) {
+        console.error('Unknown type? ', payload);
         continue;
       }
       var typeWithUri = ['query', 'bookmark']
@@ -292,6 +303,9 @@ DataAdapters.bookmarks = {
         console.warn('Incorrect payload? ', payload);
         continue;
       }
+      var fxsyncRecords = {};
+      fxsyncRecords[payload.id] = remoteRecords[i].payload;
+      fxsyncRecords[payload.id].timestamp = remoteRecords[i].last_modified;
       bookmarks.push({
         // URL is the ID for bookmark records in bookmarks_store, but there are
         // some types without a valid URL except bookmark type. URL is used as
@@ -305,7 +319,8 @@ DataAdapters.bookmarks = {
         type: payload.type === 'bookmark' ? 'url' : 'others',
         iconable: false,
         icon: '',
-        fxsyncPayload: payload,
+        syncNeeded: true,
+        fxsyncRecords: fxsyncRecords,
         fxsyncId: payload.id
       });
     }
@@ -314,9 +329,9 @@ DataAdapters.bookmarks = {
       return Promise.resolve(false /* no writes done into kinto */);
     }
 
-    return BookmarksHelper.updateBookmarks(bookmarks).then(() => {
+    return BookmarksHelper.updateBookmarks(bookmarks, userid).then(() => {
       var latestMtime = remoteRecords[0].last_modified;
-      return BookmarksHelper.setSyncedCollectionMtime(latestMtime);
+      return BookmarksHelper.setSyncedCollectionMtime(latestMtime, userid);
     }).then(() => {
       // Always return false for a read-only operation.
       return Promise.resolve(false /* no writes done into kinto */);
@@ -329,11 +344,13 @@ DataAdapters.bookmarks = {
     }
     var mtime;
     return LazyLoader.load(['shared/js/async_storage.js'])
-    .then(BookmarksHelper.getSyncedCollectionMtime).then(_mtime => {
+    .then(() => {
+      return BookmarksHelper.getSyncedCollectionMtime(options.userid);
+    }).then(_mtime => {
       mtime = _mtime;
       return remoteBookmarks.list();
     }).then(list => {
-      return this._update(list.data, mtime);
+      return this._update(list.data, mtime, options.userid);
     });
   },
 

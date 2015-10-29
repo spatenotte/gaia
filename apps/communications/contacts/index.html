@@ -71,6 +71,8 @@
     <script defer src="/contacts/js/contacts.js"></script>
     <script defer src="/shared/js/contacts/utilities/image_loader.js"></script>
     <script defer src="/contacts/js/fb_loader.js"></script>
+    <script defer src="/shared/js/advanced_telemetry_helper.js"></script>
+    <script defer src="/shared/js/settings_listener.js"></script>
     -->
 
     <!-- Web Components -->
@@ -153,7 +155,7 @@
 
       <!-- Contacts List Section -->
       <section id='view-contacts-list' role="region" data-state="active" class="view view-noscroll view-contacts-list">
-        <gaia-header ignore-dir id="contacts-list-header">
+        <gaia-header id="contacts-list-header">
           <h1 id="app-title" data-l10n-id="contacts"></h1>
           <button id="add-contact-button" data-icon="add" data-l10n-id="addButton"></button>
           <button id="settings-button" data-icon="settings" data-l10n-id="settingsButton"></button>
@@ -228,7 +230,7 @@
       </section>
     <form id="selectable-form" role="dialog" data-type="edit" class="hide">
       <section role="region" class="theme-settings">
-        <gaia-header ignore-dir id="selectable-form-header" action="close">
+        <gaia-header id="selectable-form-header" action="close">
           <h1 id="edit-title" data-l10n-id="contacts"></h1>
           <button type="button" id="select-action"></button>
         </gaia-header>

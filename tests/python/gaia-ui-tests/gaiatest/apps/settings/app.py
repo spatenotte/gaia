@@ -169,6 +169,10 @@ class Settings(Base):
     def title(self):
         return self.marionette.find_element(*self._main_title_locator)
 
+    @property
+    def current_view(self):
+        return self.marionette.find_element(By.CLASS_NAME, 'current').get_attribute('id')
+
     def open_wifi(self):
         return self._open_subpage(self._wifi_menu_item_locator, 'wifi', 'Wifi')
 
@@ -321,7 +325,7 @@ class Settings(Base):
     def _wait_for_parent_section_not_displayed(self, menu_item):
         section = menu_item.find_element(By.XPATH, 'ancestor::section')
         Wait(self.marionette).until(
-            lambda m: section.location['x'] + section.size['width'] == 0)
+            lambda m: abs(section.location['x']) == abs(section.size['width']))
 
     def _tap_menu_item(self, menu_item_locator):
         menu_item = self._wait_for_menu_item(menu_item_locator)
@@ -339,7 +343,7 @@ class Settings(Base):
         Wait(self.marionette).until(expected.element_enabled(checkbox))
 
     def return_to_prev_menu(self, parent_view, exit_view):
-        GaiaHeader(self.marionette, self._header_locator).go_back()
+        GaiaHeader(self.marionette, exit_view.find_element(*self._header_locator)).go_back()
 
         Wait(self.marionette).until(lambda m: 'current' not in exit_view.get_attribute('class'))
         Wait(self.marionette).until(lambda m: parent_view.rect['x'] == 0)

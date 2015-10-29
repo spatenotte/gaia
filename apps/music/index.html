@@ -18,7 +18,8 @@
   <link rel="stylesheet" href="/css/app.css">
   <!-- Deferred Scripts -->
   <script defer src="/components/bridge/bridge.js"></script>
-  <script defer src="/shared/js/intl/l20n.js" type="application/javascript;version=1.8"></script>
+  <script defer src="/shared/js/intl/l20n-service.js" type="application/javascript;version=1.8"></script>
+  <script defer src="/shared/js/intl/l20n-client.js" type="application/javascript;version=1.8"></script>
   <script defer src="/shared/js/intl_helper.js"></script>
   <script defer src="/components/gaia-header/dist/gaia-header.js"></script>
   <script defer src="/components/gaia-toolbar/gaia-toolbar.js"></script>
@@ -42,6 +43,7 @@
   <script src="/shared/js/text_normalizer.js"></script>
   <script src="/js/queue.js"></script>
   <script src="/js/remote.js"></script>
+  <script src="/js/nfc_share.js"></script>
   -->
 </head>
 <body role="application">
@@ -103,7 +105,10 @@
       message-l10n-id="upgrade-text" hidden>
   </music-overlay>
 
-  <music-scan-progress id="scan-progress" hidden></music-scan-progress>
+  <music-scan-progress id="scan-progress"
+      heading-l10n-id="unknownArtist"
+      subheading-l10n-id="unknownTitle" hidden>
+  </music-scan-progress>
 
   <audio id="audio"></audio>
 </body>

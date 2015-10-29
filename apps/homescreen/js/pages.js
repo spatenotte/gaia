@@ -16,6 +16,7 @@ const PAGES_ICON_SIZE = 30;
 
   function Pages() {
     // Element references
+    this.panel = document.getElementById('pages-panel');
     this.panels = document.getElementById('panels');
     this.pages = document.getElementById('pages');
     this.shadow = document.querySelector('#pages-panel > .shadow');
@@ -26,12 +27,12 @@ const PAGES_ICON_SIZE = 30;
     // Scroll behaviour
     this.scrolled = false;
 
-    // Track when the first pinned page has been added
-    this.firstPinnedPage = true;
+    // Tracking if the list is empty
+    this.empty = true;
 
     // Signal handlers
     this.pages.addEventListener('click', this);
-    this.pages.addEventListener('contextmenu', this);
+    this.pages.addEventListener('keydown', this);
     this.pages.addEventListener('drag-start', this);
     this.pages.addEventListener('drag-move', this);
     this.pages.addEventListener('drag-end', this);
@@ -42,6 +43,13 @@ const PAGES_ICON_SIZE = 30;
     // Initialise and populate pinned pages
     this.pagesStore = new PagesStore('places');
     this.pagesStore.init().then(() => {
+      var checkEmptyCallback = () => {
+        if (!this.empty && this.pages.children.length === 0) {
+          this.empty = true;
+          this.panel.classList.add('empty');
+        }
+      };
+
       // Triggered when pages are added and updated.
       document.addEventListener('places-set', (e) => {
         var id = e.detail.id;
@@ -49,7 +57,7 @@ const PAGES_ICON_SIZE = 30;
           for (var child of this.pages.children) {
             if (child.dataset.id === id) {
               if (!page.data.pinned) {
-                this.pages.removeChild(child);
+                this.pages.removeChild(child, checkEmptyCallback);
               } else {
                 this.updatePinnedPage(child, page.data);
               }
@@ -70,7 +78,7 @@ const PAGES_ICON_SIZE = 30;
         var id = e.detail.id;
         for (var child of this.pages.children) {
           if (child.dataset.id === id) {
-            this.pages.removeChild(child);
+            this.pages.removeChild(child, checkEmptyCallback);
             return;
           }
         }
@@ -80,6 +88,11 @@ const PAGES_ICON_SIZE = 30;
         for (var child of this.pages.children) {
           this.pages.removeChild(child);
         }
+
+        if (!this.empty) {
+          this.empty = true;
+          this.panel.classList.add('empty');
+        }
       });
     },
     (e) => {
@@ -88,6 +101,11 @@ const PAGES_ICON_SIZE = 30;
       return this.pagesStore.getAll().then((pages) => {
         for (var page of pages) {
           this.addPinnedPage(page.data);
+        }
+
+        // If there are no pinned pages, display helpful information.
+        if (this.empty) {
+          this.panel.classList.add('empty');
         }
       }, (e) => {
         console.error('Error getting pinned pages', e);
@@ -126,42 +144,52 @@ const PAGES_ICON_SIZE = 30;
 
     addPinnedPage: function(page) {
       var pinCard = document.createElement('gaia-pin-card');
+
+      // Make the card accessible/allow activation
+      pinCard.tabIndex = 0;
+      pinCard.setAttribute('role', 'link');
+
       this.updatePinnedPage(pinCard, page);
       this.pages.appendChild(pinCard);
 
-      if (this.firstPinnedPage) {
-        this.firstPinnedPage = false;
-        document.body.classList.add('pin-the-web');
+      if (this.empty) {
+        this.empty = false;
+        this.panel.classList.remove('empty');
       }
+    },
+
+    launchCard: function(card) {
+      var features = {
+        name: card.title,
+        icon: card.icon,
+        remote: true
+      };
+
+      window.open(card.dataset.id, '_blank', Object.keys(features).map(
+        key => encodeURIComponent(key) + '=' + encodeURIComponent(features[key])
+      ).join(','));
     },
 
     handleEvent: function(e) {
       switch (e.type) {
       case 'click':
         if (e.target.nodeName !== 'GAIA-PIN-CARD') {
-          return;
+          break;
         }
 
-        var features = {
-          name: e.target.title,
-          icon: e.target.icon,
-          remote: true
-        };
-
-        window.open(e.target.dataset.id, '_blank', Object.keys(features).
-          map(function eachFeature(key) {
-            return encodeURIComponent(key) + '=' +
-              encodeURIComponent(features[key]);
-          }).join(','));
+        this.launchCard(e.target);
         break;
 
-      case 'contextmenu':
+      case 'keydown':
         if (e.target.nodeName !== 'GAIA-PIN-CARD') {
-          return;
+          break;
         }
 
-        e.preventDefault();
-        e.stopImmediatePropagation();
+        switch (e.keyCode) {
+          case 32: // Space
+          case 13: // Enter
+            this.launchCard(e.target);
+        }
         break;
 
       case 'drag-start':

@@ -1916,6 +1916,30 @@ suite('system/AppWindow', function() {
       assert.isTrue(stubKill.called);
     });
 
+    test('Closed while homescreen at bottom', function() {
+      var app1 = new AppWindow(fakeAppConfig1);
+      app1.isHomescreen = true;
+      app1.loaded = true;
+
+      var app2 = new AppWindow(fakeAppConfig2);
+
+      injectFakeMozBrowserAPI(app1.browser.element);
+      injectFakeMozBrowserAPI(app2.browser.element);
+      var stubScreenshot = this.sinon.stub(app1.browser.element,
+        'getScreenshot');
+      var stubScreenshot2 = this.sinon.stub(app2.browser.element,
+        'getScreenshot');
+
+      app1.handleEvent({
+        type: '_closed'
+      });
+
+      assert.isFalse(stubScreenshot.called,
+                     'should never take screenshot on _closed when homescreen');
+      assert.isFalse(stubScreenshot2.called,
+                     'should never take screenshot on _closed when homescreen');
+    });
+
     test('Closed while system is busy and homescreen at bottom', function() {
       var app1 = new AppWindow(fakeAppConfig1);
       app1.isHomescreen = true;
@@ -2040,12 +2064,16 @@ suite('system/AppWindow', function() {
                     { type: 'mozbrowsererror',
                       detail: { type: '' } },
                     { type: 'mozbrowsermetachange',
-                      detail: {} }];
+                      detail: {} },
+                    { type: 'mozbrowsermetachange',
+                      detail: {different: 'detail'} }];
       var expected = [{ type: 'mozbrowserloadstart' },
                       { type: '_loading' },
                       { type: 'mozbrowsererror' },
                       { type: 'mozbrowsermetachange',
-                        detail: {} }];
+                        detail: {} },
+                      { type: 'mozbrowsermetachange',
+                        detail: {different: 'detail'} }];
 
       events.forEach(app1.handleEvent, app1);
       assert.isFalse(spy.calledWithNew());
@@ -2094,6 +2122,37 @@ suite('system/AppWindow', function() {
         detail: 'http://fakeURL.changed2'
       });
       assert.equal(Object.keys(app1.favicons).length, 0);
+      app1.config.url = url;
+    });
+
+    test('Locationchange event to same URL', function() {
+      var app1 = new AppWindow(fakeAppConfig1);
+      var url = app1.config.url;
+
+      app1.handleEvent({
+        type: 'mozbrowserlocationchange',
+        detail: 'http://fakeURL.changed'
+      });
+
+      app1.handleEvent({
+        type: 'mozbrowsericonchange',
+        detail: {
+          href: 'http://fakeURL.favicon',
+          sizes: 60
+        }
+      });
+      var favicons = app1.favicons;
+      assert.equal(Object.keys(favicons).length, 1);
+
+      this.sinon.stub(app1, 'publish');
+      app1.handleEvent({
+        type: 'mozbrowserlocationchange',
+        detail: 'http://fakeURL.changed'
+      });
+      assert.deepEqual(app1.favicons, favicons);
+      // we *do* expect publish to be called,
+      // not doing so seems to break marionette tests
+      assert.isTrue(app1.publish.calledOnce);
       app1.config.url = url;
     });
 
@@ -2604,6 +2663,23 @@ suite('system/AppWindow', function() {
       blobPromise.mFulfillToValue({ url: dataURI });
     });
 
+    test('getSiteIconUrl passes along correct origin', function() {
+      app1.manifestURL = 'https://example.com/webapp.json';
+      app1.origin = 'https://app-origin.com/with#hash';
+      app1.manifest = {
+        origin: origin,
+        icons: {
+          '64': '/test.png'
+        }
+      };
+
+      this.sinon.stub(app1, 'getIconBlob', function (url, size, place, site) {
+        assert.equal(site.origin, 'https://app-origin.com');
+      });
+
+      app1.getSiteIconUrl(SIZE);
+    });
+
     test('getSiteIconUrl uses manifest icons if available', function() {
       app1.manifestURL = 'https://example.com/webapp.json';
       app1.manifest = {
@@ -2869,7 +2945,7 @@ suite('system/AppWindow', function() {
         { name: 'normal' }, { name: 'content' }
       ];
       app.installSubComponents();
-      element.dispatchEvent(new CustomEvent('mozbrowserloadend'));
+      element.dispatchEvent(new CustomEvent('mozbrowserloadstart'));
     });
 
     teardown(function() {
@@ -3078,79 +3154,9 @@ suite('system/AppWindow', function() {
       assert.isFalse(caughtOnParent);
     });
 
-  suite('Theme Color', function() {
-    test('(No type)', function() {
-      var app1 = new AppWindow(fakeAppConfig1);
-      var stubPublish = this.sinon.stub(app1, 'publish');
-
-      app1.handleEvent({
-        type: 'mozbrowsermetachange',
-        detail: {
-          name: 'theme-color',
-          content: 'transparent'
-        }
-      });
-
-      assert.isFalse(!!app1.themeColor);
-      assert.isFalse(stubPublish.calledOnce);
-    });
-
-    test('Added', function() {
-      var app1 = new AppWindow(fakeAppConfig1);
-      var stubPublish = this.sinon.stub(app1, 'publish');
-
-      app1.handleEvent({
-        type: 'mozbrowsermetachange',
-        detail: {
-          name: 'theme-color',
-          content: 'transparent',
-          type: 'added'
-        }
-      });
-
-      assert.equal(app1.themeColor, 'transparent');
-      assert.isTrue(stubPublish.calledOnce);
-    });
-
-    test('Changed', function() {
-      var app1 = new AppWindow(fakeAppConfig1);
-      var stubPublish = this.sinon.stub(app1, 'publish');
-
-      app1.handleEvent({
-        type: 'mozbrowsermetachange',
-        detail: {
-          name: 'theme-color',
-          content: 'pink',
-          type: 'changed'
-        }
-      });
-
-      assert.equal(app1.themeColor, 'pink');
-      assert.isTrue(stubPublish.calledOnce);
-    });
-
-    test('Removed', function() {
-      var app1 = new AppWindow(fakeAppConfig1);
-      var stubPublish = this.sinon.stub(app1, 'publish');
-
-      app1.handleEvent({
-        type: 'mozbrowsermetachange',
-        detail: {
-          name: 'theme-color',
-          content: 'pink',
-          type: 'removed'
-        }
-      });
-
-      assert.equal(app1.themeColor, '');
-      assert.isTrue(stubPublish.calledOnce);
-    });
-  });
-
   suite('Theme Group', function() {
     test('Added', function() {
       var app1 = new AppWindow(fakeAppConfig1);
-      var stubPublish = this.sinon.stub(app1, 'publish');
 
       app1.handleEvent({
         type: 'mozbrowsermetachange',
@@ -3162,7 +3168,6 @@ suite('system/AppWindow', function() {
       });
 
       assert.isTrue(app1.element.classList.contains('theme-media'));
-      assert.isTrue(stubPublish.calledOnce);
     });
 
     test('Sanitazation', function() {
@@ -3182,7 +3187,6 @@ suite('system/AppWindow', function() {
 
     test('Changed', function() {
       var app1 = new AppWindow(fakeAppConfig1);
-      var stubPublish = this.sinon.stub(app1, 'publish');
 
       app1.handleEvent({
         type: 'mozbrowsermetachange',
@@ -3194,7 +3198,6 @@ suite('system/AppWindow', function() {
       });
 
       assert.isTrue(app1.element.classList.contains('theme-settings'));
-      assert.isTrue(stubPublish.calledOnce);
     });
 
     test('Removed', function() {
@@ -3209,8 +3212,6 @@ suite('system/AppWindow', function() {
         }
       });
 
-      var stubPublish = this.sinon.stub(app1, 'publish');
-
       app1.handleEvent({
         type: 'mozbrowsermetachange',
         detail: {
@@ -3221,13 +3222,12 @@ suite('system/AppWindow', function() {
       });
 
       assert.isFalse(app1.element.classList.contains('theme-media'));
-      assert.isTrue(stubPublish.calledOnce);
     });
   });
 
   suite('inScope', function() {
     test('Same domain is in the scope', function() {
-      var scope = 'domain.com';
+      var scope = 'http://domain.com';
       var appConfig = {
         url: 'http://domain.com/test'
       };
@@ -3237,7 +3237,7 @@ suite('system/AppWindow', function() {
     });
 
     test('Scope with paths are allowed', function() {
-      var scope = 'domain.com/test';
+      var scope = 'http://domain.com/test';
       var appConfig = {
         url: 'http://domain.com/test/page1'
       };
@@ -3247,7 +3247,7 @@ suite('system/AppWindow', function() {
     });
 
     test('Different domain is not in the scope', function() {
-      var scope = 'domain2.com';
+      var scope = 'http://domain2.com';
       var appConfig = {
         url: 'http://domain.com/test'
       };
@@ -3257,7 +3257,17 @@ suite('system/AppWindow', function() {
     });
 
     test('Subdomains are not in the scope', function() {
-      var scope = 'test.domain.com';
+      var scope = 'http://test.domain.com';
+      var appConfig = {
+        url: 'http://domain.com/test'
+      };
+      var app = new AppWindow(appConfig);
+      this.sinon.stub(app, 'isBrowser').returns(true);
+      assert.isFalse(app.inScope(scope));
+    });
+
+    test('Different schemes are not in the scope', function() {
+      var scope = 'https://domain.com';
       var appConfig = {
         url: 'http://domain.com/test'
       };
@@ -3267,7 +3277,7 @@ suite('system/AppWindow', function() {
     });
 
     test('Returns false on non browser windows', function() {
-      var scope = 'domain.com/test';
+      var scope = 'http://domain.com/test';
       var appConfig = {
         url: 'http://domain.com/test/page1'
       };
@@ -3277,7 +3287,7 @@ suite('system/AppWindow', function() {
     });
 
     test('Scope changes on locationchange', function() {
-      var scope = 'test.domain.com';
+      var scope = 'http://test.domain.com';
       var appConfig = {
         url: 'http://domain.com/test'
       };

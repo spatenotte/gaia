@@ -37,15 +37,30 @@ suite('Pages', () => {
       });
       new Pages();
     });
+
+    test('should mark the pages panel empty if no pages', done => {
+      stub = sinon.stub(PagesStore.prototype, 'getAll', () => {
+        return { then: callback => {
+          callback([]);
+          done(() => {
+            assert.isTrue(document.getElementById('pages-panel').classList.
+                            contains('empty'));
+          });
+        }};
+      });
+      new Pages();
+    });
   });
 
   suite('Pages#addPinnedPage()', () => {
+    var pinCard;
     var createElementStub;
     var updatePinnedPageStub;
     var appendChildStub;
 
     setup(() => {
-      createElementStub = sinon.stub(document, 'createElement');
+      pinCard = document.createElement('div');
+      createElementStub = sinon.stub(document, 'createElement', () => pinCard);
       updatePinnedPageStub = sinon.stub(pages, 'updatePinnedPage');
       appendChildStub = sinon.stub(pages.pages, 'appendChild');
     });
@@ -56,12 +71,13 @@ suite('Pages', () => {
       appendChildStub.restore();
     });
 
-    test('should add pin-the-web to document body', () => {
-      assert.isTrue(pages.firstPinnedPage);
-      assert.isFalse(document.body.classList.contains('pin-the-web'));
+    test('should remove .empty from the pages panel', () => {
+      var pagesPanel = document.getElementById('pages-panel');
+      assert.isTrue(pages.empty);
+      assert.isTrue(pagesPanel.classList.contains('empty'));
       pages.addPinnedPage();
-      assert.isFalse(pages.firstPinnedPage);
-      assert.isTrue(document.body.classList.contains('pin-the-web'));
+      assert.isFalse(pages.empty);
+      assert.isFalse(pagesPanel.classList.contains('empty'));
     });
 
     test('should add a card to the pages list', () => {
@@ -69,6 +85,12 @@ suite('Pages', () => {
       assert.isTrue(createElementStub.calledWith('gaia-pin-card'));
       assert.isTrue(updatePinnedPageStub.calledOnce);
       assert.isTrue(appendChildStub.calledOnce);
+    });
+
+    test('should make card accessible', () => {
+      pages.addPinnedPage();
+      assert.equal(pinCard.tabIndex, 0);
+      assert.equal(pinCard.getAttribute('role'), 'link');
     });
   });
 
@@ -177,27 +199,6 @@ suite('Pages', () => {
         pages.handleEvent({ type: 'click', target: mockNotCard });
         assert.isFalse(windowOpenStub.called);
         windowOpenStub.restore();
-      });
-    });
-
-    suite('contextmenu', () => {
-      test('long-pressing a card should do nothing', () => {
-        var preventDefaultCalled = false;
-        var stopImmediatePropagationCalled = false;
-        var event = {
-          type: 'contextmenu',
-          target: mockCard,
-          preventDefault: () => {
-            preventDefaultCalled = true;
-          },
-          stopImmediatePropagation: () => {
-            stopImmediatePropagationCalled = true;
-          }
-        };
-        pages.handleEvent(event);
-
-        assert.isTrue(preventDefaultCalled);
-        assert.isTrue(stopImmediatePropagationCalled);
       });
     });
 

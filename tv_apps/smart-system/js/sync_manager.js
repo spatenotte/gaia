@@ -185,9 +185,19 @@
     set state(state) {
       state = state || SyncStateMachine.state;
       this.debug('Setting state', state);
-      asyncStorage.setItem(SYNC_STATE, state, () => {
-        this.store.set(SYNC_STATE, state);
-        this.notifyStateChange();
+      this.updateStateDeferred = new Promise(resolve => {
+        asyncStorage.setItem(SYNC_STATE, state, () => {
+          this.store.set(SYNC_STATE, state);
+          if (state === 'disabled' || state === 'enabled' ||
+              state === 'enabling') {
+            this.updateStatePreference().then(() => {
+              this.notifyStateChange();
+              resolve();
+            });
+            return;
+          }
+          this.notifyStateChange();
+        });
       });
     },
 
@@ -199,7 +209,6 @@
     set error(error) {
       asyncStorage.setItem(SYNC_STATE_ERROR, error, () => {
         this.store.set(SYNC_STATE_ERROR, error);
-        this.notifyStateChange();
       });
     },
 
@@ -211,7 +220,6 @@
       var lastSync = now;
       asyncStorage.setItem(SYNC_LAST_TIME, lastSync, () => {
         this.store.set(SYNC_LAST_TIME, lastSync);
-        this.notifyStateChange();
       });
     },
 
@@ -222,7 +230,6 @@
     set user(user) {
       asyncStorage.setItem(SYNC_USER, user, () => {
         this.store.set(SYNC_USER, user);
-        this.notifyStateChange;
       });
     },
 
@@ -290,13 +297,25 @@
       this.user = null;
       this.lastSync = null;
       this.cleanup();
+      // On TV because the login on Sync is tied to a login on FxA, login out
+      // from Sync means login out from FxA.
+      // Keep logout *after* the cleanup call where we remove the FxA event
+      // listeners.
+      LazyLoader.load('js/fx_accounts_client.js', () => {
+        FxAccountsClient.logout();
+      });
     },
 
-    onenabled() {
+    onenabled(from) {
       this.debug('onenabled observed');
       this.updateState();
       this.registerSyncRequest().then(() => {
         this.debug('Sync request registered');
+        // After login in with a new account or rebooting the device,
+        // we trigger a sync request.
+        if (from === 'enabling') {
+          SyncStateMachine.sync();
+        }
       }).catch(error => {
         console.error('Could not register sync request', error);
         SyncStateMachine.error(ERROR_REQUEST_SYNC_REGISTRATION);
@@ -330,16 +349,18 @@
       });
     },
 
-    onerrored(error) {
-      this.debug('onerrored observed', error);
-
-      this.updateState();
+    onerrored(from, to, error) {
+      this.debug(`onerrored observed ${error} while transitioning from ${from}
+                 to ${to}`);
 
       if (!error) {
         return;
       }
 
       this.error = error;
+
+      // We don't update the state until we set the error.
+      this.updateState();
 
       if (SyncUnrecoverableErrors.indexOf(error) > -1) {
         this.debug('Unrecoverable error');
@@ -608,16 +629,6 @@
         this.debug('Sync succeded');
         this.lastSync = Date.now();
 
-        // It's possible that the user disabled sync while we were syncing and
-        // the Sync app sent us the result of the sync process before we could
-        // cancel it.
-        // In that case we should update the last synced time but should not
-        // trigger success (which would be harmless but would console.warn an
-        // invalid change of state). We should simply bail out.
-        if (this.state !== 'syncing') {
-          return;
-        }
-
         SyncStateMachine.success();
       });
     },
@@ -657,6 +668,27 @@
       if (this.state === 'syncing') {
         this.cancelSync();
       }
+    },
+
+    updateStatePreference: function() {
+      // Changing the value of this setting changes the value of
+      // the 'services.sync.enabled' preference as well.
+      // We don't retrieve the Sync keys unless this pref is set to true.
+      const CHROME_EVENT = 'mozPrefChromeEvent';
+      return new Promise((resolve, reject) => {
+        var onprefchange = event => {
+          this.debug('Preference change ', event.detail);
+          if (event.detail.prefName !== 'services.sync.enabled') {
+            return;
+          }
+          window.removeEventListener(CHROME_EVENT, onprefchange);
+          resolve();
+        };
+        window.addEventListener(CHROME_EVENT, onprefchange);
+        navigator.mozSettings.createLock().set({
+          'services.sync.enabled': this.state !== 'disabled'
+        }).onerror = reject;
+      });
     },
 
     debug() {

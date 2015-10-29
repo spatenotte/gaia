@@ -232,7 +232,7 @@ suite('Homescreen app', () => {
       });
 
       teardown(() => {
-        delete Settings.firstRun;
+        Settings.firstRun = false;
       });
 
       test('should initialise the bookmark stores', done => {
@@ -312,13 +312,38 @@ suite('Homescreen app', () => {
 
     test('should be called on app install', () => {
       var addAppStub = sinon.stub(app, 'addApp');
-      app.handleEvent(new CustomEvent('install', {
-        detail: {
-          application: { manifest: {} }
-        }
-      }));
+      app.handleEvent(new CustomEvent('install'));
       assert.isTrue(addAppStub.calledOnce);
       addAppStub.restore();
+    });
+
+    test('should not be called when installing a pre-existing app', () => {
+      var refreshCalled = false;
+      Object.defineProperty(app.icons, 'children', {
+        value: [{
+          firstElementChild: {
+            app: {
+              manifestURL: 'abc'
+            },
+            refresh: () => {
+              refreshCalled = true;
+            }
+          }
+        }],
+        configurable: true
+      });
+
+      var addAppStub = sinon.stub(app, 'addApp');
+      app.handleEvent({
+        type: 'install',
+        application: { manifestURL: 'abc' }
+      });
+
+      assert.isFalse(addAppStub.called);
+      assert.isTrue(refreshCalled);
+
+      addAppStub.restore();
+      delete app.icons.children;
     });
   });
 
@@ -342,7 +367,9 @@ suite('Homescreen app', () => {
           if (!childIsVisible) {
             el.style.display = 'none';
           }
-          cb();
+          if (cb) {
+            cb();
+          }
         });
       });
 
@@ -438,6 +465,17 @@ suite('Homescreen app', () => {
       app.addAppIcon({ id: 'abc', addEventListener: () => {} });
       assert.isTrue(getIconBlobSpy.called);
       getIconBlobSpy.restore();
+    });
+
+    test('icon activated signal should be forwarded', () => {
+      var event;
+      var handleEventStub = sinon.stub(app, 'handleEvent', e => { event = e; });
+      app.addAppIcon({ id: 'abc', manifestURL: 'def' });
+      gaiaAppIconEl.dispatchEvent(new CustomEvent('activated'));
+
+      assert.isTrue(handleEventStub.called);
+      assert.equal(event.type, 'activate');
+      handleEventStub.restore();
     });
   });
 
@@ -542,11 +580,11 @@ suite('Homescreen app', () => {
         scrollTo: () => {}
       };
       scrollToSpy = sinon.spy(app.scrollable, 'scrollTo');
-      app.scrollSnapping = true;
+      app.settings.scrollSnapping = true;
     });
 
     teardown(() => {
-      app.scrollSnapping = false;
+      app.settings.scrollSnapping = false;
       app.scrollable = realScrollable;
     });
 
@@ -581,6 +619,16 @@ suite('Homescreen app', () => {
       assert.equal(app.scrollable.style.overflow, '');
       assert.isTrue(scrollToSpy.calledWith(
                       { left: 0, top: 0, behavior: 'smooth' }));
+    });
+
+    test('should do nothing if snapping disabled', () => {
+      app.settings.scrollSnapping = false;
+      app.pendingGridHeight = 500;
+      app.pageHeight = 100;
+      app.scrollable.scrollTop = 10;
+
+      app.snapScrollPosition();
+      assert.isFalse(scrollToSpy.called);
     });
   });
 
@@ -654,7 +702,21 @@ suite('Homescreen app', () => {
       app.updatePanelIndicator();
       assert.isTrue(indicatorToggleStubs[0].calledWith('active', true));
       assert.isTrue(indicatorToggleStubs[1].calledWith('active', false));
-      assert.equal(app.indicator.getAttribute('data-l10n-id'), 'apps-panel');
+      assert.equal(app.header.getAttribute('data-l10n-id'), 'apps-panel');
+    });
+
+    test('should update aria-hidden on both panels', () => {
+      var appPanelSetAttributeStub = sinon.stub(app.panel, 'setAttribute');
+      var pagesPanelSetAttributeStub =
+        sinon.stub(app.pages.panel, 'setAttribute');
+
+      app.appsVisible = false;
+      app.updatePanelIndicator();
+      assert.isTrue(appPanelSetAttributeStub.calledWith('aria-hidden', false));
+      assert.isTrue(pagesPanelSetAttributeStub.calledWith('aria-hidden', true));
+
+      appPanelSetAttributeStub.restore();
+      pagesPanelSetAttributeStub.restore();
     });
 
     test('should update indicator when pages visible', () => {
@@ -662,7 +724,7 @@ suite('Homescreen app', () => {
       app.updatePanelIndicator();
       assert.isTrue(indicatorToggleStubs[0].calledWith('active', false));
       assert.isTrue(indicatorToggleStubs[1].calledWith('active', true));
-      assert.equal(app.indicator.getAttribute('data-l10n-id'), 'pages-panel');
+      assert.equal(app.header.getAttribute('data-l10n-id'), 'pages-panel');
     });
 
     test('should do nothing when visibility is unchanged', () => {
@@ -678,6 +740,45 @@ suite('Homescreen app', () => {
   });
 
   suite('App#handleEvent()', () => {
+    suite('keypress', () => {
+      var scrollObject, realPanels;
+      var event = {
+        type: 'keypress',
+        ctrlKey: true,
+        DOM_VK_RIGHT: 'right',
+        DOM_VK_LEFT: 'left'
+      };
+      var mockPanels = {
+        scrollLeftMax: 100,
+        scrollTo: obj => { scrollObject = obj; }
+      };
+
+      setup(() => {
+        realPanels = app.panels;
+        app.panels = mockPanels;
+      });
+
+      teardown(() => {
+        app.panels = realPanels;
+      });
+
+      test('right should display pinned pages', () => {
+        event.keyCode = 'right';
+        app.handleEvent(event);
+        assert.equal(scrollObject.left, app.panels.scrollLeftMax);
+        assert.equal(scrollObject.top, 0);
+        assert.equal(scrollObject.behavior, 'smooth');
+      });
+
+      test('left should display apps', () => {
+        event.keyCode = 'left';
+        app.handleEvent(event);
+        assert.equal(scrollObject.left, 0);
+        assert.equal(scrollObject.top, 0);
+        assert.equal(scrollObject.behavior, 'smooth');
+      });
+    });
+
     suite('scroll', () => {
       test('should show and hide the drop shadow accordingly', () => {
         assert.isFalse(app.scrolled);
@@ -707,6 +808,18 @@ suite('Homescreen app', () => {
     });
 
     suite('activate', () => {
+      test('should be preventDefaulted', () => {
+        var icon = getIcon('abc');
+        icon.firstElementChild.launch = () => {};
+        var defaultPrevented = false;
+        app.handleEvent({
+          type: 'activate',
+          preventDefault: () => { defaultPrevented = true; },
+          detail: { target: icon }
+        });
+        assert.isTrue(defaultPrevented);
+      });
+
       test('unrecoverable app should be removed', () => {
         var uninstallStub = sinon.stub(MockNavigatormozApps.mgmt, 'uninstall');
         var icon = getIcon('abc');
@@ -893,6 +1006,7 @@ suite('Homescreen app', () => {
 
           realIcons = app.icons;
           app.icons = {
+            firstChild: 'abc',
             getChildOffsetRect: () => {
               return { left: 0, top: 0, right: 10, bottom: 10 };
             },
@@ -908,11 +1022,20 @@ suite('Homescreen app', () => {
           Object.defineProperty(window, 'innerHeight', realInnerHeight);
         });
 
+        test('icon can be dropped at the beginning of the container', () => {
+          app.handleEvent(new CustomEvent('drag-end', {
+            detail:
+              { target: 'def', dropTarget: null, clientX: 0, clientY: -100 }
+          }));
+          assert.isTrue(reorderChildSpy.calledWith('def', 'abc'));
+        });
+
         test('icon can be dropped at the end of the container', () => {
           app.handleEvent(new CustomEvent('drag-end', {
-            detail: { dropTarget: null, clientX: 0, clientY: 20 }
+            detail:
+              { target: 'def', dropTarget: null, clientX: 0, clientY: 600 }
           }));
-          assert.isTrue(reorderChildSpy.called);
+          assert.isTrue(reorderChildSpy.calledWith('def', null));
         });
 
         test('dropping icon on itself does nothing', () => {

@@ -33,7 +33,7 @@ require('/views/shared/js/task_runner.js');
 require('/views/shared/test/unit/mock_time_headers.js');
 require('/views/shared/test/unit/mock_link_action_handler.js');
 require('/views/shared/test/unit/mock_attachment.js');
-require('/shared/test/unit/mocks/mock_l10n.js');
+require('/shared/test/unit/mocks/mock_l20n.js');
 require('/views/shared/test/unit/mock_utils.js');
 require('/views/shared/test/unit/mock_link_helper.js');
 require('/views/shared/test/unit/mock_moz_activity.js');
@@ -163,8 +163,8 @@ suite('conversation.js >', function() {
   mocksHelperForConversationView.attachTestHelpers();
 
   suiteSetup(function(done) {
-    realMozL10n = navigator.mozL10n;
-    navigator.mozL10n = MockL10n;
+    realMozL10n = document.l10n;
+    document.l10n = MockL10n;
 
     var mediafolder = '/views/shared/test/unit/media';
     var blobPromises = [
@@ -190,7 +190,7 @@ suite('conversation.js >', function() {
   });
 
   suiteTeardown(function() {
-    navigator.mozL10n = realMozL10n;
+    document.l10n = realMozL10n;
   });
 
   setup(function() {
@@ -733,7 +733,7 @@ suite('conversation.js >', function() {
         this.sinon.clock.tick(200000);
         assert.isFalse(banner.classList.contains('hide'));
         var node = banner.querySelector('p');
-        var l10nAttrs = navigator.mozL10n.getAttributes(node);
+        var l10nAttrs = document.l10n.getAttributes(node);
 
         assert.equal(l10nAttrs.id, 'multimedia-message-exceeded-max-length');
         assert.deepEqual(l10nAttrs.args, {mmsSize: '1'});
@@ -2425,9 +2425,9 @@ suite('conversation.js >', function() {
 
     tests.forEach(({ delay, name, l10nId }) => {
       var testTitle = name + ' delay';
-      testTitle += l10nId ? 
+      testTitle += l10nId ?
         (' displays ' + l10nId) : ' does not display late notice';
-      
+
       test(testTitle, function(done) {
         this.sinon.clock.tick(10 * MONTH);
         var now = Date.now();
@@ -4782,7 +4782,7 @@ suite('conversation.js >', function() {
           tel: [{ value: '+2222' }]
         };
 
-        this.sinon.spy(navigator.mozL10n, 'setAttributes');
+        this.sinon.spy(document.l10n, 'setAttributes');
 
         this.sinon.stub(Contacts, 'findByAddress');
         Contacts.findByAddress.withArgs('+1111').returns(
@@ -5040,7 +5040,7 @@ suite('conversation.js >', function() {
 
     suite('setHeaderContent', function() {
       setup(function() {
-        this.sinon.spy(navigator.mozL10n, 'setAttributes');
+        this.sinon.spy(document.l10n, 'setAttributes');
       });
 
       test('Correctly sets HTML string', function() {
@@ -5069,7 +5069,7 @@ suite('conversation.js >', function() {
 
         assert.equal(headerText.innerHTML, 'Header');
         sinon.assert.calledWithExactly(
-          navigator.mozL10n.setAttributes,
+          document.l10n.setAttributes,
           headerText,
           'other-header-l10n-id',
           undefined
@@ -5086,7 +5086,7 @@ suite('conversation.js >', function() {
 
         assert.equal(headerText.innerHTML, '');
         sinon.assert.calledWithExactly(
-          navigator.mozL10n.setAttributes,
+          document.l10n.setAttributes,
           headerText,
           'header-l10n-id',
           { arg: 'header-l10n-arg' }
@@ -5103,7 +5103,7 @@ suite('conversation.js >', function() {
 
         assert.equal(headerText.innerHTML, 'Header');
         sinon.assert.calledWithExactly(
-          navigator.mozL10n.setAttributes,
+          document.l10n.setAttributes,
           headerText,
           'other-header-l10n-id',
           { arg: 'other-header-l10n-arg' }
@@ -5548,7 +5548,7 @@ suite('conversation.js >', function() {
       var noopThenable = { then: () => noopThenable };
       this.sinon.stub(Contacts, 'findExact').returns(noopThenable);
 
-      setL10nAttributes = this.sinon.spy(navigator.mozL10n, 'setAttributes');
+      setL10nAttributes = this.sinon.spy(document.l10n, 'setAttributes');
 
       ConversationView.initRecipients();
     });
@@ -6654,11 +6654,11 @@ suite('conversation.js >', function() {
   function beforeEnterGeneralTests(getTransitionArgs) {
     suite('beforeEnter()', function() {
       var transitionArgs;
-      var header, editHeader;
+      var header, simPicker;
 
       setup(function(done) {
         header = document.getElementById('messages-header');
-        editHeader = document.getElementById('messages-edit-header');
+        simPicker = document.getElementById('sim-picker');
 
         transitionArgs = getTransitionArgs();
         this.sinon.spy(MockLazyLoader, 'load');
@@ -6666,7 +6666,9 @@ suite('conversation.js >', function() {
 
         /* make sure that the test for font-fit is meaningful */
         assert.isTrue(header.hasAttribute('no-font-fit'));
-        assert.isTrue(editHeader.hasAttribute('no-font-fit'));
+
+        /* make sure that sim picker element is hidden before enter */
+        assert.isTrue(simPicker.classList.contains('hide'));
         ConversationView.beforeEnter(transitionArgs).then(done, done);
       });
 
@@ -6681,7 +6683,10 @@ suite('conversation.js >', function() {
 
       test('enables the font-fit algorithm in headers', function() {
         assert.isFalse(header.hasAttribute('no-font-fit'));
-        assert.isFalse(editHeader.hasAttribute('no-font-fit'));
+      });
+
+      test('display the sim picker element', function() {
+        assert.isFalse(simPicker.classList.contains('hide'));
       });
 
       test('initializes MultiSimActionButton', function() {
