@@ -23,7 +23,9 @@ apps/music
 apps/network-alerts
 apps/operatorvariant
 apps/pdfjs
+apps/privacymonitor
 apps/ringtones
+apps/test-app
 apps/search
 apps/setringtone
 apps/settings
