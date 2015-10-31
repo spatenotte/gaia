@@ -90,7 +90,7 @@ function loopGeoRequest() {
   // services continously, to see if the app logs the'
   // + 'data to indexedDB - so we know if the app runs 
   // in background');
-    setInterval(getGeoloc(), 10000);
+    setInterval(getGeoloc, 10000);
 }
 
 
@@ -98,7 +98,7 @@ function loopContactRequest() {
   // console.log('Button clicked to request access 
   // to different services continously, to see if the app logs the'
   // +'data to indexedDB - so we know if the app runs in background');
-    setInterval(getContact(), 10000);
+    setInterval(getContact, 15000);
 }
 
 // to access indexedDB
