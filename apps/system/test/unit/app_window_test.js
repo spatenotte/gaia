@@ -1602,7 +1602,9 @@ suite('system/AppWindow', function() {
       app1.setVisibleForScreenReader(false);
 
       assert.equal(app1.element.getAttribute('aria-hidden'), 'true');
+      assert.equal(app1.browser.element.getAttribute('aria-hidden'), 'true');
     });
+
     test('setVisibleForScreenReader: true', function() {
       var app1 = new AppWindow(fakeAppConfig1);
       injectFakeMozBrowserAPI(app1.browser.element);
@@ -1610,22 +1612,19 @@ suite('system/AppWindow', function() {
       app1.setVisibleForScreenReader(true);
 
       assert.equal(app1.element.getAttribute('aria-hidden'), 'false');
+      assert.equal(app1.browser.element.getAttribute('aria-hidden'), 'false');
     });
-  });
 
-  suite('_setVisibleForScreenReader', function() {
-    test('_setVisibleForScreenReader: false', function() {
+    test('preserve screenreader access for frontWindow', function() {
       var app1 = new AppWindow(fakeAppConfig1);
       injectFakeMozBrowserAPI(app1.browser.element);
 
-      app1._setVisibleForScreenReader(false);
-      assert.equal(app1.browser.element.getAttribute('aria-hidden'), 'true');
-    });
-    test('_setVisibleForScreenReader: true', function() {
-      var app1 = new AppWindow(fakeAppConfig1);
-      injectFakeMozBrowserAPI(app1.browser.element);
+      var app2 = new AppWindow(fakeAppConfig2);
+      this.sinon.stub(app2, 'isVisible').returns(true);
+      app1.frontWindow = app2;
 
-      app1._setVisibleForScreenReader(true);
+      app1.setVisibleForScreenReader(false);
+      assert.equal(app1.element.getAttribute('aria-hidden'), 'false');
       assert.equal(app1.browser.element.getAttribute('aria-hidden'), 'false');
     });
   });
@@ -2166,20 +2165,6 @@ suite('system/AppWindow', function() {
 
       assert.equal(app1.name, 'example.com');
       assert.equal(app1.title, 'http://example.com/page.html');
-    });
-
-    test('Scroll event', function() {
-      var app4 = new AppWindow(fakeAppConfig4);
-      app4.manifest = null;
-
-      app4.handleEvent({
-        type: 'mozbrowserasyncscroll',
-        detail: {
-          top: 7
-        }
-      });
-
-      assert.equal(app4.scrollPosition, 7);
     });
 
     test('VisibilityChange event', function() {
@@ -2959,11 +2944,38 @@ suite('system/AppWindow', function() {
     });
 
     test('uninstallSubComponents', function() {
+      var spy = {};
+      for (let propertyName in AppWindow.SUB_COMPONENTS) {
+        if (app[propertyName] && app[propertyName].destroy) {
+          spy[propertyName] = this.sinon.spy(app[propertyName], 'destroy');
+        }
+      }
+      for (let propertyName in AppWindow.SUB_MODULES) {
+        if (app[propertyName] && app[propertyName].stop) {
+          spy[propertyName] = this.sinon.spy(app[propertyName], 'stop');
+        }
+      }
+
       var normalChannel = app.audioChannels.get('normal');
       var contentChannel = app.audioChannels.get('content');
       this.sinon.spy(normalChannel, 'destroy');
       this.sinon.spy(contentChannel, 'destroy');
+
       app.uninstallSubComponents();
+
+      for (let propertyName in AppWindow.SUB_COMPONENTS) {
+        if (spy[propertyName]) {
+          assert.isTrue(spy[propertyName].calledOnce);
+        }
+        assert.isNull(app[propertyName]);
+      }
+      for (let propertyName in AppWindow.SUB_MODULES) {
+        if (spy[propertyName]) {
+          assert.isTrue(spy[propertyName].calledOnce);
+        }
+        assert.isNull(app[propertyName]);
+      }
+
       assert.ok(normalChannel.destroy.calledOnce);
       assert.ok(contentChannel.destroy.calledOnce);
       assert.deepEqual(app.audioChannels, null);

@@ -5,7 +5,6 @@
          WaitingScreen, MessageManager, TimeHeaders,
          Drafts, Thread, OptionMenu, ActivityPicker,
          StickyHeader, Navigation,
-         InterInstanceEventDispatcher,
          SelectionHandler,
          Settings,
          LazyLoader,
@@ -116,11 +115,6 @@ var InboxView = {
 
     Drafts.on('deleted', this.onDraftDeleted.bind(this));
     Drafts.on('saved', this.onDraftSaved.bind(this));
-
-    InterInstanceEventDispatcher.on(
-      'drafts-changed',
-      this.renderDrafts.bind(this, true /* force update */)
-    );
 
     privateMembers.set(this, {
       // Very approximate number of letters that can fit into title for the
@@ -296,7 +290,6 @@ var InboxView = {
           if (draftId) {
             Navigation.toPanel('composer', {
               draftId: +draftId,
-              focusComposer: true
             });
           } else {
             Navigation.toPanel('thread', {
@@ -603,10 +596,10 @@ var InboxView = {
     this.mainWrapper.classList.remove('edit');
   },
 
-  renderDrafts: function inbox_renderDrafts(force) {
+  renderDrafts: function inbox_renderDrafts() {
     // Request and render all threads with drafts
     // or thread-less drafts.
-    return Drafts.request(force).then(() => {
+    return Drafts.request().then(() => {
       for (var draft of Drafts.getAll()) {
         if (draft.threadId) {
           // Find draft-containing threads that have already been rendered

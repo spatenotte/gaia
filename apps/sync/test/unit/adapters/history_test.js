@@ -8,6 +8,7 @@
   asyncStorage,
   DataAdapters,
   HISTORY_COLLECTION_MTIME,
+  HISTORY_LAST_REVISIONID,
   HISTORY_SYNCTOID_PREFIX,
   HistoryHelper,
   MockasyncStorage,
@@ -34,7 +35,7 @@ window.DataAdapters = {};
 
 suite('sync/adapters/history >', () => {
   var realDatastore, realLazyLoader, realAsyncStorage, testCollectionData;
-  var updatePlacesSpy;
+  var updatePlacesSpy, dataStoreRemoveSpy;
   var kintoCollection = {
     list() {
       return Promise.resolve({
@@ -65,7 +66,8 @@ suite('sync/adapters/history >', () => {
       var visits = [];
       var startData = initDate + i * 100;
       for (var j = 0; j < 3; j++) {
-        visits.push({
+        // Visits from FxSync will be in anti-chronological order
+        visits.unshift({
           date: (startData + j * 10) * 1000, type: 3
         });
       }
@@ -105,11 +107,14 @@ suite('sync/adapters/history >', () => {
   setup(() => {
     navigator.getDataStores = MockNavigatorDatastore.getDataStores;
     updatePlacesSpy = sinon.spy(HistoryHelper, 'updatePlaces');
+    dataStoreRemoveSpy = sinon.spy(MockDatastore, 'remove');
     testCollectionData = [];
+    MockDatastore._tasks[1].revisionId = 'latest-not-cleared';
   });
 
   teardown(() => {
     updatePlacesSpy.restore();
+    dataStoreRemoveSpy.restore();
     MockDatastore._inError = false;
     MockDatastore._records = Object.create(null);
     window.asyncStorage.mTeardown();
@@ -121,9 +126,113 @@ suite('sync/adapters/history >', () => {
         .then((result) => {
       assert.equal(result, false);
       assert.equal(updatePlacesSpy.callCount, 0);
-      assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME], null);
+      assert.equal(asyncStorage.mItems['foo' + HISTORY_LAST_REVISIONID],
+          'latest-not-cleared');
     }).then(done, reason => {
       assert.ok(false, reason);
+    });
+  });
+
+  ['clear', 'remove'].forEach(task => {
+    suite(`after a DataStore ${task}`, function() {
+      suiteSetup(function() {
+        MockDatastore._taskCounter = 0;
+        MockDatastore._tasks = [
+          {
+            operation: 'clear',
+            id: 0,
+            data: {}
+          },
+          {
+            operation: 'add',
+            id: 0,
+            data: {}
+          },
+          {
+            operation: task,
+            id: 0,
+            data: {}
+          },
+          {
+            operation: 'done',
+            id: 0,
+            revisionId: `latest-after-${task}`,
+            data: null
+          }
+        ];
+      });
+      suiteTeardown(function() {
+        MockDatastore._taskCounter = 0;
+        MockDatastore._tasks = [
+          {
+            operation: 'update',
+            id: 0,
+            data: {}
+          },
+          {
+            operation: 'done',
+            id: 0,
+            data: null,
+            revisionId: 'latest-not-cleared'
+          }
+        ];
+      });
+
+      test('update - refills the DataStore', function(done) {
+        var historyAdapter = DataAdapters.history;
+        testCollectionData = testDataGenerator(1, 1440000000, 5);
+        asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME] =
+            testCollectionData[0].last_modified;
+        historyAdapter.update(kintoCollection,
+            { readonly: true, userid: 'foo' })
+        .then(() => {
+          assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME],
+              testCollectionData[0].last_modified);
+          getPlacesStore().then(placesStore => {
+            var ids = testCollectionData.map(item => {
+              return item.payload.histUri;
+            });
+            placesStore.get.apply(placesStore, ids).then(list => {
+              for (var i = 0; i < ids.length; i++) {
+                verifyPlaces(testCollectionData[i], list[i]);
+                assert.equal(
+                  asyncStorage.mItems[
+                      'foo' + HISTORY_SYNCTOID_PREFIX + list[i].fxsyncId],
+                  list[i].url);
+              }
+              assert.equal(asyncStorage.mItems[
+                  'foo' + HISTORY_LAST_REVISIONID], `latest-after-${task}`);
+              done();
+            });
+          });
+        });
+      });
+    });
+  });
+
+  test('update - does not refill the DataStore if nothing removed locally',
+      done => {
+    var historyAdapter = DataAdapters.history;
+    testCollectionData = testDataGenerator(1, 1440000000, 5);
+    asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME] =
+        testCollectionData[0].last_modified;
+    historyAdapter.update(kintoCollection, { readonly: true, userid: 'foo' })
+        .then(() => {
+      assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME],
+          testCollectionData[0].last_modified);
+      getPlacesStore().then(placesStore => {
+        var ids = testCollectionData.map(item => {
+          return item.payload.histUri;
+        });
+        placesStore.get.apply(placesStore, ids).then(list => {
+          for (var i = 0; i < ids.length; i++) {
+            assert.equal(list[i], null);
+          }
+          assert.equal(asyncStorage.mItems[
+              'foo' + HISTORY_LAST_REVISIONID], 'latest-not-cleared');
+          done();
+        });
+      });
     });
   });
 
@@ -132,6 +241,45 @@ suite('sync/adapters/history >', () => {
     testCollectionData = testDataGenerator(1, 1440000000, 5);
     historyAdapter.update(kintoCollection, { readonly: true, userid: 'foo' })
         .then((result) => {
+      assert.equal(result, false);
+      var mTime = testCollectionData[0].last_modified;
+      assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME],
+                   mTime);
+      assert.equal(updatePlacesSpy.callCount, 1);
+      return Promise.resolve();
+    }).then(getPlacesStore).then(placesStore => {
+      var ids = testCollectionData.map(item => {
+        return item.payload.histUri;
+      });
+      return placesStore.get.apply(placesStore, ids).then(list => {
+        for (var i = 0; i < ids.length; i++) {
+          verifyPlaces(testCollectionData[i], list[i]);
+          assert.equal(
+            asyncStorage.mItems[
+                'foo' + HISTORY_SYNCTOID_PREFIX + list[i].fxsyncId],
+            list[i].url);
+        }
+      });
+    }).then(done, reason => {
+      assert.ok(false, reason);
+    });
+  });
+
+  test('update - 1 sync request with 5 pre-existing records', done => {
+    var historyAdapter = DataAdapters.history;
+    getPlacesStore().then(store => {
+      for (var i=1; i<=5; i++) {
+        store._records['http://example' + i + '.com/'] = {
+          url: 'http://example' + i + '.com/',
+          title: 'old',
+          visits: []
+        };
+      }
+    }).then(() => {
+      testCollectionData = testDataGenerator(1, 1440000000, 5);
+      return historyAdapter.update(kintoCollection,
+          { readonly: true, userid: 'foo' });
+    }).then((result) => {
       assert.equal(result, false);
       var mTime = testCollectionData[0].last_modified;
       assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME],
@@ -238,6 +386,8 @@ suite('sync/adapters/history >', () => {
       var mTime = testCollectionData[0].last_modified;
       assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME],
           mTime);
+      assert.equal(asyncStorage.mItems['foo' + HISTORY_LAST_REVISIONID],
+          'latest-not-cleared');
       assert.equal(updatePlacesSpy.callCount, 2);
       return Promise.resolve();
     }).then(getPlacesStore).then(placesStore => {
@@ -280,6 +430,8 @@ suite('sync/adapters/history >', () => {
         { readonly: true, userid: 'foo' }).then((result) => {
       assert.equal(result, false);
       assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME], null);
+      assert.equal(asyncStorage.mItems['foo' + HISTORY_LAST_REVISIONID],
+          'latest-not-cleared');
       assert.equal(updatePlacesSpy.callCount, 0);
       return Promise.resolve();
     }).then(done, reason => {
@@ -304,7 +456,8 @@ suite('sync/adapters/history >', () => {
         { readonly: true, userid: 'foo' }).then((result) => {
       assert.equal(result, false);
       assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME], 110);
-      assert.equal(updatePlacesSpy.callCount, 1);
+      assert.equal(dataStoreRemoveSpy.callCount, 1);
+      assert.equal(dataStoreRemoveSpy.args[0][0], 'http://example1.com/');
       return Promise.resolve();
     }).then(done, reason => {
       assert.ok(false, reason);
@@ -328,6 +481,8 @@ suite('sync/adapters/history >', () => {
         { readonly: true, userid: 'foo' }).then((result) => {
       assert.equal(result, false);
       assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME], null);
+      assert.equal(asyncStorage.mItems['foo' + HISTORY_LAST_REVISIONID],
+          'latest-not-cleared');
       assert.equal(updatePlacesSpy.callCount, 0);
       return Promise.resolve();
     }).then(done, reason => {
@@ -352,6 +507,8 @@ suite('sync/adapters/history >', () => {
         { readonly: true, userid: 'foo' }).then((result) => {
       assert.equal(result, false);
       assert.equal(asyncStorage.mItems['foo' + HISTORY_COLLECTION_MTIME], null);
+      assert.equal(asyncStorage.mItems['foo' + HISTORY_LAST_REVISIONID],
+          'latest-not-cleared');
       assert.equal(updatePlacesSpy.callCount, 0);
       return Promise.resolve();
     }).then(done, reason => {

@@ -86,8 +86,9 @@ html[dir="rtl"] .appWindow:not(.bar) > .chrome { transform-origin: top right; }
   display: none;
 }
 
-.appWindow.fullscreen-app:not(.browser) .chrome .controls .urlbar,
-.appWindow:not(.browser):not(.search-app) .chrome .controls .urlbar {
+/* Maximized rocketbar size when the 'Windows' button is not displayed */
+.appWindow.fullscreen-app:not(.browser) .chrome.maximized .controls .urlbar,
+.appWindow:not(.browser):not(.search-app) .chrome.maximized .controls .urlbar {
   width: calc(100% - 1rem);
 }
 
@@ -131,6 +132,8 @@ html[dir="rtl"] .appWindow:not(.bar) > .chrome { transform-origin: top right; }
   margin-inline-start: .5rem;
   position: absolute;
 }
+html[dir="ltr"] .chrome .controls .urlbar { text-align: left; }
+html[dir="rtl"] .chrome .controls .urlbar { text-align: right; }
 
 .maximized .controls .urlbar {
   background-color: rgba(204,204,204,0.2);
@@ -814,6 +817,9 @@ gaia-overflow-menu button#share {
 .appWindow:not(.bar).collapsible > .chrome gaia-progress,
 .appWindow:not(.fullscreen-app) > .chrome gaia-progress {
   top: 7.3rem;
+}
+.appWindow.popupWindow > .chrome gaia-progress {
+  top: 0;
 }
 
 /* App specifics */

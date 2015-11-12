@@ -1,9 +1,16 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
-/* global FxaModuleUI, FxaModule, FxaModuleNavigation,
-   FxModuleServerRequest, FxaModuleOverlay, FxaModuleManager, KeyEvent,
-   FxaModuleKeyNavigation */
+/* global ERROR_INVALID_SYNC_ACCOUNT */
+/* global FxaModule */
+/* global FxaModuleKeyNavigation */
+/* global FxaModuleManager */
+/* global FxaModuleNavigation */
+/* global FxaModuleOverlay */
+/* global FxModuleServerRequest */
+/* global FxaModuleUI */
+/* global KeyEvent */
+
 /* exported FxaModuleEnterPassword */
 
 'use strict';
@@ -88,7 +95,7 @@ var FxaModuleEnterPassword = (function() {
         function onKeypress(event) {
           if (_isPasswordValid(this.fxaPwInput) && event.keyCode === 13) {
             document.activeElement.blur();
-            FxaModuleNavigation.next();
+            FxaModuleNavigation.done();
           }
         }.bind(this)
       );
@@ -153,14 +160,14 @@ var FxaModuleEnterPassword = (function() {
     setTimeout(() => {
       FxaModuleKeyNavigation.add([
         '#fxa-pw-input', '#fxa-forgot-password',
-        '#fxa-show-pw', '#fxa-module-next']);
+        '#fxa-show-pw', '#fxa-module-done']);
     }, 500);
   };
 
   Module.onBack = function onBack() {
     FxaModuleKeyNavigation.remove([
       '#fxa-pw-input', '#fxa-forgot-password',
-      '#fxa-show-pw', '#fxa-module-next']);
+      '#fxa-show-pw', '#fxa-module-done']);
   };
 
   Module.onDone = function onDone(done) {
@@ -174,10 +181,17 @@ var FxaModuleEnterPassword = (function() {
         FxaModuleOverlay.hide();
         FxaModuleKeyNavigation.remove([
           '#fxa-pw-input', '#fxa-forgot-password',
-          '#fxa-show-pw', '#fxa-module-next']);
+          '#fxa-show-pw', '#fxa-module-done']);
 
         if (!response.authenticated) {
-          // XXX Show inactive sync account. Bug1215463
+          // XXX For now, because we don't allow the creation of new accounts
+          //     on the TV, we log the user out and show a dialog asking the
+          //     user to go to desktop or android to create the account and
+          //     retry from the TV.
+          FxModuleServerRequest.logout(() => {
+            this.showErrorResponse({error: ERROR_INVALID_SYNC_ACCOUNT});
+            FxaModuleManager.close('DIALOG_CLOSED_BY_USER');
+          }, this.showErrorResponse);
           return;
         }
         done();

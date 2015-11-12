@@ -122,6 +122,7 @@ suite('system/AppInstallManager >', function() {
             '</td>',
           '</tr>',
         '</table>',
+        '<div id="system-addon-warning"></div>',
         '<menu>',
           '<button id="app-install-cancel-button" type="reset"' +
           ' data-l10n-id="cancel">Cancel</button>',
@@ -495,8 +496,9 @@ suite('system/AppInstallManager >', function() {
             assert.equal('', AppInstallManager.dialog.className);
           });
 
-          test('should remove the callback', function() {
+          test('should remove the callbacks', function() {
             assert.equal(null, AppInstallManager.installCallback);
+            assert.equal(null, AppInstallManager.installCancelCallback);
           });
         });
 
@@ -553,8 +555,9 @@ suite('system/AppInstallManager >', function() {
             assert.equal('', AppInstallManager.installCancelDialog.className);
           });
 
-          test('should remove the callback', function() {
+          test('should remove the callbacks', function() {
             assert.equal(null, AppInstallManager.installCancelCallback);
+            assert.equal(null, AppInstallManager.installCallback);
           });
         });
       });

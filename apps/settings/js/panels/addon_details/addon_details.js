@@ -68,6 +68,11 @@ define(function(require) {
       this._elements.icon.src = '../style/images/default.png';
     });
 
+    // Display the add-on version
+    if (manifest.version) {
+      this._elements.version.textContent = 'v' + manifest.version;
+    }
+
     // Display the add-on description if there is one
     if (manifest.description) {
       // If we have a description, the ManifestHelper class returned the
@@ -133,7 +138,8 @@ define(function(require) {
     l10n.setAttributes(
       this._elements.name, 'addon-details-header1', appnameArgs);
     // Put text description for an icon
-    l10n.setAttributes(this._elements.icon, 'accessible-app-icon', appnameArgs);
+    l10n.setAttributes(
+      this._elements.icon, 'accessibility-app-icon', appnameArgs);
   };
 
   return function ctor_addon_details(panel) {

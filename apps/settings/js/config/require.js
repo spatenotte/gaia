@@ -115,7 +115,7 @@ require.config({
     }
   },
   // exclude reusable file in modules
-  // XXX Bug 1207472 organized in alphabet order
+  // organized in alphabet order
   modules: [
     {
       name: 'main'
@@ -132,64 +132,15 @@ require.config({
       exclude: ['main']
     },
     {
-      name: 'panels/root/panel',
-      exclude: [
-        'main',
-        'panels/root/low_priority_items',
-        'modules/apps_cache',
-        'modules/bluetooth/version_detector',
-        'modules/addon_manager'
-      ]
-    },
-    {
-      name: 'panels/root/low_priority_items',
-      exclude: [
-        'main',
-        'modules/bluetooth/version_detector',
-        'modules/app_storage',
-        'modules/media_storage',
-        'modules/battery',
-        'modules/wifi_context',
-        'modules/sim_security'
-      ]
-    },
-    {
-      name: 'panels/simpin/panel',
-      exclude: [
-        'main',
-        'modules/sim_security'
-      ]
-    },
-    {
-      name: 'panels/languages/panel',
-      exclude: [
-        'main',
-        'shared/keyboard_helper',
-        'modules/date_time'
-      ]
-    },
-    {
-      name: 'panels/findmydevice/panel',
-      exclude: [
-        'main',
-        'modules/settings_utils'
-      ]
-    },
-    {
-      name: 'panels/frame/panel',
+      name: 'panels/about/panel',
       exclude: ['main']
     },
     {
-      name: 'panels/feedback_send/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/feedback_choose/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/help/panel',
-      exclude: ['main']
+      name: 'panels/about_more_info/panel',
+      exclude: [
+        'main',
+        'modules/bluetooth/bluetooth_context'
+      ]
     },
     {
       name: 'panels/app_permissions_detail/panel',
@@ -203,18 +154,105 @@ require.config({
       ]
     },
     {
-      name: 'panels/screen_lock/panel',
+      name: 'panels/app_storage/panel',
+      exclude: [
+        'main',
+        'modules/app_storage'
+      ]
+    },
+    {
+      name: 'panels/bluetooth/panel',
+      exclude: [
+        'main',
+        'modules/mvvm/list_view',
+        'modules/dialog_service',
+        'modules/bluetooth/bluetooth_context'
+      ]
+    },
+    {
+      name: 'panels/browsing_privacy/panel',
+      exclude: [
+        'main',
+        'modules/dialog_service'
+      ]
+    },
+    {
+      name: 'panels/call_barring/panel',
       exclude: ['main']
     },
     {
-      name: 'panels/screen_lock_passcode/panel',
+      name: 'panels/call_barring_passcode_change/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/date_time/panel',
+      exclude: [
+        'main',
+        'modules/date_time'
+      ]
+    },
+    {
+      name: 'panels/developer/panel',
+      exclude: [
+        'main',
+        'modules/dialog_service',
+        'modules/apps_cache'
+      ]
+    },
+    {
+      name: 'panels/developer_hud/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/display/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/feedback_choose/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/feedback_send/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/findmydevice/panel',
       exclude: [
         'main',
         'modules/settings_utils'
       ]
     },
     {
-      name: 'panels/display/panel',
+      name: 'panels/firefox_sync/panel',
+      exclude: [
+        'main',
+        'modules/settings_utils'
+      ]
+    },
+    {
+      name: 'panels/frame/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/help/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/homescreens/panel',
+      exclude: [
+        'main',
+        'modules/apps_cache'
+      ]
+    },
+    {
+      name: 'panels/hotspot/panel',
+      exclude: [
+        'main',
+        'modules/dialog_service'
+      ]
+    },
+    {
+      name: 'panels/hotspot_wifi_settings/panel',
       exclude: ['main']
     },
     {
@@ -235,10 +273,97 @@ require.config({
       ]
     },
     {
-      name: 'panels/app_storage/panel',
+      name: 'panels/languages/panel',
       exclude: [
         'main',
-        'modules/app_storage'
+        'shared/keyboard_helper',
+        'modules/date_time'
+      ]
+    },
+    {
+      name: 'panels/messaging/panel',
+      exclude: [
+        'main',
+        'modules/messaging',
+        'modules/settings_utils'
+      ]
+    },
+    {
+      name: 'panels/messaging_details/panel',
+      exclude: [
+        'main',
+        'modules/messaging',
+        'modules/settings_utils'
+      ]
+    },
+    {
+      name: 'panels/operator_settings/panel',
+      exclude: [
+        'main',
+        'dsds_settings',
+        'modules/defer',
+        'modules/state_model',
+        'modules/mvvm/list_view',
+        'modules/dialog_service',
+        'modules/customized_network_type_map'
+      ]
+    },
+    {
+      name: 'panels/root/panel',
+      exclude: [
+        'main',
+        'panels/root/low_priority_items',
+        'modules/apps_cache',
+        'modules/addon_manager'
+      ]
+    },
+    {
+      name: 'panels/root/low_priority_items',
+      exclude: [
+        'main',
+        'modules/app_storage',
+        'modules/battery',
+        'modules/bluetooth/bluetooth_context',
+        'modules/media_storage',
+        'modules/sim_security',
+        'modules/wifi_context'
+      ]
+    },
+    {
+      name: 'panels/screen_lock/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/screen_lock_passcode/panel',
+      exclude: [
+        'main',
+        'modules/settings_utils'
+      ]
+    },
+    {
+      name: 'panels/search/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/simcard_manager/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/simpin/panel',
+      exclude: [
+        'main',
+        'modules/sim_security'
+      ]
+    },
+    {
+      name: 'panels/sound/panel',
+      exclude: ['main']
+    },
+    {
+      name: 'panels/usb_storage/panel',
+      exclude: [
+        'main',
+        'modules/media_storage'
       ]
     },
     {
@@ -288,125 +413,6 @@ require.config({
     {
       name: 'panels/wifi_wps/panel',
       exclude: ['main']
-    },
-    {
-      name: 'panels/operator_settings/panel',
-      exclude: [
-        'main',
-        'dsds_settings',
-        'modules/defer',
-        'modules/state_model',
-        'modules/mvvm/list_view',
-        'modules/dialog_service',
-        'modules/customized_network_type_map'
-      ]
-    },
-    {
-      name: 'panels/date_time/panel',
-      exclude: [
-        'main',
-        'modules/date_time'
-      ]
-    },
-    {
-      name: 'panels/browsing_privacy/panel',
-      exclude: [
-        'main',
-        'modules/dialog_service'
-      ]
-    },
-    {
-      name: 'panels/search/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/homescreens/panel',
-      exclude: [
-        'main',
-        'modules/apps_cache'
-      ]
-    },
-    {
-      name: 'panels/sound/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/simcard_manager/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/hotspot/panel',
-      exclude: [
-        'main',
-        'modules/dialog_service'
-      ]
-    },
-    {
-      name: 'panels/hotspot_wifi_settings/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/messaging/panel',
-      exclude: [
-        'main',
-        'modules/messaging',
-        'modules/settings_utils'
-      ]
-    },
-    {
-      name: 'panels/messaging_details/panel',
-      exclude: [
-        'main',
-        'modules/messaging',
-        'modules/settings_utils'
-      ]
-    },
-    {
-      name: 'panels/about/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/about_more_info/panel',
-      exclude: [
-        'main',
-        'modules/bluetooth/version_detector',
-        'modules/bluetooth/bluetooth_v1',
-        'modules/bluetooth/bluetooth_context'
-      ]
-    },
-    {
-      name: 'panels/developer/panel',
-      exclude: [
-        'main',
-        'modules/dialog_service',
-        'modules/apps_cache'
-      ]
-    },
-    {
-      name: 'panels/developer_hud/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/call_barring/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/call_barring_passcode_change/panel',
-      exclude: ['main']
-    },
-    {
-      name: 'panels/firefox_sync/panel',
-      exclude: [
-        'main',
-        'modules/settings_utils'
-      ]
-    },
-    {
-      name: 'panels/usb_storage/panel',
-      exclude: [
-        'main',
-        'modules/media_storage'
-      ]
     }
   ]
 });

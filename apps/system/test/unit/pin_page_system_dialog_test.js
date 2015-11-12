@@ -1,4 +1,5 @@
-/* globals MockLazyLoader, PinPageSystemDialog, SystemDialog, Service */
+/* globals PinPageSystemDialog, SystemDialog, Service,
+   MocksHelper, BookmarksDatabase, process */
 
 'use strict';
 
@@ -10,17 +11,25 @@ require('/shared/js/component_utils.js');
 require('/shared/js/lazy_loader.js');
 require('/shared/elements/gaia_pin_card/script.js');
 require('/shared/test/unit/mocks/mock_lazy_loader.js');
+require('/shared/test/unit/mocks/mock_bookmarks_database.js');
+
+var mocksForPinDialog = new MocksHelper([
+  'BookmarksDatabase', 'LazyLoader'
+]).init();
 
 suite('Pin Page dialog', function() {
   var subject, container, stubPin, stubPinSite, stubUnpinSite,
-    realLazyLoader, toastStub;
+      toastStub, bookmark, inScopeStub, scope;
+
+  mocksForPinDialog.attachTestHelpers();
 
   setup(function() {
-    realLazyLoader = window.LazyLoader;
-    window.LazyLoader = MockLazyLoader;
+    bookmark = null;
+    scope = 'test';
     stubPin = this.sinon.stub();
     stubPinSite = this.sinon.stub();
     stubUnpinSite = this.sinon.stub();
+    inScopeStub = this.sinon.stub();
     toastStub = document.createElement('div');
     toastStub.show = this.sinon.stub();
 
@@ -41,6 +50,7 @@ suite('Pin Page dialog', function() {
     this.sinon.stub(Service, 'query', function(name) {
       if (name === 'getTopMostWindow') {
         return {
+          inScope: inScopeStub,
           appChrome: {
             pinPage: stubPin,
             pinSite: stubPinSite,
@@ -48,12 +58,19 @@ suite('Pin Page dialog', function() {
           }
         };
       }
+
+      if (name === 'getScope') {
+        return scope;
+      }
+    });
+
+    this.sinon.stub(BookmarksDatabase, 'get', () => {
+      return Promise.resolve(bookmark);
     });
   });
 
   teardown(function() {
     document.body.removeChild(container);
-    window.LazyLoader = realLazyLoader;
     subject && subject.destroy();
   });
 
@@ -71,10 +88,31 @@ suite('Pin Page dialog', function() {
     test('dispatches a created event', function() {
       assert.isTrue(subject.publish.calledWith('created'));
     });
+  });
 
-    test('reuses the same instance on 2 creations', function() {
-      var subject2 = new PinPageSystemDialog();
-      assert.equal(subject, subject2);
+  suite('requestopen', function() {
+    setup(function() {
+      this.sinon.stub(PinPageSystemDialog.prototype, 'publish');
+      this.sinon.stub(SystemDialog.prototype, 'show');
+      subject = new PinPageSystemDialog();
+      subject.start();
+    });
+
+    test('shows the dialog when requestopen', function() {
+      window.dispatchEvent(new CustomEvent('pin-page-dialog-requestopen', {
+        detail: {}
+      }));
+      assert.isTrue(SystemDialog.prototype.show.called);
+      assert.isTrue(subject.publish.calledWith('started'));
+    });
+
+    test('does not show the dialog when requestopen and stopped', function() {
+      subject.stop();
+      window.dispatchEvent(new CustomEvent('pin-page-dialog-requestopen', {
+        detail: {}
+      }));
+      assert.isFalse(SystemDialog.prototype.show.called);
+      assert.isTrue(subject.publish.calledWith('stopped'));
     });
   });
 
@@ -103,22 +141,20 @@ suite('Pin Page dialog', function() {
     });
 
     suite('show unpin button', function() {
-      var systemStub;
-      setup(function() {
-        systemStub = sinon.stub(Service, 'request').returns({
-          then: (callback) => {
-            callback(true);
-          }
+      test('unpin the site exact url', function() {
+        bookmark = {url: 'test'};
+        subject.show(data);
+        process.nextTick(function() {
+          assert.equal(subject.pinSiteButton.dataset.action, 'unpin-site');
         });
       });
 
-      teardown(function() {
-        systemStub.restore();
-      });
-
-      test('unpin the site', function() {
+      test('unpin the site in scope', function() {
+        inScopeStub.returns(true);
         subject.show(data);
-        assert.equal(subject.pinSiteButton.dataset.action, 'unpin-site');
+        process.nextTick(function() {
+          assert.equal(subject.pinSiteButton.dataset.action, 'unpin-site');
+        });
       });
     });
 
@@ -154,16 +190,4 @@ suite('Pin Page dialog', function() {
     });
   });
 
-  suite('destroy', function() {
-    setup(function() {
-      subject = new PinPageSystemDialog();
-    });
-
-    test('removes the element from the container', function() {
-      assert.ok(container.querySelector('#pin-page-dialog'));
-      subject.destroy();
-      assert.isNull(container.querySelector('#pin-page-dialog'));
-      subject = null;
-    });
-  });
 });

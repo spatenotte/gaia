@@ -1,9 +1,7 @@
-/* global SystemDialog, Service, GaiaPinCard, LazyLoader */
+/* global SystemDialog, Service, GaiaPinCard, LazyLoader, BookmarksDatabase */
 'use strict';
 
 (function(exports) {
-
-  var pinDialogInstance;
 
   /**
    * @class PinPageSystemDialog
@@ -11,10 +9,6 @@
    * @extends SystemDialog
    */
   var PinPageSystemDialog = function(controller) {
-    if (pinDialogInstance) {
-      return pinDialogInstance;
-    }
-
     this.instanceID = 'pin-page-dialog';
     this.controller = controller || {};
     this.options = {};
@@ -36,7 +30,6 @@
       });
 
     this.publish('created');
-    pinDialogInstance = this;
   };
 
   PinPageSystemDialog.prototype = Object.create(SystemDialog.prototype, {
@@ -150,6 +143,14 @@
 
   PinPageSystemDialog.prototype._visible = false;
 
+  PinPageSystemDialog.prototype.handleEvent = function(evt) {
+    switch(evt.type) {
+      case 'pin-page-dialog-requestopen':
+        this.show(evt.detail);
+        break;
+    }
+  };
+
   PinPageSystemDialog.prototype.show = function(data) {
     this.pageTitle.textContent = data.title;
     this._renderPinCard(data);
@@ -160,8 +161,10 @@
 
   PinPageSystemDialog.prototype._renderSitePanel = function(data) {
     var siteBadge = this.siteBadge;
+    siteBadge.classList.add('default');
     siteBadge.addEventListener('icon-loaded', function onLoad() {
       siteBadge.removeEventListener('icon-loaded', onLoad);
+      siteBadge.classList.remove('default');
       siteBadge.refresh();
     });
     siteBadge.icon = data.icon;
@@ -169,25 +172,22 @@
 
     Service.request('Places:isPinned', data.url)
       .then((isPinned) => {
-        if (isPinned) {
-          this.pinPageButton.setAttribute('data-l10n-id', 'pinning-unpin-page');
-          this.pinPageButton.dataset.action = 'unpin-page';
-        } else {
-          this.pinPageButton.setAttribute('data-l10n-id', 'pinning-pin-page');
-          this.pinPageButton.dataset.action = 'pin-page';
-        }
+        var action = isPinned ? 'unpin-page' : 'pin-page';
+        this.pinPageButton.setAttribute('data-l10n-id', 'pinning-' + action);
+        this.pinPageButton.dataset.action = action;
       });
 
-    Service.request('PinsManager:isPinned', data.url)
-      .then((isPinned) => {
-        if (isPinned) {
-          this.pinSiteButton.setAttribute('data-l10n-id', 'pinning-unpin-site');
-          this.pinSiteButton.dataset.action = 'unpin-site';
-        } else {
-          this.pinSiteButton.setAttribute('data-l10n-id', 'pinning-pin-site');
-          this.pinSiteButton.dataset.action = 'pin-site';
+    BookmarksDatabase.get(data.url).then((site) => {
+      var action = site ? 'unpin-site' : 'pin-site';
+      if (!site) {
+        var scope = Service.query('getScope', data.url);
+        if (scope && Service.query('getTopMostWindow').inScope(scope)) {
+          action = 'unpin-site';
         }
-      });
+      }
+      this.pinSiteButton.setAttribute('data-l10n-id', 'pinning-' + action);
+      this.pinSiteButton.dataset.action = action;
+    });
   };
 
   PinPageSystemDialog.prototype.hide = function() {
@@ -201,10 +201,17 @@
     this._visible = false;
   };
 
+  PinPageSystemDialog.prototype._start = function() {
+    window.addEventListener('pin-page-dialog-requestopen', this);
+  };
+
+  PinPageSystemDialog.prototype._stop = function() {
+    window.removeEventListener('pin-page-dialog-requestopen', this);
+  };
+
   PinPageSystemDialog.prototype.destroy = function() {
-    this.containerElement.removeChild(this.element);
-    pinDialogInstance = null;
-    this.publish('destroyed');
+    this.stop();
+    SystemDialog.prototype.destroy.apply(this);
   };
 
   exports.PinPageSystemDialog = PinPageSystemDialog;

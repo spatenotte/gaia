@@ -3,7 +3,10 @@
 
 var proto = Object.create(HTMLElement.prototype);
 
-var template =
+
+proto.createdCallback = function() {
+  var style = document.createElement('style');
+  style.innerHTML =
 `music-view-stack {
   position: relative;
   width: 100%;
@@ -54,6 +57,18 @@ music-view-stack > iframe.push.in {
 music-view-stack > iframe.push.out {
   animation-name: push-out;
 }
+[dir="rtl"] music-view-stack > iframe.pop.in {
+  animation-name: push-in;
+}
+[dir="rtl"] music-view-stack > iframe.pop.out {
+  animation-name: push-out;
+}
+[dir="rtl"] music-view-stack > iframe.push.in {
+  animation-name: pop-in;
+}
+[dir="rtl"] music-view-stack > iframe.push.out {
+  animation-name: pop-out;
+}
 @keyframes fade-in {
   0%   { opacity: 0; }
   100% { opacity: 1; }
@@ -78,10 +93,6 @@ music-view-stack > iframe.push.out {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-100%); }
 }`;
-
-proto.createdCallback = function() {
-  var style = document.createElement('style');
-  style.innerHTML = template;
 
   if (this.firstChild) {
     this.insertBefore(style, this.firstChild);

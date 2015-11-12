@@ -195,12 +195,10 @@ uld be a Function`);
   SyncEngine.prototype = {
     _createKinto: function(kintoCredentials) {
       var kinto = new Kinto({
-        bucket: 'syncto',
-        dbPrefix: kintoCredentials.xClientState,
+        bucket: kintoCredentials.xClientState,
         remote: kintoCredentials.URL,
         headers: {
-          'Authorization': 'BrowserID ' + kintoCredentials.assertion,
-          'X-Client-State': kintoCredentials.xClientState
+          'Authorization': 'BrowserID ' + kintoCredentials.assertion
         }
       });
       var addControlCollection = (collectionName, keyName) => {
@@ -323,8 +321,12 @@ ting to fetch resource.`) {
           return Promise.reject(new SyncEngine.UnrecoverableError(`Incompatible\
  storage version or storage version not recognized.`));
         }
-        return this._getItem('crypto', 'keys', true /* syncIfNeeded */);
-      }).then((cryptoKeysRecord) => {
+      });
+    },
+
+    _getBulkKeyBundle: function() {
+      return this._getItem('crypto', 'keys', true /* syncIfNeeded */)
+          .then((cryptoKeysRecord) => {
         var cryptoKeys;
         try {
           cryptoKeys = JSON.parse(cryptoKeysRecord.data.payload);
@@ -376,13 +378,20 @@ rse crypto/keys payload as JSON`));
             'collectionOptions should be an object'));
       }
       return this._ensureReady().then(() => {
-        var promises = [];
-        for (var collectionName in collectionOptions) {
-          collectionOptions[collectionName].userid = this._xClientState;
-          promises.push(this._updateCollection(collectionName,
-               collectionOptions[collectionName]));
+        if (Object.keys(collectionOptions).length === 0) {
+          // This can happen if the system app just wanted to check if an
+          // FxSync account exists for the credentials derived from kB.
+          return Promise.resolve();
         }
-        return Promise.all(promises);
+        return this._getBulkKeyBundle().then(() => {
+          var promises = [];
+          for (var collectionName in collectionOptions) {
+            collectionOptions[collectionName].userid = this._xClientState;
+            promises.push(this._updateCollection(collectionName,
+                 collectionOptions[collectionName]));
+          }
+          return Promise.all(promises);
+        });
       });
     }
   };

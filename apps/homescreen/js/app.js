@@ -1,4 +1,4 @@
-/* global MozActivity, HomeMetadata, Datastore, Pages, LazyLoader, FirstRun,
+/* global MozActivity, HomeMetadata, Datastore, LazyLoader, FirstRun,
           IconsHelper, Settings */
 /* jshint nonew: false */
 'use strict';
@@ -34,12 +34,6 @@
   const AUTOSCROLL_OVERFLOW_DELAY = 500;
 
   /**
-   * The height of the delete-app bar at the bottom of the container when
-   * dragging a deletable app.
-   */
-  const DELETE_DISTANCE = 60;
-
-  /**
    * App roles that will be skipped on the homescreen.
    */
   const HIDDEN_ROLES = [
@@ -57,17 +51,13 @@
     window.performance.mark('navigationLoaded');
 
     // Element references
-    this.header = document.getElementById('page-indicator-header');
-    this.indicator = document.getElementById('page-indicator');
-    this.panels = document.getElementById('panels');
     this.panel = document.getElementById('apps-panel');
     this.meta = document.head.querySelector('meta[name="theme-color"]');
-    this.shadow = document.querySelector('#apps-panel > .shadow');
     this.scrollable = document.querySelector('#apps-panel > .scrollable');
     this.icons = document.getElementById('apps');
-    this.bottombar = document.getElementById('bottombar');
     this.remove = document.getElementById('remove');
-    this.edit = document.getElementById('edit');
+    this.rename = document.getElementById('rename');
+    this.done = document.getElementById('done');
     this.cancelDownload = document.getElementById('cancel-download');
     this.resumeDownload = document.getElementById('resume-download');
     this.dialogs = [this.cancelDownload, this.resumeDownload];
@@ -83,10 +73,12 @@
       for (var dialog of this.dialogs) {
         if (dialog.opened) {
           this.meta.content = 'white';
+          document.body.classList.add('dialog-active');
           return;
         }
       }
       this.meta.content = 'transparent';
+      document.body.classList.remove('dialog-active');
     };
     for (dialog of this.dialogs) {
       var observer = new MutationObserver(dialogVisibilityCallback);
@@ -100,26 +92,39 @@
     this.gridHeight = 1;
     this.pendingGridHeight = 1;
     this.iconsPerPage = 0;
+    this.iconsLeft = 0;
+    this.iconsRight = 0;
 
     // Scroll behaviour
     this.appsVisible = false;
-    this.scrolled = false;
 
     // Drag-and-drop
     this.dragging = false;
-    this.draggingRemovable = false;
-    this.draggingEditable = false;
     this.draggedIndex = -1;
     this.autoScrollInterval = null;
     this.autoScrollOverflowTimeout = null;
     this.hoverIcon = null;
 
+    // Edit mode
+    this.editMode = false;
+    this.shouldEnterEditMode = false;
+    this.selectedIcon = null;
+    this.rename.addEventListener('click', e => {
+      e.preventDefault();
+      this.renameSelectedIcon();
+    });
+    this.remove.addEventListener('click', e => {
+      e.preventDefault();
+      this.removeSelectedIcon();
+    });
+    this.done.addEventListener('click', e => {
+      e.preventDefault();
+      this.exitEditMode();
+    });
+
     this._iconSize = 0;
 
     // Signal handlers
-    this.indicator.addEventListener('keypress', this);
-    this.panels.addEventListener('scroll', this);
-    this.scrollable.addEventListener('scroll', this);
     this.icons.addEventListener('activate', this);
     this.icons.addEventListener('drag-start', this);
     this.icons.addEventListener('drag-move', this);
@@ -128,7 +133,6 @@
     this.icons.addEventListener('drag-finish', this);
     navigator.mozApps.mgmt.addEventListener('install', this);
     navigator.mozApps.mgmt.addEventListener('uninstall', this);
-    window.addEventListener('hashchange', this, true);
     window.addEventListener('localized', this);
     window.addEventListener('online', this);
     window.addEventListener('resize', this);
@@ -256,6 +260,10 @@
                 this.snapScrollPosition();
               });
               this.metadata.remove(id);
+
+              if (this.selectedIcon === icon) {
+                this.updateSelectedIcon(null);
+              }
               return;
             }
           }
@@ -334,14 +342,6 @@
       // All asynchronous loading has finished
       window.performance.mark('fullyLoaded');
     });
-
-    this.pages = new Pages();
-
-    // Update the panel indicator
-    this.updatePanelIndicator();
-
-    // Application has finished initialisation
-    window.performance.mark('navigationInteractive');
   }
 
   App.prototype = {
@@ -568,6 +568,7 @@
 
     refreshGridSize: function() {
       var children = this.icons.children;
+      var cols = this.settings.small ? 4 : 3;
 
       var visibleChildren = 0;
       var firstVisibleChild = -1;
@@ -576,6 +577,9 @@
           visibleChildren ++;
           if (firstVisibleChild === -1) {
             firstVisibleChild = i;
+            this.iconsLeft = this.icons.getChildOffsetRect(children[i]).left;
+          } else if (visibleChildren === cols) {
+            this.iconsRight = this.icons.getChildOffsetRect(children[i]).right;
           }
         }
       }
@@ -589,21 +593,24 @@
         var scrollHeight = this.scrollable.clientHeight;
         var rowsPerPage = Math.floor(scrollHeight / iconHeight);
         var pageHeight = rowsPerPage * iconHeight;
-        var gridHeight = (Math.ceil((iconHeight *
-          Math.ceil(visibleChildren /
-                    (this.settings.small ? 4 : 3))) / pageHeight) *
-          pageHeight) + (scrollHeight - pageHeight);
+        var gridHeight;
+
+        if (this.settings.scrollSnapping) {
+          gridHeight = (Math.ceil((iconHeight *
+            Math.ceil(visibleChildren / cols)) / pageHeight) *
+            pageHeight) + (scrollHeight - pageHeight);
+        } else {
+          gridHeight = (Math.ceil(visibleChildren / cols) + 1) * iconHeight;
+        }
 
         this.pageHeight = pageHeight;
         this.pendingGridHeight = gridHeight;
-        this.iconsPerPage = rowsPerPage * (this.settings.small ? 4 : 3);
+        this.iconsPerPage = rowsPerPage * cols;
 
         // When a full screen of apps is visible, we mark that as visual loading
         // being complete.
         if (!this.visualLoadComplete &&
-            Math.floor(visibleChildren /
-                       (this.settings.small ? 4 : 3)) * iconHeight >=
-              scrollHeight) {
+            Math.floor(visibleChildren / cols) * iconHeight >= scrollHeight) {
           this.onVisualLoad();
         }
       }
@@ -691,68 +698,122 @@
       setTimeout(() => { dialog.open(); }, DIALOG_SHOW_TIMEOUT);
     },
 
-    updatePanelIndicator: function() {
-      var appsVisible = this.panels.scrollLeft <= this.panels.scrollLeftMax / 2;
-      if (this.appsVisible !== appsVisible) {
-        this.appsVisible = appsVisible;
-
-        this.header.setAttribute('data-l10n-id', appsVisible ?
-          'apps-panel' : 'pages-panel');
-        this.indicator.setAttribute('aria-valuenow', appsVisible ? 0 : 1);
-        this.indicator.children[0].classList.toggle('active', appsVisible);
-        this.indicator.children[1].classList.toggle('active', !appsVisible);
-        this.panel.setAttribute('aria-hidden', !appsVisible);
-        this.pages.panel.setAttribute('aria-hidden', appsVisible);
-      }
-    },
-
     getChildIndex: function(child) {
       // XXX Note, we're taking advantage of gaia-container using
       //     Array instead of HTMLCollection here.
       return this.icons.children.indexOf(child);
     },
 
+    removeSelectedIcon: function() {
+      if (!this.selectedIcon) {
+        return;
+      }
+
+      if (this.selectedIcon.app) {
+        if (!this.selectedIcon.app.removable) {
+          return;
+        }
+        navigator.mozApps.mgmt.uninstall(this.selectedIcon.app);
+      } else if (this.selectedIcon.bookmark) {
+        new MozActivity({
+          name: 'remove-bookmark',
+          data: { type: 'url', url: this.selectedIcon.bookmark.id }
+        });
+      }
+    },
+
+    renameSelectedIcon: function() {
+      if (!this.selectedIcon || !this.selectedIcon.bookmark) {
+        return;
+      }
+
+      new MozActivity({
+        name: 'save-bookmark',
+        data: { type: 'url', url: this.selectedIcon.bookmark.id }
+      });
+    },
+
+    iconIsEditable: function(icon) {
+      return (icon.bookmark || (icon.app && icon.app.removable)) ? true : false;
+    },
+
+    updateSelectedIcon: function(icon) {
+      if (this.selectedIcon === icon) {
+        return;
+      }
+
+      if (this.selectedIcon && (!icon || this.iconIsEditable(icon))) {
+        this.selectedIcon.classList.remove('selected');
+        this.selectedIcon.removeEventListener('touchstart', this);
+        this.selectedIcon = null;
+      }
+
+      var selectedRenameable = false;
+      var selectedRemovable = false;
+
+      if (icon) {
+        selectedRenameable = !!icon.bookmark;
+        selectedRemovable = selectedRenameable || icon.app.removable;
+
+        if (selectedRenameable || selectedRemovable) {
+          this.selectedIcon = icon;
+          icon.classList.add('selected');
+          icon.addEventListener('touchstart', this);
+          this.rename.classList.toggle('active', selectedRenameable);
+          this.remove.classList.toggle('active', selectedRemovable);
+        } else if (!icon.classList.contains('uneditable')) {
+          icon.classList.add('uneditable');
+          icon.addEventListener('animationend', function animEnd() {
+            icon.removeEventListener('animationend', animEnd);
+            icon.classList.remove('uneditable');
+          });
+        }
+      } else {
+        this.rename.classList.remove('active');
+        this.remove.classList.remove('active');
+      }
+    },
+
+    enterEditMode: function(icon) {
+      console.debug('Entering edit mode on ' + icon.name);
+      this.updateSelectedIcon(icon);
+
+      if (this.editMode || !this.selectedIcon) {
+        return;
+      }
+
+      this.editMode = true;
+      document.body.classList.add('edit-mode');
+    },
+
+    exitEditMode: function() {
+      if (!this.editMode) {
+        return;
+      }
+      console.debug('Exiting edit mode');
+
+      this.editMode = false;
+
+      document.body.classList.remove('edit-mode');
+      this.rename.classList.remove('active');
+      this.remove.classList.remove('active');
+      this.updateSelectedIcon(null);
+    },
+
     handleEvent: function(e) {
       var icon, child, id;
 
       switch (e.type) {
-      // Switch between panels
-      case 'keypress':
-        if (!e.ctrlKey) {
-          break;
-        }
-
-        switch (e.keyCode) {
-          case e.DOM_VK_RIGHT:
-            this.panels.scrollTo(
-              { left: this.panels.scrollLeftMax, top: 0, behavior: 'smooth' });
-            break;
-          case e.DOM_VK_LEFT:
-            this.panels.scrollTo(
-              { left: 0, top: 0, behavior: 'smooth' });
-            break;
-        }
-        break;
-
-      // Display the top shadow when scrolling down
-      case 'scroll':
-        if (e.target === this.panels) {
-          this.updatePanelIndicator();
-          return;
-        }
-
-        var position = this.scrollable.scrollTop;
-        var scrolled = position > 1;
-        if (this.scrolled !== scrolled) {
-          this.scrolled = scrolled;
-          this.shadow.classList.toggle('visible', scrolled);
-        }
-        break;
-
       // App launching
       case 'activate':
         e.preventDefault();
         icon = e.detail.target.firstElementChild;
+
+        // If we're in edit mode, remap taps to selection
+        if (this.editMode) {
+          this.enterEditMode(icon);
+          return;
+        }
 
         switch (icon.state) {
           case 'unrecoverable':
@@ -782,31 +843,28 @@
         }
         break;
 
+      // Activate drag-and-drop immediately for selected icons
+      case 'touchstart':
+        this.icons.dragAndDropTimeout = 0;
+        break;
+
       // Disable scrolling during dragging, and display bottom-bar
       case 'drag-start':
+        console.debug('Drag-start on ' +
+                      e.detail.target.firstElementChild.name);
         this.dragging = true;
+        this.shouldEnterEditMode = true;
         document.body.classList.add('dragging');
         this.scrollable.style.overflow = 'hidden';
-        icon = e.detail.target.firstElementChild;
-
-        this.draggingEditable = !!icon.bookmark;
-        this.draggingRemovable = this.draggingEditable || !!icon.app.removable;
         this.draggedIndex = this.getChildIndex(e.detail.target);
-        this.bottombar.classList.toggle('editable', this.draggingEditable);
-        this.bottombar.classList.toggle('removable', this.draggingRemovable);
-        if (this.draggingEditable || this.draggingRemovable) {
-          this.bottombar.classList.add('active');
-        }
         break;
 
       case 'drag-finish':
+        console.debug('Drag-finish');
         this.dragging = false;
         document.body.classList.remove('dragging');
         document.body.classList.remove('autoscroll');
         this.scrollable.style.overflow = '';
-        this.bottombar.classList.remove('active');
-        this.edit.classList.remove('active');
-        this.remove.classList.remove('active');
 
         if (this.autoScrollInterval !== null) {
           clearInterval(this.autoScrollInterval);
@@ -822,83 +880,56 @@
           this.hoverIcon.classList.remove('hover-before', 'hover-after');
           this.hoverIcon = null;
         }
+
+        // Restore normal drag-and-drop after dragging selected icons
+        this.icons.dragAndDropTimeout = -1;
         break;
 
-      // Handle app/site uninstallation, editing and dragging to the end of
-      // the icon grid.
+      // Handle app/site editing and dragging to the end of the icon grid.
       case 'drag-end':
-        if ((!this.draggingRemovable && !this.draggingEditable) ||
-            e.detail.clientY <= window.innerHeight - DELETE_DISTANCE) {
-          // If the drop target is null, check to see if we're
-          // dropping over the icon itself, and if we aren't, we must be
-          // dropping over the start or end of the container.
-          if (!e.detail.dropTarget) {
-            var rect = this.icons.getChildOffsetRect(e.detail.target);
-            var x = e.detail.clientX;
-            var y = e.detail.clientY + this.scrollable.scrollTop;
-
-            if (x < rect.left || y < rect.top ||
-                x >= rect.right || y >= rect.bottom) {
-              e.preventDefault();
-              var bottom = e.detail.clientY < window.innerHeight / 2;
-              this.icons.reorderChild(e.detail.target,
-                                      bottom ? this.icons.firstChild : null,
-                                      this.storeAppOrder.bind(this));
-            }
-          }
-          return;
+        console.debug('Drag-end, target: ' + (e.detail.dropTarget ?
+          e.detail.dropTarget.firstElementChild.name : 'none'));
+        if (e.detail.dropTarget === null &&
+            e.detail.clientX >= this.iconsLeft &&
+            e.detail.clientX < this.iconsRight) {
+          // If the drop target is null, and the client coordinates are
+          // within the panel, we must be dropping over the start or end of
+          // the container.
+          e.preventDefault();
+          var bottom = e.detail.clientY < window.innerHeight / 2;
+          console.debug('Reordering dragged icon to ' +
+                      (bottom ? 'bottom' : 'top'));
+          this.icons.reorderChild(e.detail.target,
+                                  bottom ? this.icons.firstChild : null,
+                                  this.storeAppOrder.bind(this));
+          break;
         }
 
-        icon = e.detail.target.firstElementChild;
-
-        if (icon.app && icon.app.removable) {
-          e.preventDefault();
-          navigator.mozApps.mgmt.uninstall(icon.app);
-        } else if (icon.bookmark) {
-          e.preventDefault();
-          if (e.detail.clientX >= window.innerWidth / 2) {
-            new MozActivity({
-              name: 'save-bookmark',
-              data: { type: 'url', url: icon.bookmark.id }
-            });
-          } else {
-            new MozActivity({
-              name: 'remove-bookmark',
-              data: { type: 'url', url: icon.bookmark.id }
-            });
+        if (e.detail.dropTarget === e.detail.target) {
+          icon = e.detail.target.firstElementChild;
+          if (this.editMode || this.shouldEnterEditMode) {
+            e.preventDefault();
+            this.enterEditMode(icon);
           }
         }
-
         break;
 
       // Save the app grid after rearrangement
       case 'drag-rearrange':
+        console.debug('Drag rearrange');
         this.storeAppOrder();
         break;
 
       // Handle app-uninstall bar highlight and auto-scroll
       case 'drag-move':
-        var inDelete = false;
-        var inEdit = false;
         var inAutoscroll = false;
-
-        if (this.draggingRemovable &&
-            e.detail.clientY > window.innerHeight - DELETE_DISTANCE) {
-          // User is dragging in the bottom toolbar (delete/edit) area
-          var isRTL = document.documentElement.dir === 'rtl';
-          if (this.draggingEditable &&
-              e.detail.clientX >= window.innerWidth / 2) {
-            isRTL ? inDelete = true : inEdit = true;
-          } else {
-            isRTL ? inEdit = true : inDelete = true;
-          }
-        }
 
         if (e.detail.clientY > window.innerHeight - AUTOSCROLL_DISTANCE) {
           // User is dragging in the lower auto-scroll area
           inAutoscroll = true;
           if (this.autoScrollInterval === null) {
             this.autoScrollInterval = setInterval(() => {
+              this.shouldEnterEditMode = false;
               this.snapScrollPosition(1);
               return true;
             }, AUTOSCROLL_DELAY);
@@ -908,6 +939,7 @@
           inAutoscroll = true;
           if (this.autoScrollInterval === null) {
             this.autoScrollInterval = setInterval(() => {
+              this.shouldEnterEditMode = false;
               this.snapScrollPosition(-1);
               return true;
             }, AUTOSCROLL_DELAY);
@@ -918,6 +950,7 @@
                                                        e.detail.clientY);
           if (this.hoverIcon !== hoverIcon) {
             if (this.hoverIcon) {
+              this.shouldEnterEditMode = false;
               this.hoverIcon.classList.remove('hover-before', 'hover-after');
             }
             this.hoverIcon = (hoverIcon !== e.detail.target) ? hoverIcon : null;
@@ -935,9 +968,6 @@
           clearInterval(this.autoScrollInterval);
           this.autoScrollInterval = null;
         }
-
-        this.remove.classList.toggle('active', inDelete);
-        this.edit.classList.toggle('active', inEdit);
         break;
 
       // Add apps installed after startup
@@ -982,27 +1012,10 @@
 
             // We only want to store the app order once, so clear the callback
             callback = null;
-          }
-        }
-        break;
 
-      case 'hashchange':
-        if (!document.hidden) {
-          // If a dialog is showing, cancel the dialog
-          for (var dialog of this.dialogs) {
-            if (!dialog.opened) {
-              continue;
+            if (this.selectedIcon === icon) {
+              this.updateSelectedIcon(null);
             }
-
-            dialog.close();
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            return;
-          }
-
-          if (this.panels.scrollLeft ===
-              this.scrollable.parentNode.offsetLeft) {
-            this.scrollable.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
           }
         }
         break;
@@ -1012,7 +1025,6 @@
           icon.firstElementChild.updateName();
         }
         this.icons.synchronise();
-        this.updatePanelIndicator();
         break;
 
       case 'online':

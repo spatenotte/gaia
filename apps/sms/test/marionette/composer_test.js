@@ -7,6 +7,7 @@ var Messages = require('./lib/messages.js');
 var InboxView = require('./lib/views/inbox/view');
 var MessagesActivityCaller = require('./lib/messages_activity_caller.js');
 var Storage = require('./lib/storage.js');
+var Tools = require('./lib/views/shared/tools.js');
 
 marionette('Messages Composer', function() {
   var apps = {};
@@ -34,14 +35,9 @@ marionette('Messages Composer', function() {
     assert.isFalse(element.displayed(), 'Element should not be displayed');
   }
 
-  function assertIsFocused(element, message) {
-    assert.isTrue(element.scriptWith(function(el) {
-      return document.activeElement === el;
-    }), message);
-  }
-
   var MOCKS = [
     '/mocks/mock_test_storages.js',
+    '/mocks/mock_test_blobs.js',
     '/mocks/mock_navigator_moz_icc_manager.js',
     '/mocks/mock_navigator_moz_mobile_message.js',
     '/mocks/mock_navigator_moz_contacts.js'
@@ -64,10 +60,6 @@ marionette('Messages Composer', function() {
 
     setup(function() {
       messagesApp.launch();
-
-      // Set empty stores.
-      storage.setMessagesStorage();
-      storage.setContactsStorage();
 
       inboxView = new InboxView(client);
 
@@ -92,7 +84,7 @@ marionette('Messages Composer', function() {
     test('Message input is preserved when navigating to and from ' +
     'message-report', function() {
       var reportView = conversationView.openReport(
-        conversationView.messages[0].id
+        conversationView.messages()[0].id
       );
 
       reportView.back();
@@ -104,10 +96,6 @@ marionette('Messages Composer', function() {
   suite('Sending a message', function() {
     setup(function() {
       messagesApp.launch();
-
-      // Set empty messages and contacts store.
-      storage.setMessagesStorage();
-      storage.setContactsStorage();
 
       messagesApp.Inbox.navigateToComposer();
 
@@ -135,9 +123,6 @@ marionette('Messages Composer', function() {
 
     setup(function() {
       messagesApp.launch();
-      // Set empty stores.
-      storage.setMessagesStorage();
-      storage.setContactsStorage();
 
       messagesApp.Inbox.navigateToComposer();
     });
@@ -277,19 +262,23 @@ marionette('Messages Composer', function() {
 
       // Case #1: Add subject input, once added it should be focused
       messagesApp.showSubject();
-      assertIsFocused(composer.subjectInput, 'Subject input should be focused');
+      Tools.assertElementFocused(composer.subjectInput,
+                                 'Subject input should be focused');
 
       // Case #2: Hide subject field, focus should be moved to message field
       messagesApp.hideSubject();
-      assertIsFocused(composer.messageInput, 'Message input should be focused');
+      Tools.assertElementFocused(composer.messageInput,
+                                 'Message input should be focused');
 
       // Case #3: Focus should be moved to message input when subject is removed
       // by user with backspace key as well
       messagesApp.showSubject();
-      assertIsFocused(composer.subjectInput, 'Subject input should be focused');
+      Tools.assertElementFocused(composer.subjectInput,
+                                 'Subject input should be focused');
 
       composer.subjectInput.sendKeys(Messages.Chars.BACKSPACE);
-      assertIsFocused(composer.messageInput, 'Message input should be focused');
+      Tools.assertElementFocused(composer.messageInput,
+                                 'Message input should be focused');
     });
   });
 
@@ -307,9 +296,9 @@ marionette('Messages Composer', function() {
     };
 
     setup(function() {
-      messagesApp.launch();
-      storage.setMessagesStorage();
       storage.setContactsStorage([contact]);
+
+      messagesApp.launch();
 
       var inbox = new InboxView(client);
       newMessage = inbox.createNewMessage();

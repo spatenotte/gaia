@@ -54,7 +54,7 @@
  * associated encryption keys and the list of collections to be synchronized.
  */
 
-(function() {
+(function(exports) {
   const FXA_EVENT = 'mozFxAccountsUnsolChromeEvent';
 
   const SYNC_TASK = 'gaia::system::firefoxsync';
@@ -105,6 +105,7 @@
 
     /** Sync State Machine events **/
     'onsyncdisabled',
+    'onsyncdisabling',
     'onsyncenabled',
     'onsyncenabling',
     'onsyncerrored',
@@ -144,13 +145,14 @@
             // request to enable sync or stay in the disabled state.
             // We need to make sure that we didn't end up in an inconsistent
             // state during the latest run (i.e. error, success, syncing,
-            // enabling).
+            // enabling, disabling).
             switch(this.state) {
               case 'enabled':
               case 'success':
               case 'syncing':
                 Service.request('SyncStateMachine:enable').then(resolve);
                 break;
+              case 'disabling':
               case 'enabling':
                 this.updateState('disabled');
                 resolve();
@@ -247,9 +249,31 @@
       this.cleanup();
     },
 
+    _handle_onsyncdisabling: function() {
+      this.debug('onsyncdisabling observed');
+      this.updateState();
+
+      // Go back to default settings, so new users won't inherit old users'
+      // preferences.
+      this.saveUserSettings().then(() => {
+        return this.restoreDefaultSettings();
+      }).then(() => {
+        Service.request('SyncStateMachine:success');
+      });
+    },
+
     _handle_onsyncenabled: function(event) {
       this.debug('onsyncenabled observed');
       this.updateState();
+
+      // If we got to this point with no user, something went wrong, so we
+      // need to disable Sync.
+      if (!this.user) {
+        this.debug('No user');
+        Service.request('SyncStateMachine:disable');
+        return;
+      }
+
       this.registerSyncRequest().then(() => {
         this.debug('Sync request registered');
         var from = event.detail && event.detail.from;
@@ -269,7 +293,7 @@
       this.debug('onsyncenabling observed');
       this.updateState();
 
-      // Because we need to bind this to the event handler, we need to save
+     // Because we need to bind this to the event handler, we need to save
       // a reference to it so we can properly remove it later.
       this.fxaEventHandler = this._handle_fxaEvent.bind(this);
       window.addEventListener(FXA_EVENT, this.fxaEventHandler);
@@ -295,6 +319,13 @@
         return this.trySync.apply(this, args);
       }).then(() => {
         return this.getAccount();
+      }).then(() => {
+        // We save default settings so we can revert user changes to the
+        // default values when the user logs out from Sync. So new users don't
+        // inherit old users' preferences.
+        return this.saveDefaultSettings();
+      }).then(() => {
+        return this.restoreUserSettings();
       }).then(() => {
         Service.request('SyncStateMachine:success');
       }).catch(error => {
@@ -335,11 +366,14 @@
       // We don't update the state until we set the error.
       this.updateState();
 
-      // If the error is not recoverable, we disable Sync.
-      if (SyncRecoverableErrors.indexOf(error) <= -1) {
-        this.debug('Unrecoverable error');
-        Service.request('SyncStateMachine:disable');
+      // If the error is recoverable we go back to the enabled state,
+      // otherwise, we disable Sync.
+      if (SyncRecoverableErrors.indexOf(error) > -1) {
+        Service.request('SyncStateMachine:enable');
+        return;
       }
+      this.debug('Unrecoverable error');
+      Service.request('SyncStateMachine:disable');
     },
 
     _handle_onsyncsyncing: function() {
@@ -351,6 +385,11 @@
       // It's harmless to unregister an expired request, so it's also ok
       // to do it for a periodic sync.
       this.unregisterSyncRequest();
+
+      if (!navigator.onLine) {
+        Service.request('SyncStateMachine:success');
+        return;
+      }
 
       var collections = {};
       COLLECTIONS.forEach(name => {
@@ -381,6 +420,11 @@
     },
 
     _handle_fxaEvent: function(event) {
+      // We don't care about FxA events if we are already disabling.
+      if (this.state === 'disabling') {
+        return;
+      }
+
       if (!event || !event.detail) {
         console.error('Wrong event');
         return;
@@ -597,9 +641,13 @@
         collections: collections
       }).then(result => {
         if (result.error) {
-          console.error('Error while trying to sync', result.error);
-          // XXX The sync app needs to propagate a less general error.
-          Service.request('SyncStateMachine:error', ERROR_SYNC_APP_GENERIC);
+          var error = result.error;
+          error = error.message ? error.message : error;
+          console.error('Error while trying to sync', error);
+
+          error = SyncErrors[error] || ERROR_SYNC_APP_GENERIC;
+
+          Service.request('SyncStateMachine:error', error);
           return;
         }
 
@@ -681,6 +729,84 @@
           'services.sync.enabled': this.state !== 'disabled'
         }).onerror = reject;
       });
+    },
+
+    saveSettings(prefix) {
+      var saveSetting = setting => {
+        return new Promise(resolve => {
+          asyncStorage.getItem(prefix + setting, value => {
+            if (value !== null) {
+              this.debug('Setting value already saved', setting);
+              resolve();
+              return;
+            }
+            this.debug('Saving setting', prefix + setting,
+                       this._settings[setting]);
+            asyncStorage.setItem(prefix + setting, this._settings[setting],
+                                 resolve);
+          });
+        });
+      };
+
+      var promises = [];
+      SyncManager.SETTINGS.forEach(setting => {
+        promises.push(saveSetting(setting));
+      });
+
+      return Promise.all(promises);
+    },
+
+    saveDefaultSettings() {
+      this.debug('Saving default settings');
+      return this.saveSettings('');
+    },
+
+    saveUserSettings() {
+      this.debug('Saving user settings');
+      return this.saveSettings(this.user + '.');
+    },
+
+    restoreSettings(prefix) {
+      var revertSetting = setting => {
+        return new Promise((resolve, reject) => {
+          asyncStorage.getItem(prefix + setting, value => {
+            this.debug('Restoring setting ' + prefix + setting, value);
+            if (value === null) {
+              resolve();
+              return;
+            }
+            // We need to remove the setting from asyncStorage to allow
+            // default setting changes within OTA updates.
+            asyncStorage.removeItem(prefix + setting, () => {
+              var settingObject = {};
+              settingObject[setting] = value;
+              var req = navigator.mozSettings.createLock().set(settingObject);
+              req.onerror = error => {
+                console.error(error);
+                reject();
+              };
+              req.onsuccess = resolve;
+            });
+          });
+        });
+      };
+
+      var promises = [];
+      SyncManager.SETTINGS.forEach(setting => {
+        promises.push(revertSetting(setting));
+      });
+
+      return Promise.all(promises);
+    },
+
+    restoreDefaultSettings() {
+      this.debug('Restoring default settings');
+      return this.restoreSettings('');
+    },
+
+    restoreUserSettings() {
+      this.debug('Restoring user settings');
+      return this.restoreSettings(this.user + '.');
     }
   }, {
     state: {
@@ -733,8 +859,15 @@
 
     user: {
       set: function(user) {
-        asyncStorage.setItem(SYNC_USER, user, () => {
-          this.store.set(SYNC_USER, user);
+        // We need to check if there's a user logged in during the enabled
+        // state handler, so we cannot wait for the asyncStorage write.
+        this.store.set(SYNC_USER, user);
+        asyncStorage.setItem(SYNC_USER, user, () => {}, () => {
+          // This should never happen, but if something goes wrong storing the
+          // user we delete the user from memory and disable Sync to avoid
+          // inconsistent states.
+          this.store.delete(SYNC_USER);
+          Service.request('SyncStateMachine:disable');
         });
       },
       get: function() {
@@ -742,4 +875,7 @@
       }
     }
   });
-}());
+
+  // Exported only for testing purposes.
+  exports.SyncManager = SyncManager;
+}(window));

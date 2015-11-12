@@ -9,7 +9,6 @@ require('/shared/test/unit/mocks/mock_moz_activity.js');
 require('/shared/test/unit/mocks/mock_icons_helper.js');
 require('mocks/mock_metadata.js');
 require('mocks/mock_datastore.js');
-require('mocks/mock_pages.js');
 require('mocks/mock_settings.js');
 require('/shared/js/l10n.js');
 require('/js/app.js');
@@ -73,8 +72,6 @@ suite('Homescreen app', () => {
     realIconsHelper = window.IconsHelper;
     window.IconsHelper = MockIconsHelper;
 
-    MockMozActivity.mSetup();
-
     loadBodyHTML('_index.html');
     document.head.innerHTML = `<meta name="theme-color" content="transparent">`;
     for (var dialog of document.querySelectorAll('.dialog')) {
@@ -84,6 +81,16 @@ suite('Homescreen app', () => {
     }
     var icons = document.getElementById('apps');
     icons.freeze = icons.thaw = () => {};
+    icons.getChildOffsetRect = child => {
+      return {
+        top: child.offsetTop,
+        right: child.offsetLeft + child.offsetWidth,
+        bottom: child.offsetTop + child.offsetHeight,
+        left: child.offsetLeft,
+        width: child.offsetWidth,
+        height: child.offsetHeight
+      };
+    };
     app = new App();
   });
 
@@ -94,7 +101,6 @@ suite('Homescreen app', () => {
     window.IconsHelper = realIconsHelper;
 
     MockNavigatormozApps.mTeardown();
-    MockMozActivity.mTeardown();
 
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
@@ -536,6 +542,9 @@ suite('Homescreen app', () => {
       var getBoundingClientRectStub;
       setup(() => {
         app.icons.appendChild(getIcon('abc'));
+        app.icons.appendChild(getIcon('def'));
+        app.icons.appendChild(getIcon('ghi'));
+        app.icons.appendChild(getIcon('jkl'));
         getBoundingClientRectStub = sinon.stub(app.icons.firstElementChild,
           'getBoundingClientRect', () => {
             return { height: 100 };
@@ -565,6 +574,20 @@ suite('Homescreen app', () => {
         app.refreshGridSize();
         assert.equal(app.scrollable.style.scrollSnapPointsY, 'repeat(400px)');
         assert.equal(app.icons.style.backgroundSize, '100% 800px');
+      });
+
+      test('should size to always have a whole page visible', () => {
+        app.scrollable.clientHeight = 150;
+        app.settings.scrollSnapping = true;
+        app.refreshGridSize();
+        assert.equal(app.pendingGridHeight, 250);
+      });
+
+      test('should size to one extra row with snapping disabled', () => {
+        app.scrollable.clientHeight = 150;
+        app.settings.scrollSnapping = false;
+        app.refreshGridSize();
+        assert.equal(app.pendingGridHeight, 300);
       });
     });
   });
@@ -676,137 +699,196 @@ suite('Homescreen app', () => {
     });
   });
 
-  suite('App#updatePanelIndicator()', () => {
-    var indicatorToggleStubs;
-    var realPanels;
-    var mockPanels = {
-      scrollLeft: 0,
-      scrollLeftMax: 100
-    };
-
+  suite('App#removeSelectedIcon()', () => {
+    var uninstallStub;
     setup(() => {
-      indicatorToggleStubs = [
-        sinon.stub(app.indicator.children[0].classList, 'toggle'),
-        sinon.stub(app.indicator.children[1].classList, 'toggle')];
-      realPanels = app.panels;
-      app.panels = mockPanels;
+      MockMozActivity.mSetup();
+      uninstallStub = sinon.stub(navigator.mozApps.mgmt, 'uninstall');
     });
 
     teardown(() => {
-      indicatorToggleStubs.forEach((stub) => { stub.restore(); });
-      app.panels = realPanels;
+      MockMozActivity.mTeardown();
+      uninstallStub.restore();
     });
 
-    test('should update indicator when apps visible', () => {
-      app.appsVisible = false;
-      app.updatePanelIndicator();
-      assert.isTrue(indicatorToggleStubs[0].calledWith('active', true));
-      assert.isTrue(indicatorToggleStubs[1].calledWith('active', false));
-      assert.equal(app.header.getAttribute('data-l10n-id'), 'apps-panel');
+    test('does nothing with no selected icon', () => {
+      app.selectedIcon = null;
+      app.removeSelectedIcon();
+      assert.isFalse(uninstallStub.called);
+      assert.equal(MockMozActivity.calls.length, 0);
     });
 
-    test('should update aria-hidden on both panels', () => {
-      var appPanelSetAttributeStub = sinon.stub(app.panel, 'setAttribute');
-      var pagesPanelSetAttributeStub =
-        sinon.stub(app.pages.panel, 'setAttribute');
-
-      app.appsVisible = false;
-      app.updatePanelIndicator();
-      assert.isTrue(appPanelSetAttributeStub.calledWith('aria-hidden', false));
-      assert.isTrue(pagesPanelSetAttributeStub.calledWith('aria-hidden', true));
-
-      appPanelSetAttributeStub.restore();
-      pagesPanelSetAttributeStub.restore();
+    test('does nothing for unremovable apps', () => {
+      app.selectedIcon = { app: { removable: false } };
+      app.removeSelectedIcon();
+      assert.isFalse(uninstallStub.called);
     });
 
-    test('should update indicator when pages visible', () => {
-      mockPanels.scrollLeft = mockPanels.scrollLeftMax;
-      app.updatePanelIndicator();
-      assert.isTrue(indicatorToggleStubs[0].calledWith('active', false));
-      assert.isTrue(indicatorToggleStubs[1].calledWith('active', true));
-      assert.equal(app.header.getAttribute('data-l10n-id'), 'pages-panel');
+    test('uninstalls app icons', () => {
+      app.selectedIcon = { app: { removable: true } };
+      app.removeSelectedIcon();
+      assert.isTrue(uninstallStub.calledWith(app.selectedIcon.app));
     });
 
-    test('should do nothing when visibility is unchanged', () => {
-      var setAttributeSpy = sinon.spy(app.indicator, 'setAttribute');
-      app.appsVisible = true;
-      mockPanels.scrollLeft = 0;
-      app.updatePanelIndicator();
-      assert.isFalse(indicatorToggleStubs[0].called);
-      assert.isFalse(indicatorToggleStubs[1].called);
-      assert.isFalse(setAttributeSpy.called);
-      setAttributeSpy.restore();
+    test('removes bookmark icons', () => {
+      app.selectedIcon = { bookmark: { id: 'abc' } };
+      app.removeSelectedIcon();
+      assert.equal(MockMozActivity.calls.length, 1);
+      assert.equal(MockMozActivity.calls[0].name, 'remove-bookmark');
+      assert.equal(MockMozActivity.calls[0].data.type, 'url');
+      assert.equal(MockMozActivity.calls[0].data.url,
+                   app.selectedIcon.bookmark.id);
+    });
+  });
+
+  suite('App#renameSelectedIcon()', () => {
+    setup(() => {
+      MockMozActivity.mSetup();
+    });
+
+    teardown(() => {
+      MockMozActivity.mTeardown();
+    });
+
+    test('does nothing with no selected icon', () => {
+      app.selectedIcon = null;
+      app.renameSelectedIcon();
+      assert.equal(MockMozActivity.calls.length, 0);
+    });
+
+    test('does nothing with no bookmark icon selected', () => {
+      app.selectedIcon = { app: {} };
+      app.renameSelectedIcon();
+      assert.equal(MockMozActivity.calls.length, 0);
+    });
+
+    test('edits bookmark icons', () => {
+      app.selectedIcon = { bookmark: { id: 'abc' } };
+      app.renameSelectedIcon();
+      assert.equal(MockMozActivity.calls.length, 1);
+      assert.equal(MockMozActivity.calls[0].name, 'save-bookmark');
+      assert.equal(MockMozActivity.calls[0].data.type, 'url');
+      assert.equal(MockMozActivity.calls[0].data.url,
+                   app.selectedIcon.bookmark.id);
+    });
+  });
+
+  suite('App#iconIsEditable()', () => {
+    var icon;
+    test('bookmark icons are editable', () => {
+      icon = { bookmark: {} };
+      assert.isTrue(app.iconIsEditable(icon));
+    });
+
+    test('removable app icons are editable', () => {
+      icon = { app: { removable: true } };
+      assert.isTrue(app.iconIsEditable(icon));
+    });
+
+    test('unremovable app icons are not editable', () => {
+      icon = { app: { removable: false } };
+      assert.isFalse(app.iconIsEditable(icon));
+    });
+  });
+
+  suite('App#updateSelectedIcon()', () => {
+    var icon;
+    setup(() => {
+      icon = document.createElement('div');
+    });
+
+    test('selects bookmark icons', () => {
+      icon.bookmark = {};
+      app.selectedIcon = null;
+      app.updateSelectedIcon(icon);
+      assert.equal(app.selectedIcon, icon);
+      assert.isTrue(icon.classList.contains('selected'));
+      assert.isTrue(app.remove.classList.contains('active'));
+      assert.isTrue(app.rename.classList.contains('active'));
+    });
+
+    test('selects removable app icons', () => {
+      icon.app = { removable: true };
+      app.selectedIcon = null;
+      app.updateSelectedIcon(icon);
+      assert.equal(app.selectedIcon, icon);
+      assert.isTrue(icon.classList.contains('selected'));
+      assert.isTrue(app.remove.classList.contains('active'));
+      assert.isFalse(app.rename.classList.contains('active'));
+    });
+
+    test('deselects old selected icon', () => {
+      icon.bookmark = {};
+      var oldIcon = document.createElement('div');
+      app.selectedIcon = oldIcon;
+      app.selectedIcon.classList.add('selected');
+      app.updateSelectedIcon(icon);
+      assert.isFalse(oldIcon.classList.contains('selected'));
+    });
+
+    test('marks unremovable apps as un-editable', () => {
+      icon.app = { removable: false };
+      app.selectedIcon = null;
+      app.updateSelectedIcon(icon);
+      assert.notEqual(app.selectedIcon, icon);
+      assert.isFalse(icon.classList.contains('selected'));
+      assert.isTrue(icon.classList.contains('uneditable'));
+    });
+  });
+
+  suite('App#enterEditMode()', () => {
+    var updateSelectedIconSpy, mockIcon;
+
+    setup(() => {
+      mockIcon = document.createElement('div');
+      mockIcon.bookmark = {};
+
+      updateSelectedIconSpy = sinon.spy(app, 'updateSelectedIcon');
+
+      app.editMode = false;
+      app.selectedIcon = null;
+      document.body.classList.remove('edit-mode');
+      app.enterEditMode(mockIcon);
+    });
+
+    teardown(() => {
+      updateSelectedIconSpy.restore();
+    });
+
+    test('updates the selected icon', () => {
+      assert.isTrue(updateSelectedIconSpy.calledWith(mockIcon));
+    });
+
+    test('document is marked as in edit mode', () => {
+      assert.isTrue(app.editMode);
+      assert.isTrue(document.body.classList.contains('edit-mode'));
+    });
+  });
+
+  suite('App#exitEditMode()', () => {
+    var updateSelectedIconStub;
+    setup(() => {
+      updateSelectedIconStub = sinon.stub(app, 'updateSelectedIcon');
+      app.editMode = true;
+      app.exitEditMode();
+    });
+
+    teardown(() => {
+      updateSelectedIconStub.restore();
+    });
+
+    test('document is marked as not in edit mode', () => {
+      assert.isFalse(document.body.classList.contains('edit-mode'));
+      assert.isFalse(app.rename.classList.contains('active'));
+      assert.isFalse(app.remove.classList.contains('active'));
+    });
+
+    test('icon is deselected', () => {
+      assert.isTrue(updateSelectedIconStub.calledWith(null));
     });
   });
 
   suite('App#handleEvent()', () => {
-    suite('keypress', () => {
-      var scrollObject, realPanels;
-      var event = {
-        type: 'keypress',
-        ctrlKey: true,
-        DOM_VK_RIGHT: 'right',
-        DOM_VK_LEFT: 'left'
-      };
-      var mockPanels = {
-        scrollLeftMax: 100,
-        scrollTo: obj => { scrollObject = obj; }
-      };
-
-      setup(() => {
-        realPanels = app.panels;
-        app.panels = mockPanels;
-      });
-
-      teardown(() => {
-        app.panels = realPanels;
-      });
-
-      test('right should display pinned pages', () => {
-        event.keyCode = 'right';
-        app.handleEvent(event);
-        assert.equal(scrollObject.left, app.panels.scrollLeftMax);
-        assert.equal(scrollObject.top, 0);
-        assert.equal(scrollObject.behavior, 'smooth');
-      });
-
-      test('left should display apps', () => {
-        event.keyCode = 'left';
-        app.handleEvent(event);
-        assert.equal(scrollObject.left, 0);
-        assert.equal(scrollObject.top, 0);
-        assert.equal(scrollObject.behavior, 'smooth');
-      });
-    });
-
-    suite('scroll', () => {
-      test('should show and hide the drop shadow accordingly', () => {
-        assert.isFalse(app.scrolled);
-        app.scrollable = {
-          scrollTop: 50
-        };
-        app.handleEvent(new CustomEvent('scroll'));
-        assert.isTrue(app.scrolled);
-        assert.isTrue(app.shadow.classList.contains('visible'));
-
-        app.scrollable.scrollTop = 0;
-        app.handleEvent(new CustomEvent('scroll'));
-        assert.isFalse(app.scrolled);
-        assert.isFalse(app.shadow.classList.contains('visible'));
-      });
-
-      test('should update the panel indicator', () => {
-        document.body.classList.add('pin-the-web');
-        var updatePanelStub = sinon.stub(app, 'updatePanelIndicator');
-
-        app.panels.dispatchEvent(new CustomEvent('scroll'));
-        assert.isTrue(updatePanelStub.called);
-
-        updatePanelStub.restore();
-        document.body.classList.remove('pin-the-web');
-      });
-    });
-
     suite('activate', () => {
       test('should be preventDefaulted', () => {
         var icon = getIcon('abc');
@@ -904,51 +986,6 @@ suite('Homescreen app', () => {
           clearIntervalStub.restore();
         });
 
-        test('Hovering at the bottom-left activates the removal icon', () => {
-          app.handleEvent(new CustomEvent('drag-move', { detail: {
-            clientX: 0,
-            clientY: 500
-          }}));
-
-          assert.isTrue(app.remove.classList.contains('active'));
-          assert.isFalse(app.edit.classList.contains('active'));
-        });
-
-        test('Hovering at the bottom-right activates the edit icon', () => {
-          app.handleEvent(new CustomEvent('drag-move', { detail: {
-            clientX: 500,
-            clientY: 500
-          }}));
-
-          assert.isFalse(app.remove.classList.contains('active'));
-          assert.isTrue(app.edit.classList.contains('active'));
-        });
-
-        test('Hover directions are mirrored in RTL', () => {
-          Object.defineProperty(document.documentElement, 'dir', {
-            value: 'rtl',
-            configurable: true
-          });
-
-          app.handleEvent(new CustomEvent('drag-move', { detail: {
-            clientX: 0,
-            clientY: 500
-          }}));
-
-          assert.isFalse(app.remove.classList.contains('active'));
-          assert.isTrue(app.edit.classList.contains('active'));
-
-          app.handleEvent(new CustomEvent('drag-move', { detail: {
-            clientX: 500,
-            clientY: 500
-          }}));
-
-          assert.isTrue(app.remove.classList.contains('active'));
-          assert.isFalse(app.edit.classList.contains('active'));
-
-          delete document.documentElement.dir;
-        });
-
         test('Auto-scroll is activated at the top of the screen', () => {
           app.handleEvent(new CustomEvent('drag-move', { detail: {
             clientX: 0,
@@ -994,12 +1031,19 @@ suite('Homescreen app', () => {
       });
 
       suite('drag-end', () => {
-        var realInnerHeight, realIcons, reorderChildSpy;
+        var realInnerHeight, realInnerWidth, realIcons, reorderChildSpy;
+        var mockIconContainer = { firstElementChild: 'icon' };
 
         setup(() => {
           realInnerHeight =
             Object.getOwnPropertyDescriptor(window, 'innerHeight');
+          realInnerWidth =
+            Object.getOwnPropertyDescriptor(window, 'innerWidth');
           Object.defineProperty(window, 'innerHeight', {
+            value: 500,
+            configurable: true
+          });
+          Object.defineProperty(window, 'innerWidth', {
             value: 500,
             configurable: true
           });
@@ -1012,6 +1056,8 @@ suite('Homescreen app', () => {
             },
             reorderChild: () => {}
           };
+          app.iconsLeft = 10;
+          app.iconsRight = 490;
 
           reorderChildSpy = sinon.spy(app.icons, 'reorderChild');
         });
@@ -1020,12 +1066,13 @@ suite('Homescreen app', () => {
           app.icons = realIcons;
           reorderChildSpy.restore();
           Object.defineProperty(window, 'innerHeight', realInnerHeight);
+          Object.defineProperty(window, 'innerWidth', realInnerWidth);
         });
 
         test('icon can be dropped at the beginning of the container', () => {
           app.handleEvent(new CustomEvent('drag-end', {
             detail:
-              { target: 'def', dropTarget: null, clientX: 0, clientY: -100 }
+              { target: 'def', dropTarget: null, clientX: 250, clientY: -100 }
           }));
           assert.isTrue(reorderChildSpy.calledWith('def', 'abc'));
         });
@@ -1033,16 +1080,50 @@ suite('Homescreen app', () => {
         test('icon can be dropped at the end of the container', () => {
           app.handleEvent(new CustomEvent('drag-end', {
             detail:
-              { target: 'def', dropTarget: null, clientX: 0, clientY: 600 }
+              { target: 'def', dropTarget: null, clientX: 250, clientY: 600 }
           }));
           assert.isTrue(reorderChildSpy.calledWith('def', null));
         });
 
         test('dropping icon on itself does nothing', () => {
           app.handleEvent(new CustomEvent('drag-end', {
-            detail: { dropTarget: null, clientX: 0, clientY: 0 }
+            detail: {
+              target: 'abc',
+              dropTarget: mockIconContainer,
+              clientX: 0,
+              clientY: 0
+            }
           }));
           assert.isFalse(reorderChildSpy.called);
+        });
+
+        test('dropping icon to the side does nothing', () => {
+          app.handleEvent(new CustomEvent('drag-end', {
+            detail:
+              { target: 'def', dropTarget: null, clientX: 5, clientY: 0 }
+          }));
+          app.handleEvent(new CustomEvent('drag-end', {
+            detail:
+              { target: 'def', dropTarget: null, clientX: 495, clientY: 0 }
+          }));
+          assert.isFalse(reorderChildSpy.called);
+        });
+
+        test('dropping icon without moving activates edit mode', () => {
+          var enterEditModeStub = sinon.stub(app, 'enterEditMode');
+          var iconEditableStub = sinon.stub(app, 'iconIsEditable', () => true);
+
+          app.shouldEnterEditMode = true;
+          app.handleEvent(new CustomEvent('drag-end', {
+            detail: { target: mockIconContainer,
+                      dropTarget: mockIconContainer,
+                      clientX: 0, clientY: 0 }
+          }));
+          assert.isTrue(
+            enterEditModeStub.calledWith(mockIconContainer.firstElementChild));
+
+          enterEditModeStub.restore();
+          iconEditableStub.restore();
         });
       });
 
@@ -1098,53 +1179,6 @@ suite('Homescreen app', () => {
       });
       app.handleEvent(new CustomEvent('install',
         { detail: { application: {} } }));
-    });
-  });
-
-  suite('hashchange', () => {
-    var realDocumentHidden;
-    setup(() => {
-      realDocumentHidden = Object.getOwnPropertyDescriptor(document, 'hidden');
-      Object.defineProperty(document, 'hidden', {
-        value: false,
-        configurable: true
-      });
-    });
-
-    teardown(() => {
-      if (realDocumentHidden) {
-        Object.defineProperty(document, 'hidden', realDocumentHidden);
-      } else {
-        delete document.hidden;
-      }
-    });
-
-    test('should scroll to the top of the page', done => {
-      var realScrollable = app.scrollable;
-      app.scrollable = {
-        scrollTo: (obj) => {
-          done(() => {
-            assert.equal(obj.top, 0);
-            assert.equal(obj.left, 0);
-          });
-        },
-        scrollLeft: 0,
-        parentNode: {
-          offsetLeft: 0
-        }
-      };
-      app.handleEvent(new CustomEvent('hashchange'));
-      app.scrollable = realScrollable;
-    });
-
-    test('should cancel dialogs', done => {
-      var realDialogs = app.dialogs;
-      app.dialogs = [{
-        close: () => { done(); },
-        opened: () => { return true; }
-      }];
-      app.handleEvent(new CustomEvent('hashchange'));
-      app.dialogs = realDialogs;
     });
   });
 });

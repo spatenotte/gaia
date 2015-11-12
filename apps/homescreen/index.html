@@ -55,19 +55,21 @@
     <script defer src="js/pagesstore.js"></script>
     <script defer src="js/pages.js"></script>
     <script defer src="js/app.js"></script>
+    <script defer src="js/window.js"></script>
     <script defer src="js/bootstrap.js"></script>
   </head>
 
   <body>
     <header id="page-indicator-header">
-      <div id="page-indicator" role="slider" aria-valuemin="0" aria-valuenow="0" aria-valuemax="1" aria-controls="panels">
+      <div id="page-indicator" data-l10n-id="page-indicator-text" role="slider" aria-valuemin="1" aria-valuenow="1" aria-valuemax="2" aria-controls="panels">
         <span></span><span></span>
       </div>
     </header>
-    <div id="panels" role="main"><!--
-    --><div id="apps-panel">
-        <div class="shadow"></div>
+    <div id="shadow"></div>
+    <div id="panels"><!--
+    --><div id="apps-panel" aria-labelledby="page-indicator-header">
         <div class="scrollable">
+          <div class="edit-underlay"></div>
           <gaia-container id="apps" drag-and-drop></gaia-container>
         </div>
         <gaia-dialog id="cancel-download" class="dialog-action">
@@ -85,8 +87,7 @@
           <button on-click="close" data-l10n-id="cancel-action"></button>
         </gaia-dialog>
       </div><!--
-   --><div id="pages-panel">
-        <div class="shadow"></div>
+   --><div id="pages-panel" aria-labelledby="page-indicator-header">
         <div id="empty-pages">
           <h1 data-l10n-id="no-pinned-pages-header"></h1>
           <p data-l10n-id="no-pinned-pages-body"></p>
@@ -99,13 +100,15 @@
           </div>
         </div>
         <div class="scrollable">
-          <gaia-container id="pages" drag-and-drop></gaia-container>
+          <div class="edit-underlay"></div>
+          <gaia-container id="pages"></gaia-container>
         </div>
       </div><!--
  --></div>
     <div id="bottombar">
       <div id="remove"></div>
-      <div id="edit"></div>
+      <div id="rename"></div>
+      <div id="done" data-l10n-id="edit-done"></div>
     </div>
   </body>
 </html>

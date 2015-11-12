@@ -4,12 +4,11 @@ define(function(require) {
   var SettingsService = require('modules/settings_service');
   var SettingsPanel = require('modules/settings_panel');
   var Root = require('panels/root/root');
+
   var AirplaneModeItem = require('panels/root/airplane_mode_item');
   var ThemesItem = require('panels/root/themes_item');
   var AddonsItem = require('panels/root/addons_item');
   var STKItem = require('panels/root/stk_item');
-  var BTAPIVersionDetector = require('modules/bluetooth/version_detector');
-  var DsdsSettings = require('dsds_settings');
 
   var queryRootForLowPriorityItems = function(panel) {
     // This is a map from the module name to the object taken by the constructor
@@ -68,7 +67,7 @@ define(function(require) {
     return SettingsPanel({
       onInit: function rp_onInit(panel) {
         root = Root();
-        root.init();
+        root.init(panel);
 
         airplaneModeItem =
           AirplaneModeItem(panel.querySelector('.airplaneMode-input'));
@@ -81,28 +80,15 @@ define(function(require) {
           iccEntries: panel.querySelector('#icc-entries')
         });
 
-        // The decision of navigation panel will be removed while we are no
-        // longer to use Bluetooth API v1.
-        var bluetoothListItem = panel.querySelector('.menuItem-bluetooth');
-        var BTAPIVersion = BTAPIVersionDetector.getVersion();
-        bluetoothListItem.addEventListener('click', function() {
-          if (BTAPIVersion === 1) {
-            // navigate old bluetooth panel..
-            SettingsService.navigate('bluetooth');
-          } else if (BTAPIVersion === 2) {
-            // navigate new bluetooth panel..
-            SettingsService.navigate('bluetooth_v2');
-          }
-        });
-
         activityDoneButton = panel.querySelector('#activityDoneButton');
         activityDoneButton.addEventListener('click', function() {
           SettingsService.back();
         });
 
-        // If the device supports dsds, callSettings must be changed 'href' for
-        // navigating call-iccs panel first.
-        if (DsdsSettings.getNumberOfIccSlots() > 1) {
+        // If the device supports dsds, callSettings must be changed 'href'
+        // for navigating call-iccs panel first to let users choose simcard
+        var mozMobileConnections = navigator.mozMobileConnections;
+        if (mozMobileConnections && mozMobileConnections.length > 1) {
           var callItem = document.getElementById('menuItem-callSettings');
           callItem.setAttribute('href', '#call-iccs');
         }
@@ -131,7 +117,6 @@ define(function(require) {
         }
       },
       onHide: function rp_onHide() {
-        airplaneModeItem.enabled = false;
         themesItem.enabled = false;
         addonsItem.enabled = false;
 
@@ -140,6 +125,9 @@ define(function(require) {
             Object.keys(items).forEach((key) => items[key].enabled = false);
           });
         }
+      },
+      onUninit: function rp_onUninit() {
+        airplaneModeItem.enabled = false;
       }
     });
   };

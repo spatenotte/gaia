@@ -8,13 +8,6 @@
   }
 
   /**
-   * wallpaper
-   */
-  section[role="region"]#display .wallpaper-button {
-    background-position: 95% 24%;
-  }
-
-  /**
    * media storage
    */
   section[role="region"]#mediaStorage .color-music.stackedbar-item,
@@ -105,28 +98,6 @@
     offset-inline-start: calc(-2.5rem / 2);
   }
 
-  section[role="region"]#root .pack-switch > .menu-item::before {
-    offset-inline-start: 1rem;
-  }
-
-  section[role="region"]#root .pack-switch > .menu-item {
-    padding-inline-start: 6rem;
-  }
-
-  section[role="region"]#root ul li > label.pack-switch {
-    margin-inline-start: calc(-4.5rem / 2);
-  }
-
-  section[role="region"]#root ul li > label.pack-switch > small {
-    offset-inline-start: 6.25rem;
-    margin: 0;
-    margin-inline-start: 4.5rem;
-  }
-
-  section[role="region"]:not([id='root']) ul li > label.pack-switch > span {
-    padding-inline-start: 1.5rem;
-  }
-
   section[role="region"]:not([id='root']) ul li > gaia-checkbox > label {
     padding-inline-start: 1.5rem;
   }
@@ -189,14 +160,18 @@
   /**
    * wallpaper
    */
-  section[role="region"]#display .wallpaper {
+  section[role="region"].wallpaper {
     height: 33.5rem;
   }
 
-  html[dir="ltr"] section[role="region"]#display .wallpaper-button {
+  section[role="region"].wallpaper .wallpaper-button {
+    background-position: 95% 24%;
+  }
+
+  html[dir="ltr"] section[role="region"].wallpaper .wallpaper-button {
     background-position: right 4rem top 2.5rem;
   }
-  html[dir="rtl"] section[role="region"]#display .wallpaper-button {
+  html[dir="rtl"] section[role="region"].wallpaper .wallpaper-button {
     background-position: left 4rem top 2.5rem;
   }
 

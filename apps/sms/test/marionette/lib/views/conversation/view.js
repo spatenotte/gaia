@@ -6,6 +6,7 @@ var ConversationAccessor = require('./accessors');
 var MessageAccessor = require('./message_accessors');
 var ComposerAccessor = require('../shared/composer_accessors');
 var MenuAccessor = require('../shared/menu_accessors');
+var Tools = require('../shared/tools.js');
 
 var appRoot = require('app-root-path');
 // TODO Change the path once requireFromApp becomes its own module
@@ -38,8 +39,21 @@ ConversationView.prototype = {
     return this.accessors.toggleSelectionButton.text();
   },   
 
-  get messages() {
-    return this.accessors.messages.map(function(message) {
+  /**
+   * Returns the messages in this conversation, following an optional filter.
+   * @param {Object} [filter] Optional filter
+   * @param {Number} [filter.first] Will return the first n messages.
+   * @returns {ParsedMessage[]} List of the messages found.
+   */
+  messages: function(filter) {
+    filter = filter || [];
+    var messages = this.accessors.messages;
+
+    if (filter.first) {
+      messages = messages.slice(0, filter.first);
+    }
+
+    return messages.map(function(message) {
       return this.messageAccessors.parse(message);
     }, this);
   },
@@ -121,7 +135,7 @@ ConversationView.prototype = {
   },
 
   deleteMessage: function(messageId) {
-    var lastMessageWillBeDeleted = this.messages.length === 1;
+    var lastMessageWillBeDeleted = this.messages().length === 1;
 
     var message = this.accessors.findMessage(messageId);
 
@@ -215,10 +229,8 @@ ConversationView.prototype = {
     return subjectInput && this.composerAccessors.subjectInput.displayed();
   },
 
-  isMessageInputFocused: function() {
-    return this.composerAccessors.messageInput.scriptWith(function(el) {
-      return document.activeElement === el;
-    });
+  assertMessageInputFocused: function(message) {
+    Tools.assertElementFocused(this.composerAccessors.messageInput, message);
   },
 
   backToInbox: function() {

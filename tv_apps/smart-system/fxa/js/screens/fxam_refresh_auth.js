@@ -1,8 +1,14 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
-/* global FxaModuleStates, FxaModuleUI, FxaModule, FxModuleServerRequest,
-   FxaModuleOverlay */
+/* global FxaModule */
+/* global FxaModuleKeyNavigation */
+/* global FxaModuleNavigation */
+/* global FxaModuleOverlay */
+/* global FxaModuleStates */
+/* global FxaModuleUI */
+/* global FxModuleServerRequest */
+/* global KeyEvent */
 /* exported FxaModuleRefreshAuth */
 /* jshint unused:false */
 
@@ -28,6 +34,13 @@ var FxaModuleRefreshAuth = (function() {
     passwordCheck.checked = false;
     passwordEl.setAttribute('type', 'password');
     FxaModuleUI.disableDoneButton();
+  }
+
+  function _togglePasswordVisibility() {
+    /*jshint validthis:true*/
+    var passwordFieldType =
+                        !!this.fxaShowPwRefresh.checked ? 'text' : 'password';
+    this.fxaPwInputRefresh.setAttribute('type', passwordFieldType);
   }
 
   function _requestPasswordReset(email, done) {
@@ -83,6 +96,32 @@ var FxaModuleRefreshAuth = (function() {
                                                                   'password';
       }).bind(this), false);
 
+      // Ensure that pressing 'ENTER' (keycode 13) we send the form
+      // as expected
+      this.fxaPwInputRefresh.addEventListener('keypress', event => {
+        if (_isPasswordValid(this.fxaPwInputRefresh) && event.keyCode === 13) {
+          document.activeElement.blur();
+          FxaModuleNavigation.done();
+        }
+      });
+
+      this.fxaPwInputRefresh.addEventListener('focus', () => {
+        setTimeout(this.fxaPwInputRefresh.select.bind(this.fxaPwInputRefresh));
+      });
+
+      this.fxaShowPwRefresh.addEventListener('keypress', e => {
+        if (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN) {
+          this.fxaShowPwRefresh.checked = !this.fxaShowPwRefresh.checked;
+          _togglePasswordVisibility.bind(this)();
+        }
+      });
+
+      this.fxaShowPwRefresh.addEventListener(
+        'change',
+        _togglePasswordVisibility.bind(this),
+        false
+      );
+
       this.fxaForgotPasswordRefresh.addEventListener('click',
                                                      _forgotPassword.bind(this),
                                                      false);
@@ -98,6 +137,21 @@ var FxaModuleRefreshAuth = (function() {
 
     _cleanForm(this.fxaPwInputRefresh, this.fxaShowPwRefresh);
     _enableDone(this.fxaPwInputRefresh);
+
+    // There are 3 reasons why using setTimeout at this place:
+    // 1. Focus() only works in the setTimeout callback here
+    // 2. The input will be focused first and the keyboard will be brought
+    //    up. We need to do this after the slide up animation of the parent
+    //    fxa_dialog. But the fxa iframe has no way to know when the slide up
+    //    animation is finished.
+    // 3. Put the FxaModuleKeyNavigation.add in the onanimate callback in
+    //    fxam_navigation.js doesn't work, since there is no animation for the
+    //    first page in the flow.
+    setTimeout(() => {
+      FxaModuleKeyNavigation.add([
+        '#fxa-pw-input-refresh', '#fxa-show-pw-refresh',
+        '#fxa-forgot-password-refresh', '#fxa-module-done']);
+    }, 500);
   };
 
   Module.onDone = function onDone(callback) {
@@ -108,8 +162,12 @@ var FxaModuleRefreshAuth = (function() {
       this.fxaPwInputRefresh.value,
       function onServerResponse(response) {
         FxaModuleOverlay.hide();
+        FxaModuleKeyNavigation.remove([
+          '#fxa-pw-input-refresh', '#fxa-show-pw-refresh',
+          '#fxa-forgot-password-refresh', '#fxa-module-done']);
         callback();
       }, function onError(response) {
+        FxaModuleKeyNavigation.disable();
         _cleanForm(this.fxaPwInputRefresh,
                    this.fxaShowPwRefresh);
         this.showErrorResponse(response);

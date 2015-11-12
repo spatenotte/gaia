@@ -12,6 +12,7 @@ var InboxView = require('./lib/views/inbox/view');
 marionette('Messages Drafts', function() {
   var MOCKS = [
     '/mocks/mock_test_storages.js',
+    '/mocks/mock_test_blobs.js',
     '/mocks/mock_navigator_moz_mobile_message.js'
   ];
 
@@ -130,9 +131,7 @@ marionette('Messages Drafts', function() {
       assert.equal(view.attachments.length, 1);
     }
 
-    assert.isTrue(
-      view.isMessageInputFocused(), 'Message input should be focused'
-    );
+    view.assertMessageInputFocused('Message input should be focused');
   }
 
   setup(function() {
@@ -145,7 +144,7 @@ marionette('Messages Drafts', function() {
   });
 
   suite('Messages Drafts Test Suite', function() {
-    var conversation, draft, inboxView;
+    var conversation, draft, draftWithoutRecipient, inboxView;
 
     function assertDraftIsDiscarded() {
       // Check that draft is discarded and removed from inbox view.
@@ -176,9 +175,6 @@ marionette('Messages Drafts', function() {
     function relaunchApp() {
       messagesApp.close();
       messagesApp.launch();
-      storage.setMessagesStorage(
-        [conversation], ThreadGenerator.uniqueMessageId
-      );
     }
 
     setup(function() {
@@ -191,16 +187,22 @@ marionette('Messages Drafts', function() {
         shouldHaveAttachment: true
       };
 
-      messagesApp.launch();
+      draftWithoutRecipient = {
+        text: 'some message',
+        subject: 'some subject',
+        shouldHaveAttachment: true
+      };
 
       storage.setMessagesStorage(
         [conversation], ThreadGenerator.uniqueMessageId
       );
 
+      messagesApp.launch();
+
       inboxView = new InboxView(client);
     });
 
-    suite('Thread-less drafts', function() {
+    suite('Conversation-less drafts', function() {
       var newMessageView, originalDraftConversation;
 
       setup(function() {
@@ -283,11 +285,38 @@ marionette('Messages Drafts', function() {
       });
     });
 
-    suite('Thread drafts', function() {
+    suite('Conversation-less recipient-less drafts', function() {
+      var newMessageView, originalDraftConversation;
+
+      test('Recipient field is focused when draft has no recipients',
+      function() {
+        newMessageView = inboxView.createNewMessage();
+        originalDraftConversation = createAndSaveDraft(newMessageView,
+                                                       draftWithoutRecipient);
+
+        assert.deepEqual(originalDraftConversation, {
+          // We don't know draft id in advance, but we need every field for the
+          // assert.deepEqual to work.
+          id: originalDraftConversation.id,
+          isDraft: true,
+          hasDraft: true,
+          lastMessageType: 'mms',
+          title: '(No recipient)',
+          bodyText: ''
+        });
+
+        inboxView.goToConversation(originalDraftConversation.id);
+        newMessageView.assertRecipientsInputFocused(
+          'Message input should be focused'
+        );
+      });
+    });
+
+    suite('Conversation drafts', function() {
       var conversationView, originalConversationWithDraft;
 
       setup(function() {
-        // Thread draft can't contain any recipients.
+        // Conversation draft can't contain any recipients.
         delete draft.recipients;
 
         conversationView = inboxView.goToConversation(conversation.id);
@@ -308,7 +337,7 @@ marionette('Messages Drafts', function() {
         assertDraft(conversationView, draft);
       });
 
-      test('Thread draft is correctly saved', function() {
+      test('Conversation draft is correctly saved', function() {
         // Relaunch application and verify draft is persisted.
         relaunchApp();
 
@@ -320,7 +349,7 @@ marionette('Messages Drafts', function() {
         assertDraft(conversationView, draft);
       });
 
-      test('Thread Draft is correctly modified', function() {
+      test('Conversation Draft is correctly modified', function() {
         var newDraft = {
           text: 'content_changed'
         };
@@ -355,7 +384,7 @@ marionette('Messages Drafts', function() {
         assertDraft(conversationView, newDraft);
       });
 
-      test('Thread Draft is correctly discarded', function() {
+      test('Conversation Draft is correctly discarded', function() {
         discardDraft(conversationView, draft);
 
         assertDraftIsDiscarded();
@@ -366,7 +395,7 @@ marionette('Messages Drafts', function() {
         assertDraftIsDiscarded();
       });
 
-      test('Thread Draft is correctly converted to threadless one',
+      test('Conversation Draft is correctly converted to conversation-less one',
       function() {
         conversationView.deleteMessage(conversation.messages[0].id);
 
@@ -418,3 +447,4 @@ marionette('Messages Drafts', function() {
     });
   });
 });
+

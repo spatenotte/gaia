@@ -119,11 +119,11 @@
               port.postMessage(message);
             });
           }, function onConnRejected(reason) {
-            console.error('Cannot notify collection: ', reason);
+            console.error('Cannot connect to comms channel: ', reason);
           });
         } else {
           console.error ('mozApps does not have a connect method. ' +
-                         'Cannot launch the collection preload process.');
+                         'Cannot connect to the comms channel.');
         }
       };
     },
@@ -501,7 +501,7 @@
 
       function setTranslationById(domId, l10Id, attrs) {
         var elem = section.querySelector('#' + domId);
-        navigator.mozL10n.setAttributes(elem, l10Id, attrs);
+        document.l10n.setAttributes(elem, l10Id, attrs);
       }
 
       var carrierName = this.carrierName;
@@ -631,7 +631,7 @@
   exports.LateCustomizationPanel = LateCustomizationPanel;
   var panel;
 
-  navigator.mozL10n.once(function firstLocalized() {
+  document.l10n.ready.then(() => {
     panel = exports.lateCustomizationPanel = new LateCustomizationPanel();
   });
 

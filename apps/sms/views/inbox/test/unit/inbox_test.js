@@ -3,7 +3,6 @@
          MockThreadList, MockTimeHeaders, Draft, Drafts, Thread,
          MockOptionMenu, Utils, Contacts, MockContact, Navigation,
          MockSettings, Settings,
-         InterInstanceEventDispatcher,
          MockStickyHeader,
          StickyHeader
          */
@@ -30,7 +29,6 @@ require('/shared/test/unit/mocks/mock_option_menu.js');
 require('/shared/test/unit/mocks/mock_sticky_header.js');
 require('/views/shared/test/unit/mock_navigation.js');
 require('/views/shared/test/unit/mock_settings.js');
-require('/views/shared/test/unit/mock_inter_instance_event_dispatcher.js');
 require('/views/shared/test/unit/mock_selection_handler.js');
 require('/services/test/unit/mock_drafts.js');
 require('/services/test/unit/mock_threads.js');
@@ -47,7 +45,6 @@ var mocksHelperForInboxView = new MocksHelper([
   'OptionMenu',
   'StickyHeader',
   'Navigation',
-  'InterInstanceEventDispatcher',
   'SelectionHandler',
   'LazyLoader',
   'Settings',
@@ -70,7 +67,6 @@ suite('thread_list_ui', function() {
     mainWrapper = document.getElementById('main-wrapper');
 
     this.sinon.stub(MessageManager, 'on');
-    this.sinon.stub(InterInstanceEventDispatcher, 'on');
     this.sinon.stub(Drafts, 'on');
 
     InboxView.readyDeferred = Utils.Promise.defer();
@@ -1546,13 +1542,6 @@ suite('thread_list_ui', function() {
     test('InboxView.setContact is called', function() {
       sinon.assert.called(InboxView.setContact);
     });
-
-    test('should re-request drafts if they are changed by another app instance',
-    function() {
-      InterInstanceEventDispatcher.on.withArgs('drafts-changed').yield();
-
-      sinon.assert.calledWith(Drafts.request, true);
-    });
   });
 
   suite('setContact', function() {
@@ -2003,8 +1992,7 @@ suite('thread_list_ui', function() {
       draft1.querySelector('label').click();
 
       sinon.assert.calledWith(
-        Navigation.toPanel,
-        'composer', { draftId: 101, focusComposer: true }
+        Navigation.toPanel, 'composer', { draftId: 101 }
       );
     });
   });

@@ -33,11 +33,14 @@ System.Selector = Object.freeze({
   appChrome: '.appWindow.active .chrome',
   appChromeBack: '.appWindow.active .back-button',
   appChromeForward: '.appWindow.active .forward-button',
-  appChromeContextLink: '.appWindow.active .menu-button',
+  // We never want the menu button from the Homscreen appWindow even
+  // though it's still selectable. Explicity disallow it in the query.
+  appChromeContextLink: '.appWindow.active:not(.homescreen) .menu-button',
   appChromeContextMenu: '.appWindow.active .contextmenu',
   appChromeContextNewPrivate: '.appWindow.active [data-id=new-private-window]',
   appChromeContextMenuNewWindow: '.appWindow.active [data-id=new-window]',
-  appChromeContextMenuBookmark: '.appWindow.active [data-id=add-to-homescreen]',
+  appChromeContextMenuBookmark:
+    '.appWindow.active:not(.homescreen) [data-id=add-to-homescreen]',
   appChromeContextMenuPin: '.appWindow.active [data-id=pin-to-home-screen]',
   appChromeContextMenuShare: '.appWindow.active [data-id=share]',
   appChromeContextMenuCancel: '.appWindow.active #ctx-cancel-button',
@@ -64,7 +67,7 @@ System.Selector = Object.freeze({
   statusbarShadowActivity: '.activityWindow.active .statusbar-shadow',
   statusbarIcons: '#statusbar-icons',
   statusbarOperator: '.statusbar-operator',
-  systemBanner: 'gaia-toast.banner',
+  systemBanner: '#screen > gaia-toast.banner',
   topPanel: '#top-panel',
   trustedWindow: '.appWindow.active.trustedwindow',
   trustedWindowChrome: '.appWindow.active.trustedwindow .chrome',
@@ -530,5 +533,11 @@ System.prototype = {
       UpdateManager.addToUpdatesQueue(UpdateManager.systemUpdatable);
       UpdateManager.displayNotificationAndToaster();
     });
+  },
+
+  dismissBanner: function() {
+    var banner = this.systemBanner;
+    banner.tap();
+    this.client.helper.waitForElementToDisappear(banner);
   }
 };

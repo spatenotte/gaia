@@ -31,6 +31,7 @@
 */
 
 const BOOKMARKS_COLLECTION_MTIME = '::collections::bookmarks::mtime';
+const BOOKMARKS_LAST_REVISIONID = '::collections::bookmarks::revisionid';
 const BOOKMARKS_SYNCTOID_PREFIX = '::synctoid::bookmarks::';
 
 var BookmarksHelper = (() => {
@@ -45,10 +46,20 @@ var BookmarksHelper = (() => {
     });
   }
 
+  /* SyncedCollectionMTime is the time of the last successful sync run.
+   * Subsequent sync runs will not check any records from the Kinto collection
+   * that have not been modified since then. This value is stored separately for
+   * each user (userid uniquely defines the FxSync account we're syncing with).
+   */
   function setSyncedCollectionMtime(mtime, userid) {
     return new Promise(resolve => {
       asyncStorage.setItem(userid + BOOKMARKS_COLLECTION_MTIME, mtime, resolve);
     });
+  }
+
+  function removeSyncedCollectionMtime(userid) {
+    return new Promise(resolve =>
+      asyncStorage.removeItem(userid + BOOKMARKS_COLLECTION_MTIME, resolve));
   }
 
   function getSyncedCollectionMtime(userid) {
@@ -57,15 +68,33 @@ var BookmarksHelper = (() => {
     });
   }
 
+  /* LastRevisionId is the revisionId the DataStore had at the beginning of the
+   * last sync run. Even though there is only one DataStore, it is stored once
+   * for each userid, because a sync run only syncs with the FxSync account of
+   * the currently logged in user.
+   */
+  function getLastRevisionId(userid) {
+    return new Promise(resolve => {
+      asyncStorage.getItem(userid + BOOKMARKS_LAST_REVISIONID, resolve);
+    });
+  }
+
+  function setLastRevisionId(revisionId, userid) {
+    return new Promise(resolve => {
+      asyncStorage.setItem(userid + BOOKMARKS_LAST_REVISIONID, revisionId,
+          resolve);
+    });
+  }
+
   /*
-    setDataStoreId and getDataStoreId are used to create a table for caching
-    SynctoId to DataStoreId matching. When a `deleted: true` record comes from
-    FxSync, getDataStoreId can help to get DataStoreId easily. So a new record
-    comes, the adapter has to use setDataStoreId to store the ID matching.
-    Since both the synctoId and the dataStoreId for a given URL are unique to
-    the currently logged in user, we store these values prefixed per `userid`
-    (`xClientState` of the currently logged in user).
-  */
+   * setDataStoreId and getDataStoreId are used to create a table for caching
+   * SynctoId to DataStoreId matching. When a `deleted: true` record comes from
+   * FxSync, getDataStoreId can help to get DataStoreId easily. So a new record
+   * comes, the adapter has to use setDataStoreId to store the ID matching.
+   * Since both the synctoId and the dataStoreId for a given URL are unique to
+   * the currently logged in user, we store these values prefixed per `userid`
+   * (`xClientState` of the currently logged in user).
+   */
   function setDataStoreId(synctoId, dataStoreId, userid) {
     return new Promise(resolve => {
       asyncStorage.setItem(userid + BOOKMARKS_SYNCTOID_PREFIX + synctoId,
@@ -81,7 +110,7 @@ var BookmarksHelper = (() => {
     });
   }
 
-  function mergeRecordsToDataStore(localRecord, remoteRecord) {
+  function mergeRecordsToDataStore(localRecord, remoteRecord, fxsyncId) {
     if (!localRecord || !remoteRecord ||
         localRecord.id !== remoteRecord.id ||
         (remoteRecord.type === 'url' && localRecord.url !== remoteRecord.url)) {
@@ -94,8 +123,7 @@ var BookmarksHelper = (() => {
     if (!localRecord.fxsyncRecords) {
       localRecord.fxsyncRecords = {};
     }
-    localRecord.fxsyncRecords[remoteRecord.fxsyncId] =
-        remoteRecord.fxsyncRecords[remoteRecord.fxsyncId];
+    localRecord.fxsyncRecords[fxsyncId] = remoteRecord.fxsyncRecords[fxsyncId];
     return localRecord;
   }
 
@@ -110,16 +138,17 @@ var BookmarksHelper = (() => {
     var revisionId;
     return _ensureStore().then(store => {
       revisionId = store.revisionId;
+      var fxsyncId = remoteRecord.fxsyncId;
+      delete remoteRecord.fxsyncId;
       return store.get(id).then(localRecord => {
         if (localRecord) {
-          var newBookmark = mergeRecordsToDataStore(localRecord, remoteRecord);
-          return store.put(newBookmark, id, revisionId).then(() => {
-            return setDataStoreId(remoteRecord.fxsyncId, id, userid);
-          });
+          var newBookmark = mergeRecordsToDataStore(localRecord, remoteRecord,
+              fxsyncId);
+          return store.put(newBookmark, id, revisionId);
         }
-        return store.add(remoteRecord, id, revisionId).then(() => {
-          return setDataStoreId(remoteRecord.fxsyncId, id, userid);
-        });
+        return store.add(remoteRecord, id, revisionId);
+      }).then(() => {
+        return setDataStoreId(fxsyncId, id, userid);
       });
     }).catch(e => {
       console.error(e);
@@ -143,7 +172,8 @@ var BookmarksHelper = (() => {
     var url;
     return getDataStoreId(fxsyncId, userid).then(id => {
       if (!id) {
-        console.warn('No DataStore ID corresponded to FxSyncID', fxsyncId);
+        console.warn('Ignoring incoming tombstone for unknown FxSyncID',
+            fxsyncId);
         return Promise.resolve();
       }
       url = id;
@@ -167,12 +197,93 @@ var BookmarksHelper = (() => {
     });
   }
 
+  function checkIfClearedSince(lastRevisionId, userid) {
+    return _ensureStore().then(store => {
+      if (lastRevisionId === null) {
+        var cursor = store.sync();
+        // Skip first task which is always { id: null, operation: 'clear' }
+        cursor.next().then(() => {
+          return cursor;
+        });
+      }
+      return store.sync(lastRevisionId);
+    }).then(cursor => {
+      var wasCleared = false;
+      return new Promise(resolve => {
+        function runNextTask(cursor) {
+          cursor.next().then(task => {
+            if (task.operation === 'done') {
+              resolve({
+                newRevisionId: task.revisionId,
+                wasCleared
+              });
+            } else {
+              // In readonly mode, if the DataStore was cleared, or some records
+              // were removed, it's possible that previously imported data was
+              // lost. Therefore, we return wasCleared: true after playing the
+              // DataStore history to its current revisionId, so that
+              // removeSyncedCollectionMtime will be called, and a full
+              // re-import is triggered.
+              // If only one record was removed then it would not be necessary
+              // to re-import the whole Kinto collection, but right now we have
+              // no efficient way to retrieve just one record from the Kinto
+              // collection based on URL, because we don't have a mapping from
+              // URL to fxsyncId. Since readonly sync is idempotent, there is
+              // not much harm in this, but it could possibly be made more
+              // efficient, see
+              // https://bugzilla.mozilla.org/show_bug.cgi?id=1223418.
+              if (['clear', 'remove'].indexOf(task.operation) !== -1) {
+                wasCleared = true;
+              }
+              // Avoid stack overflow:
+              setTimeout(() => {
+                // Will eventually get to a 'done' task:
+                runNextTask(cursor);
+              });
+            }
+          });
+        }
+        runNextTask(cursor);
+      });
+    });
+  }
+
+  /*
+   * handleClear - trigger re-import if DataStore was cleared
+   *
+   * In the future, the bookmarks and history DataAdapters will support
+   * two-way sync, so they will not only import data from the kinto.js
+   * collection into the DataStore, but also check what changes have
+   * been made recently in the DataStore, and reflect these in the kinto.js
+   * collection. Until then, the only thing we check from the DataStore is
+   * whether it has been cleared. If a `clear` operation was executed on the
+   * DataStore since the last time we checked (`lastRevisionId`), then the
+   * lastModifiedTime of the kinto.js collection is removed from asyncStorage,
+   * triggering a full import.
+   */
+  function handleClear(userid) {
+    var newRevisionId;
+    return getLastRevisionId(userid).then(lastRevisionId => {
+      return checkIfClearedSince(lastRevisionId, userid);
+    }).then(result => {
+      newRevisionId = result.newRevisionId;
+      if(result.wasCleared) {
+        // Removing this from asyncStorage will trigger a full re-import.
+        return removeSyncedCollectionMtime(userid);
+      }
+      return Promise.resolve();
+    }).then(() => {
+      return setLastRevisionId(newRevisionId, userid);
+    });
+  }
+
   return {
     mergeRecordsToDataStore: mergeRecordsToDataStore,
     setSyncedCollectionMtime: setSyncedCollectionMtime,
     getSyncedCollectionMtime: getSyncedCollectionMtime,
     updateBookmarks: updateBookmarks,
-    deleteBookmark: deleteBookmark
+    deleteBookmark: deleteBookmark,
+    handleClear: handleClear
   };
 })();
 
@@ -203,8 +314,7 @@ DataAdapters.bookmarks = {
       'fxsyncID_A': fxsync_payload_A,
       'fxsyncID_B': fxsync_payload_B,
       'fxsyncID_C': fxsync_payload_C
-    }, // payload from BC
-    "fxsyncId": "REMOTE_ID" // [1.1]
+    } // payload from BC
   }
 
   [2] Add/Update Records from Bookmark Collection (BC): {
@@ -306,6 +416,8 @@ DataAdapters.bookmarks = {
       var fxsyncRecords = {};
       fxsyncRecords[payload.id] = remoteRecords[i].payload;
       fxsyncRecords[payload.id].timestamp = remoteRecords[i].last_modified;
+
+      // FIXME: See https://bugzilla.mozilla.org/show_bug.cgi?id=1223420
       bookmarks.push({
         // URL is the ID for bookmark records in bookmarks_store, but there are
         // some types without a valid URL except bookmark type. URL is used as
@@ -345,12 +457,25 @@ DataAdapters.bookmarks = {
     var mtime;
     return LazyLoader.load(['shared/js/async_storage.js'])
     .then(() => {
+      // We iterate over the records in the Kinto collection until we find a
+      // record whose last modified time is older than the time of the last
+      // successful sync run. However, if the DataStore has been cleared, or
+      // records have been removed from the DataStore since the last sync run,
+      // we cannot be sure that all older records are still there. So in both
+      // those cases we remove the SyncedCollectionMtime from AsyncStorage, so
+      // that this sync run will iterate over all the records in the Kinto
+      // collection, and not only over the ones that were recently modified.
+      return BookmarksHelper.handleClear(options.userid);
+    }).then(() => {
       return BookmarksHelper.getSyncedCollectionMtime(options.userid);
     }).then(_mtime => {
       mtime = _mtime;
       return remoteBookmarks.list();
     }).then(list => {
       return this._update(list.data, mtime, options.userid);
+    }).catch(err => {
+      console.error('Bookmarks DataAdapter update error', err);
+      throw err;
     });
   },
 

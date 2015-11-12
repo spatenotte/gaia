@@ -9,7 +9,6 @@
 /* global asyncStorage */
 /* global ERROR_GET_FXA_ASSERTION */
 /* global ERROR_SYNC_APP_KILLED */
-/* global ERROR_SYNC_REQUEST */
 /* global ERROR_UNVERIFIED_ACCOUNT */
 /* global expect */
 /* global FxAccountsClient */
@@ -19,8 +18,11 @@
 /* global MockNavigatorSettings */
 /* global SettingsListener */
 /* global SyncManager */
+/* global SyncManagerSettings */
+/* global SyncRecoverableErrors */
 /* global SyncStateMachine */
 
+require('/shared/js/async_storage.js');
 require('/shared/js/sync/errors.js');
 require('/shared/test/unit/mocks/mock_lazy_loader.js');
 require('/shared/test/unit/mocks/mock_navigator_moz_settings.js');
@@ -133,6 +135,7 @@ suite('smart-system/SyncManager >', () => {
       SyncStateMachine.state = 'disabled';
       asyncStorage.setItem(syncState, nextState, () => {
         asyncStorage.setItem(syncError, nextError, () => {
+          nextError = null;
           syncManager = new SyncManager();
           updateStateSpy = this.sinon.spy(syncManager, 'updateState');
           registerSyncRequestStub = this.sinon.stub(syncManager,
@@ -143,6 +146,25 @@ suite('smart-system/SyncManager >', () => {
           unregisterSyncRequestStub = this.sinon.stub(syncManager,
                                                       'unregisterSyncRequest',
                                                       () => {});
+          this.sinon.stub(syncManager, 'updateStatePreference', () => {
+            return Promise.resolve();
+          });
+          this.sinon.stub(syncManager, 'getKeys', () => {
+            return Promise.resolve();
+          });
+          this.sinon.stub(syncManager, 'trySync', () => {
+            return Promise.resolve();
+          });
+          this.sinon.stub(syncManager, 'observeSettings', () => {
+            return Promise.resolve();
+          });
+          this.sinon.stub(syncManager, 'getAccount', () => {
+            syncManager.user = 'someone';
+            return Promise.resolve('someone');
+          });
+          this.sinon.stub(syncManager, 'saveDefaultSettings', () => {
+            return Promise.resolve();
+          });
           syncManager.start().then(done);
         });
       });
@@ -153,6 +175,7 @@ suite('smart-system/SyncManager >', () => {
       enableSpy.reset();
       syncSpy.reset();
       unregisterSyncRequestStub.restore();
+      registerSyncRequestStub.restore();
       syncManager.stop();
     });
 
@@ -179,10 +202,14 @@ suite('smart-system/SyncManager >', () => {
       shouldDisable: false
     }, {
       syncStateValue: 'syncing',
-      nextSyncStateValue: 'disabled',
+      nextSyncStateValue: 'disabling',
       shouldDisable: false
+    }, {
+      syncStateValue: 'disabling',
+      nextSyncStateValue: 'disabled',
+      shouldDisable: true
     }].forEach(config => {
-      test('sync.state ' + config.syncStateValue, () => {
+      test('sync.state ' + config.syncStateValue, done => {
         if (config.shouldDisable) {
           this.sinon.assert.calledOnce(updateStateSpy);
           assert.ok(updateStateSpy.calledWith('disabled'));
@@ -195,6 +222,7 @@ suite('smart-system/SyncManager >', () => {
           setTimeout(() => {
             shouldDisable ? this.sinon.assert.notCalled(syncSpy)
                           : this.sinon.assert.calledOnce(syncSpy);
+            done();
           });
         })(config.shouldDisable);
 
@@ -305,6 +333,41 @@ suite('smart-system/SyncManager >', () => {
     });
   });
 
+  suite('ondisabling', () => {
+    var syncManager;
+
+    var updateStateSpy;
+    var logoutSpy;
+    var successStub;
+
+    suiteSetup(() => {
+      syncManager = new SyncManager();
+      syncManager.start();
+
+      updateStateSpy = this.sinon.spy(syncManager, 'updateState');
+      logoutSpy = this.sinon.spy(FxAccountsClient, 'logout');
+      successStub = this.sinon.stub(SyncStateMachine, 'success');
+    });
+
+    suiteTeardown(() => {
+      syncManager.stop();
+      updateStateSpy.restore();
+      logoutSpy.restore();
+      successStub.restore();
+    });
+
+    test('ondisabling received', done => {
+      SyncStateMachine.ondisabling();
+      setTimeout(() => {
+        this.sinon.assert.calledOnce(updateStateSpy);
+        this.sinon.assert.calledOnce(logoutSpy);
+        this.sinon.assert.calledOnce(successStub);
+        done();
+      });
+    });
+  });
+
+
   suite('ondisabled', () => {
     var syncManager;
 
@@ -312,7 +375,6 @@ suite('smart-system/SyncManager >', () => {
     var unregisterSyncSpy;
     var updateStateSpy;
     var removeEventListenerSpy;
-    var logoutSpy;
 
     suiteSetup(() => {
       syncManager = new SyncManager();
@@ -327,7 +389,6 @@ suite('smart-system/SyncManager >', () => {
       unregisterSyncSpy = this.sinon.spy(navigator.sync, 'unregister');
       updateStateSpy = this.sinon.spy(syncManager, 'updateState');
       removeEventListenerSpy = this.sinon.spy(window, 'removeEventListener');
-      logoutSpy = this.sinon.spy(FxAccountsClient, 'logout');
     });
 
     suiteTeardown(() => {
@@ -335,7 +396,6 @@ suite('smart-system/SyncManager >', () => {
       unregisterSyncSpy.restore();
       updateStateSpy.restore();
       removeEventListenerSpy.restore();
-      logoutSpy.restore();
       navigator.sync = realNavigatorSync;
     });
 
@@ -349,7 +409,6 @@ suite('smart-system/SyncManager >', () => {
         assert.ok(
           removeEventListenerSpy.calledWith('mozFxAccountsUnsolChromeEvent')
         );
-        this.sinon.assert.calledOnce(logoutSpy);
         done();
       });
     });
@@ -392,6 +451,7 @@ suite('smart-system/SyncManager >', () => {
       registerSyncSpy = this.sinon.spy(navigator.sync, 'register');
       updateStateSpy = this.sinon.spy(syncManager, 'updateState');
       errorSpy = this.sinon.spy(SyncStateMachine, 'error');
+      syncManager.user = 'someone';
     });
 
     teardown(() => {
@@ -459,17 +519,36 @@ suite('smart-system/SyncManager >', () => {
         done();
       });
     });
+
+    test('onenabled received - no user should disable sync', done => {
+      teardown(() => {
+        disableStub.restore();
+      });
+      syncManager.user = null;
+      var disableStub = this.sinon.stub(SyncStateMachine, 'disable');
+      SyncStateMachine.onenabled();
+      setTimeout(() => {
+        this.sinon.assert.calledOnce(disableStub);
+        done();
+      });
+    });
   });
 
   suite('onenabling', () => {
     var syncManager;
 
-    var updateStateSpy;
+    var updateStateStub;
     var getAssertionStub;
     var getAssertionError;
     var addEventListenerSpy;
     var successSpy;
     var errorSpy;
+    var trySyncStub;
+    var trySyncError;
+    var getKeysStub;
+    var getKeysError;
+    var getAccountStub;
+    var saveDefaultSettingsStub;
 
     suiteSetup(() => {
       syncManager = new SyncManager();
@@ -481,7 +560,9 @@ suite('smart-system/SyncManager >', () => {
     });
 
     setup(() => {
-      updateStateSpy = this.sinon.spy(syncManager, 'updateState');
+      updateStateStub = this.sinon.stub(syncManager, 'updateState', () => {
+        syncManager.updateStateDeferred = Promise.resolve();
+      });
       addEventListenerSpy = this.sinon.spy(window, 'addEventListener');
       getAssertionStub = this.sinon.stub(syncManager, 'getAssertion', () => {
         return getAssertionError ? Promise.reject(getAssertionError)
@@ -489,25 +570,43 @@ suite('smart-system/SyncManager >', () => {
       });
       successSpy = this.sinon.spy(SyncStateMachine, 'success');
       errorSpy = this.sinon.spy(SyncStateMachine, 'error');
+      getKeysStub = this.sinon.stub(syncManager, 'getKeys', () => {
+        return getKeysError ? Promise.reject(getKeysError)
+                            : Promise.resolve();
+      });
+      trySyncStub = this.sinon.stub(syncManager, 'trySync', () => {
+        return trySyncError ? Promise.reject(trySyncError)
+                            : Promise.resolve();
+      });
+      getAccountStub = this.sinon.stub(syncManager, 'getAccount', () => {
+        return Promise.resolve();
+      });
+      saveDefaultSettingsStub = this.sinon.stub(syncManager,
+                                                'saveDefaultSettings',
+                                                () => {
+        return Promise.resolve();
+      });
     });
 
     teardown(() => {
       addEventListenerSpy.restore();
-      updateStateSpy.restore();
+      updateStateStub.restore();
       getAssertionStub.restore();
       successSpy.restore();
       errorSpy.restore();
+      trySyncStub.restore();
+      getKeysStub.restore();
+      getAccountStub.restore();
+      saveDefaultSettingsStub.restore();
     });
 
     test('onenabling received - success', done => {
       SyncStateMachine.onenabling();
       setTimeout(() => {
-        this.sinon.assert.calledOnce(updateStateSpy);
+        this.sinon.assert.calledOnce(updateStateStub);
         this.sinon.assert.calledOnce(getAssertionStub);
-        this.sinon.assert.calledTwice(addEventListenerSpy);
+        this.sinon.assert.calledOnce(addEventListenerSpy);
         assert.equal(addEventListenerSpy.getCall(0).args[0],
-                     'mozPrefChromeEvent');
-        assert.equal(addEventListenerSpy.getCall(1).args[0],
                      'mozFxAccountsUnsolChromeEvent');
         this.sinon.assert.calledOnce(successSpy);
         done();
@@ -522,14 +621,61 @@ suite('smart-system/SyncManager >', () => {
       getAssertionError = 'error';
       SyncStateMachine.onenabling();
       setTimeout(() => {
-        this.sinon.assert.calledOnce(updateStateSpy);
+        this.sinon.assert.calledOnce(updateStateStub);
         this.sinon.assert.calledOnce(getAssertionStub);
-        this.sinon.assert.calledTwice(addEventListenerSpy);
+        this.sinon.assert.notCalled(getKeysStub);
+        this.sinon.assert.notCalled(trySyncStub);
+        this.sinon.assert.notCalled(getAccountStub);
+        this.sinon.assert.calledOnce(addEventListenerSpy);
         assert.equal(addEventListenerSpy.getCall(0).args[0],
-                     'mozPrefChromeEvent');
-        assert.equal(addEventListenerSpy.getCall(1).args[0],
                      'mozFxAccountsUnsolChromeEvent');
         this.sinon.assert.calledOnce(errorSpy);
+        done();
+      });
+    });
+
+    test('onenabling received - getKeys error', done => {
+      teardown(() => {
+        getKeysError = null;
+      });
+
+      getKeysError = Date.now();
+
+      SyncStateMachine.onenabling();
+      setTimeout(() => {
+        this.sinon.assert.calledOnce(updateStateStub);
+        this.sinon.assert.calledOnce(getAssertionStub);
+        this.sinon.assert.calledOnce(getKeysStub);
+        this.sinon.assert.notCalled(trySyncStub);
+        this.sinon.assert.notCalled(getAccountStub);
+        this.sinon.assert.calledOnce(addEventListenerSpy);
+        this.sinon.assert.calledWith(addEventListenerSpy,
+                                     'mozFxAccountsUnsolChromeEvent');
+        this.sinon.assert.calledOnce(errorSpy);
+        assert.equal(errorSpy.getCall(0).args[0], getKeysError);
+        done();
+      });
+    });
+
+    test('onsyncenabling received - trySync error', done => {
+      teardown(() => {
+        trySyncError = null;
+      });
+
+      trySyncError = Date.now();
+
+      SyncStateMachine.onenabling();
+      setTimeout(() => {
+        this.sinon.assert.calledOnce(updateStateStub);
+        this.sinon.assert.calledOnce(getAssertionStub);
+        this.sinon.assert.calledOnce(getKeysStub);
+        this.sinon.assert.calledOnce(trySyncStub);
+        this.sinon.assert.notCalled(getAccountStub);
+        this.sinon.assert.calledOnce(addEventListenerSpy);
+        this.sinon.assert.calledWith(addEventListenerSpy,
+                                     'mozFxAccountsUnsolChromeEvent');
+        this.sinon.assert.calledOnce(errorSpy);
+        assert.equal(errorSpy.getCall(0).args[0], trySyncError);
         done();
       });
     });
@@ -540,6 +686,24 @@ suite('smart-system/SyncManager >', () => {
 
     var updateStateSpy;
     var disableStub;
+    var enableStub;
+
+    const ERROR_SYNC_APP_KILLED = 'fxsync-error-app-killed';
+    const ERROR_SYNC_APP_SYNC_IN_PROGRESS =
+      'fxsync-error-app-fxsync-in-progress';
+    const ERROR_SYNC_APP_GENERIC = 'fxsync-error-app-generic';
+    const ERROR_SYNC_APP_TRY_LATER = 'fxsync-error-app-try-later';
+    const ERROR_UNVERIFIED_ACCOUNT = 'fxsync-error-unverified-account';
+    const ERROR_DIALOG_CLOSED_BY_USER = 'fxsync-error-dialog-closed-by-user';
+    const ERROR_GET_FXA_ASSERTION = 'fxsync-error-get-fxa-assertion';
+    const ERROR_INVALID_SYNC_ACCOUNT = 'fxsync-error-invalid-account';
+    const ERROR_OFFLINE = 'fxsync-error-offline';
+    const ERROR_REQUEST_SYNC_REGISTRATION =
+      'fxsync-error-request-fxsync-registration';
+    const ERROR_SYNC_INVALID_REQUEST_OPTIONS =
+      'fxsync-error-invalid-request-options';
+    const ERROR_SYNC_REQUEST = 'fxsync-error-request-failed';
+    const ERROR_UNKNOWN = 'fxsync-error-unknown';
 
     suiteSetup(() => {
       syncManager = new SyncManager();
@@ -554,32 +718,43 @@ suite('smart-system/SyncManager >', () => {
     setup(() => {
       updateStateSpy = this.sinon.spy(syncManager, 'updateState');
       disableStub = this.sinon.stub(SyncStateMachine, 'disable');
+      enableStub = this.sinon.stub(SyncStateMachine, 'enable');
     });
 
     teardown(() => {
       updateStateSpy.restore();
       disableStub.restore();
+      enableStub.restore();
     });
 
-    test('onerrored received - recoverable error', done => {
-      SyncStateMachine.state = 'enabling';
-      SyncStateMachine.error(ERROR_SYNC_APP_KILLED);
-      setTimeout(() => {
-        this.sinon.assert.calledOnce(updateStateSpy);
-        assert.equal(syncManager.error, ERROR_SYNC_APP_KILLED);
-        this.sinon.assert.notCalled(disableStub);
-        done();
-      });
-    });
-
-    test('onerrored received - unrecoverable error', done => {
-      SyncStateMachine.state = 'enabling';
-      SyncStateMachine.error(ERROR_SYNC_REQUEST);
-      setTimeout(() => {
-        this.sinon.assert.calledOnce(updateStateSpy);
-        assert.equal(syncManager.error, ERROR_SYNC_REQUEST);
-        this.sinon.assert.calledOnce(disableStub);
-        done();
+    [ERROR_SYNC_APP_KILLED,
+     ERROR_SYNC_APP_SYNC_IN_PROGRESS,
+     ERROR_SYNC_APP_GENERIC,
+     ERROR_SYNC_APP_TRY_LATER,
+     ERROR_UNVERIFIED_ACCOUNT,
+     ERROR_DIALOG_CLOSED_BY_USER,
+     ERROR_GET_FXA_ASSERTION,
+     ERROR_INVALID_SYNC_ACCOUNT,
+     ERROR_OFFLINE,
+     ERROR_REQUEST_SYNC_REGISTRATION,
+     ERROR_SYNC_INVALID_REQUEST_OPTIONS,
+     ERROR_SYNC_REQUEST,
+     ERROR_UNKNOWN].forEach(error => {
+      test(`onerrored received - ${error}`, done => {
+        SyncStateMachine.state = 'enabling';
+        SyncStateMachine.error(error);
+        setTimeout(() => {
+          this.sinon.assert.calledOnce(updateStateSpy);
+          assert.equal(syncManager.error, error);
+          if (SyncRecoverableErrors.indexOf(error) > -1) {
+            this.sinon.assert.called(enableStub);
+            this.sinon.assert.notCalled(disableStub);
+          } else {
+            this.sinon.assert.called(disableStub);
+            this.sinon.assert.notCalled(enableStub);
+          }
+          done();
+        });
       });
     });
   });
@@ -805,6 +980,29 @@ suite('smart-system/SyncManager >', () => {
         });
       });
     });
+
+    test('onsyncing - offline', done => {
+      Object.defineProperty(navigator, 'onLine', {
+        configurable: true,
+        get: () => {
+          return false;
+        },
+        set: () => {}
+      });
+
+      var previousLastSync = syncManager.lastSync;
+      SyncStateMachine.onsyncing();
+      setTimeout(() => {
+        this.sinon.assert.calledOnce(updateStateStub);
+        this.sinon.assert.calledOnce(unregisterSyncStub);
+        this.sinon.assert.notCalled(getAssertionStub);
+        this.sinon.assert.notCalled(getKeysStub);
+        this.sinon.assert.notCalled(portStub);
+        this.sinon.assert.calledOnce(successStub);
+        assert.equal(syncManager.lastSync, previousLastSync);
+        done();
+      });
+    });
   });
 
   suite('Firefox Accounts - onlogout', () => {
@@ -876,7 +1074,7 @@ suite('smart-system/SyncManager >', () => {
         }
       }));
       setTimeout(() => {
-        assert.ok(enableStub.calledOnce);
+        assert.ok(enableStub.called);
         done();
       });
     });
@@ -1273,6 +1471,142 @@ suite('smart-system/SyncManager >', () => {
         assert.ok(updateStatePreferenceSpy.notCalled);
         assert.equal(MockNavigatorSettings.mSettings['services.sync.enabled'],
                      initialValue);
+      });
+    });
+  });
+
+  suite('User settings', () => {
+    var syncManager;
+
+    var currentDeferred;
+
+    function getDeferred() {
+      var deferred = {};
+      deferred.promise = new Promise(resolve => {
+        deferred.resolve = resolve;
+      });
+      return deferred;
+    }
+
+    var _defaults = {};
+    var _user = {};
+
+    var promiseResolve = () => {
+      return Promise.resolve();
+    };
+
+    suiteSetup(() => {
+      syncManager = new SyncManager();
+      syncManager.start();
+
+      this.sinon.stub(syncManager, 'updateState', () => {
+        syncManager.updateStateDeferred = Promise.resolve();
+      });
+
+      this.sinon.stub(syncManager, 'getAssertion', promiseResolve);
+      this.sinon.stub(syncManager, 'getKeys', promiseResolve);
+      this.sinon.stub(syncManager, 'trySync', promiseResolve);
+      this.sinon.stub(syncManager, 'getAccount', promiseResolve);
+      this.sinon.stub(SyncStateMachine, 'success', () => {
+        currentDeferred.resolve();
+      });
+
+      SyncManagerSettings.forEach(setting => {
+        _defaults[setting] = Date.now();
+        MockNavigatorSettings.mSettings[setting] = _defaults[setting];
+      });
+    });
+
+    suiteTeardown(() => {
+      syncManager.stop();
+    });
+
+    test('should save and restore user settings on login/logout', done => {
+      var user = 'user@mozilla.org';
+      syncManager.user = user;
+      SyncStateMachine.enable();
+      currentDeferred = getDeferred();
+      currentDeferred.promise.then(() => {
+        // Enabling should save default settings into asyncStorage.
+        return Promise.all(SyncManagerSettings.map(setting => {
+          return new Promise(resolve => {
+            asyncStorage.getItem(setting, value => {
+              expect(value).to.equal(_defaults[setting]);
+              resolve();
+            });
+          });
+        }));
+      }).then(() => {
+        // Local changes to settings.
+        return Promise.all(SyncManagerSettings.map(setting => {
+          return new Promise(resolve => {
+            _user[setting] = Date.now();
+            MockNavigatorSettings.mSettings[setting] = _user[setting];
+            resolve();
+          });
+        }));
+      }).then(() => {
+        SyncStateMachine.state = 'enabled';
+        syncManager.user = user;
+        SyncStateMachine.disable();
+        currentDeferred = getDeferred();
+        return currentDeferred.promise;
+      }).then(() => {
+        // Disabling should restore default setting from asyncStorage.
+        // And save user settings.
+        return Promise.all(SyncManagerSettings.map(setting => {
+          return new Promise(resolve => {
+            asyncStorage.getItem(setting, value => {
+              expect(value).to.equal(null);
+              expect(MockNavigatorSettings.mSettings[setting])
+                .to.equal(_defaults[setting]);
+              asyncStorage.getItem(user + '.' + setting, value => {
+                expect(value).to.equal(_user[setting]);
+                resolve();
+              });
+            });
+          });
+        }));
+      }).then(() => {
+        // Login with the same user should restore user settings.
+        SyncStateMachine.state = 'disabled';
+        syncManager.user = user;
+        SyncStateMachine.enable();
+        currentDeferred = getDeferred();
+        return currentDeferred.promise;
+      }).then(() => {
+        return Promise.all(SyncManagerSettings.map(setting => {
+          return new Promise(resolve => {
+            expect(MockNavigatorSettings.mSettings[setting])
+              .to.equal(_user[setting]);
+            resolve();
+          });
+        }));
+      }).then(() => {
+        SyncStateMachine.state = 'enabled';
+        syncManager.user = user;
+        SyncStateMachine.disable();
+        currentDeferred = getDeferred();
+        return currentDeferred.promise;
+      }).then(() => {
+        // Login with a new user should restore default settings.
+        SyncStateMachine.state = 'disabled';
+        syncManager.user = 'newuser@mozilla.org';
+        SyncStateMachine.enable();
+        currentDeferred = getDeferred();
+        return currentDeferred.promise;
+      }).then(() => {
+        return Promise.all(SyncManagerSettings.map(setting => {
+          return new Promise(resolve => {
+            expect(MockNavigatorSettings.mSettings[setting])
+              .to.equal(_defaults[setting]);
+            resolve();
+          });
+        }));
+      }).then(() => {
+        done();
+      }).catch(error => {
+        assert.ok(false, error);
       });
     });
   });

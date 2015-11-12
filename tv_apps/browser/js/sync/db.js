@@ -187,6 +187,7 @@ var SyncBrowserDB = {
    *                            without arguments on error.
    */
   getBookmark: function browserDB_getBookmark(indexes, callback) {
+    const FXSYNCID_LEN = 12;
     if (typeof indexes === 'string') {
       this.db.getBookmark(indexes, callback);
     } else if (indexes.id) {
@@ -194,7 +195,28 @@ var SyncBrowserDB = {
     } else if (indexes.bmkUri) {
       this.db.getBookmarkByUri(indexes.bmkUri, callback);
     } else if (indexes.parentid) {
-      this.db.getBookmarkByParentId(indexes.parentid, callback);
+      this.db.getBookmark(indexes.parentid, folder => {
+        if (folder && folder.type === 'folder' && folder.children) {
+          this.db.getBookmarkByParentId(indexes.parentid, list => {
+            var children = folder.children;
+            var result = [];
+            for (var i = 0; i < children.length; i++) {
+              for (var j = 0; j < list.length; j++) {
+                var oriId = list[j].id;
+                // Append the reduntant underline to match the ID from Syncto.
+                var id = (oriId + '____________').substring(0, FXSYNCID_LEN);
+                if (children[i] === id) {
+                  result.push(list[j]);
+                  break;
+                }
+              }
+            }
+            callback(result);
+          });
+        } else {
+          this.db.getBookmarkByParentId(indexes.parentid, callback);
+        }
+      });
     } else {
       callback(null);
     }
@@ -220,11 +242,33 @@ var SyncBrowserDB = {
   },
 
   /**
-   * Get history by timestamp range at (start < record.timestamp <= end)
-   * @param {Function} callback Runs on success with an array of history
+   * Get history by timestamp range at (start <= record.timestamp <= end)
+   * @param {Number} start Start timestamp
+   * @param {Number} end End timestamp
+   * @param {Boolean} startEqual Include the record equaling start timestamp
+   * @param {Boolean} endEqual Include the record equaling end timestamp
+   * @param {Function} callback Runs on complete with an array of history
    */
-  getHistoryByTime: function browserDB_getHistoryByTime(start, end, callback) {
-    this.db.getHistoryByTime(start, end, callback);
+  getHistoryByTime: function browserDB_getHistoryByTime(start, end, startEqual,
+                                                        endEqual, callback) {
+    this.db.getHistoryByTime(start, end, startEqual, endEqual, callback);
+  },
+
+  /**
+   * Get the timestamp of history range at these 4 combinations:
+   *   (record.timestamp < timestamp) when direction == 'prev' && equal == false
+   *   (record.timestamp <= timestamp) when direction == 'prev' && equal == true
+   *   (record.timestamp > timestamp) when direction == 'next' && equal == false
+   *   (record.timestamp >= timestamp) when direction == 'next' && equal == true
+   * @param {Number} ts The timestamp that you want to search by.
+   * @param {String} direction Cursor direction is the same with IndexedDB's.
+   * @param {Boolean} equal Want to include the record in the timestamp.
+   * @param {Function} callback Runs on complete with the previous/next
+   *                            timestamp of a history record.
+   */
+  getHistoryTimestamp:
+    function browserDB_getHistoryTimestamp(ts, direction, equal, callback) {
+    this.db.getHistoryTimestamp(ts, direction, equal, callback);
   },
 
   /**
@@ -1146,14 +1190,40 @@ SyncBrowserDB.db = {
     var records = [];
     var db = this._db;
 
-    var transaction = db.transaction(DBOS_BOOKMARKS);
-    var objectStore = transaction.objectStore(DBOS_BOOKMARKS).index('parentid');
+    function fetchIconUri(data) {
+      return new Promise(resolve => {
+        if(data.type !== 'bookmark') {
+          resolve(data);
+        } else {
+          var iconRequest = iconsStore.get(data.bmkUri);
+          iconRequest.onsuccess = function(e) {
+            var icon = e.target.result;
+            if(icon && icon.iconUri){
+              data.iconUri = icon.iconUri;
+            } else {
+              data.iconUri = Awesomescreen.DEFAULT_FAVICON;
+            }
+            resolve(data);
+          };
+          iconRequest.onerror = function(e) {
+            resolve(data);
+          };
+        }
+      });
+    }
 
-    objectStore.openCursor(parentId, 'prev').onsuccess =
+    var transaction = db.transaction([DBOS_BOOKMARKS, DBOS_ICONS]);
+    var bookmarksStore =
+      transaction.objectStore(DBOS_BOOKMARKS).index('parentid');
+    var iconsStore = transaction.objectStore(DBOS_ICONS);
+
+    bookmarksStore.openCursor(parentId, 'prev').onsuccess =
       function onSuccess(e) {
       var cursor = e.target.result;
       if (cursor) {
-        records.push(cursor.value);
+        fetchIconUri(cursor.value).then(bookmark => {
+          records.push(bookmark);
+        });
         cursor.continue();
       }
     };
@@ -1354,12 +1424,15 @@ SyncBrowserDB.db = {
   },
 
   /**
-   * Get history by timestamp range at (start < record.timestamp <= end)
+   * Get history by timestamp range at (start <= record.timestamp <= end)
    * @param {Number} start Start timestamp
    * @param {Number} end End timestamp
+   * @param {Boolean} startEqual Include the record equaling start timestamp
+   * @param {Boolean} endEqual Include the record equaling end timestamp
    * @param {Function} callback Runs on complete with an array of history
    */
-  getHistoryByTime: function db_getHistoryByTime(start, end, callback) {
+  getHistoryByTime:
+    function db_getHistoryByTime(start, end, startEqual, endEqual, callback) {
     var history = [];
     var db = this._db;
 
@@ -1379,7 +1452,7 @@ SyncBrowserDB.db = {
     var visitsStore = transaction.objectStore(DBOS_VISITS);
     var objectStore = transaction.objectStore(DBOS_ICONS);
     var visitsIndex = visitsStore.index('timestamp');
-    var keyRange = IDBKeyRange.bound(start, end, true, false);
+    var keyRange = IDBKeyRange.bound(start, end, !startEqual, !endEqual);
 
     visitsIndex.openCursor(keyRange, 'prev').onsuccess =
       function onSuccess(e) {
@@ -1396,22 +1469,38 @@ SyncBrowserDB.db = {
   },
 
   /**
-   * Get the previous timestamp of history range at (record.timestamp <= start)
-   * @param {Number} start Start timestamp
-   * @param {Function} callback Runs on complete with the previous timestamp of
-   *                            a history record.
+   * Get the timestamp of history range at
+   *   (record.timestamp < timestamp) when direction == 'prev' && equal == false
+   *   (record.timestamp <= timestamp) when direction == 'prev' && equal == true
+   *   (record.timestamp > timestamp) when direction == 'next' && equal == false
+   *   (record.timestamp >= timestamp) when direction == 'next' && equal == true
+   * @param {Number} timestamp The timestamp that you want to search by.
+   * @param {String} direction Cursor direction is the same with IndexedDB's.
+   * @param {Boolean} equal Want to include the record in the timestamp.
+   * @param {Function} callback Runs on complete with the previous/next
+   *                            timestamp of a history record.
    */
-  getPreviousHistoryTimestamp:
-    function db_getPreviousHistoryTimestamp(start, callback) {
+  getHistoryTimestamp:
+    function db_getHistoryTimestamp(timestamp, direction, equal, callback) {
+    const DIRECTION_TYPE = ['next', 'nextunique', 'prev', 'prevunique'];
+    if (!DIRECTION_TYPE.some(e => e === direction)) {
+      console.error('Incorrect direction type:', direction);
+      return ;
+    }
     var db = this._db;
     var lastestTimeStampInRange = null;
 
     var transaction = db.transaction([DBOS_VISITS]);
     var visitsStore = transaction.objectStore(DBOS_VISITS);
     var visitsIndex = visitsStore.index('timestamp');
-    var keyRange = IDBKeyRange.upperBound(start);
+    var keyRange;
+    if (direction === 'prev' || direction === 'prevunique') {
+      keyRange = IDBKeyRange.upperBound(timestamp, !equal);
+    } else {
+      keyRange = IDBKeyRange.lowerBound(timestamp, !equal);
+    }
 
-    visitsIndex.openCursor(keyRange, 'prev').onsuccess =
+    visitsIndex.openCursor(keyRange, direction).onsuccess =
       function onSuccess(e) {
       var cursor = e.target.result;
       if (cursor) {

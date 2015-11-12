@@ -57,7 +57,7 @@
     'attentionopened',
     'homegesture-enabled',
     'homegesture-disabled',
-    'orientationchange',
+    'appwindow-orientationchange',
     'sheets-gesture-begin',
     'sheets-gesture-end',
       // XXX: PermissionDialog is shared so we need AppWindowManager
@@ -76,6 +76,7 @@
     'inputblur'
   ];
   AppWindowManager.SUB_MODULES = [
+    'PinPageSystemDialog',
     'FtuLauncher',
     'AppWindowFactory',
     'LockScreenLauncher',
@@ -209,12 +210,17 @@
      * @param  {String} scope The scope to be matched.
      * @return {AppWindow}        The app window object matched.
      */
-    getAppInScope: function awm_getAppInScope(scope) {
+    getAppInScope: function awm_getAppInScope(scope, origin, name) {
       var keys = Object.keys(this._apps);
       var appInScope;
       keys.forEach(function(id) {
         var app = this._apps[id];
-        if (app.inScope(scope)) {
+        var inScope = (scope && app.inScope(scope));
+        if (scope && !inScope) {
+          return;
+        }
+
+        if (inScope || app.matchesOriginAndName(origin, name)) {
           var replace = (!appInScope || appInScope.launchTime < app.launchTime);
           appInScope = replace ? app : appInScope;
         }
@@ -586,7 +592,7 @@
       this._activeApp && this._activeApp.broadcast('focus');
     },
 
-    _handle_orientationchange: function() {
+    '_handle_appwindow-orientationchange': function() {
       this.broadcastMessage('orientationchange',
         this.service.query('getTopMostUI') === this);
     },
