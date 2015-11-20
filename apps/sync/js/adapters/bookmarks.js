@@ -27,6 +27,7 @@
 /* global
   asyncStorage,
   DataAdapters,
+  ERROR_SYNC_APP_RACE_CONDITION,
   LazyLoader
 */
 
@@ -122,6 +123,11 @@ var BookmarksHelper = (() => {
     localRecord.name = remoteRecord.name;
     if (!localRecord.fxsyncRecords) {
       localRecord.fxsyncRecords = {};
+      // We remember if a record had already been created locally before we got
+      // remote data for that URL, so that we know not to remove it even when
+      // the remote data is deleted. This applies only to readonly sync, and
+      // will be removed when sync becomes read-write.
+      localRecord.createdLocally = true;
     }
     localRecord.fxsyncRecords[fxsyncId] = remoteRecord.fxsyncRecords[fxsyncId];
     return localRecord;
@@ -146,17 +152,31 @@ var BookmarksHelper = (() => {
               fxsyncId);
           return store.put(newBookmark, id, revisionId);
         }
+        // Setting createdLocally to false will cause the record to be deleted
+        // again if it's deleted remotely. This applies only to readonly sync,
+        // and will be removed when sync becomes read-write.
+        remoteRecord.createdLocally = false;
         return store.add(remoteRecord, id, revisionId);
       }).then(() => {
         return setDataStoreId(fxsyncId, id, userid);
       });
     }).catch(e => {
+      if (e.name === 'ConstraintError' &&
+          e.message === 'RevisionId is not up-to-date') {
+        return LazyLoader.load(['shared/js/sync/errors.js']).then(() => {
+          throw new Error(ERROR_SYNC_APP_RACE_CONDITION);
+        });
+      }
       console.error(e);
     });
   }
 
   function updateBookmarks(records, userid) {
-    return new Promise(resolve => {
+    // Using Array.reduce-based sequential waterfall here instead of Promise.all
+    // to make sure each DataStore update is sequential and we can detect if any
+    // actual race conditions occurred due to simultaneous DataStore access by
+    // other apps during any of these updates.
+    return new Promise((resolve, reject) => {
       records.reduce((reduced, current) => {
         return reduced.then(() => {
           if (current.deleted) {
@@ -164,7 +184,7 @@ var BookmarksHelper = (() => {
           }
           return addBookmark(current, userid);
         });
-      }, Promise.resolve()).then(resolve);
+      }, Promise.resolve()).then(resolve, reject);
     });
   }
 
@@ -187,7 +207,10 @@ var BookmarksHelper = (() => {
           var isEmpty = Object.keys(localRecord.fxsyncRecords).every(value => {
             return localRecord.fxsyncRecords[value].deleted;
           });
-          if (isEmpty && localRecord.syncNeeded) {
+          // Do not delete records that were originally created locally, even if
+          // they are deleted remotely. This applies only for readonly sync, and
+          // will be removed in the future when we switch to two-way sync.
+          if (isEmpty && !localRecord.createdLocally) {
             return store.remove(url, revisionId);
           } else {
             return store.put(localRecord, url, revisionId);
@@ -431,7 +454,6 @@ DataAdapters.bookmarks = {
         type: payload.type === 'bookmark' ? 'url' : 'others',
         iconable: false,
         icon: '',
-        syncNeeded: true,
         fxsyncRecords: fxsyncRecords,
         fxsyncId: payload.id
       });
@@ -455,8 +477,7 @@ DataAdapters.bookmarks = {
       console.warn('Two-way sync not implemented yet for bookmarks.');
     }
     var mtime;
-    return LazyLoader.load(['shared/js/async_storage.js'])
-    .then(() => {
+    return LazyLoader.load(['shared/js/async_storage.js']).then(() => {
       // We iterate over the records in the Kinto collection until we find a
       // record whose last modified time is older than the time of the last
       // successful sync run. However, if the DataStore has been cleared, or

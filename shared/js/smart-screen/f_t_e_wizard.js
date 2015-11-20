@@ -41,10 +41,14 @@
     this._container = options.container;
     this._buttonsClass = options.buttonsClass || 'fte-button';
     this._finishButtonClass = options.finishButtonClass || 'fte-finish';
+    this._skipButtonClass = options.skipButtonClass || 'fte-skip';
     this._pageClass = options.pageClass || 'fte-page';
+    this._pageHiddenClass = options.pageHiddenClass || 'hidden';
+    this._launchEveryTime = options.launchEveryTime || false;
     this.propagateKeyEvent = options.propagateKeyEvent || false;
     this._simpleKeyNavigation = new SimpleKeyNavigation();
     this._onfinish = options.onfinish;
+    this._onskip = options.onskip;
 
     this._pages =
             Array.from(this._container.getElementsByClassName(this._pageClass));
@@ -54,8 +58,9 @@
                this._container.getElementsByClassName(this._prevButtonClass)[0];
     this._finishButton =
              this._container.getElementsByClassName(this._finishButtonClass)[0];
+    this._skipButton =
+             this._container.getElementsByClassName(this._skipButtonClass)[0];
     this._currentPage = 0;
-
 
     this._container.addEventListener('keydown', this);
     this._container.addEventListener('keyup', this);
@@ -90,9 +95,10 @@
     }
 
     this._hide(this._currentPage);
-    this._currentPage++;
+    attachTransitionEnd(
+      this._pages[++this._currentPage], this._updateNavigation.bind(this)
+    );
     this._show(this._currentPage);
-    this._updateNavigation();
   };
 
   FTEWizard.prototype.goPrev = function fw_prev() {
@@ -101,9 +107,10 @@
     }
 
     this._hide(this._currentPage);
-    this._currentPage--;
+    attachTransitionEnd(
+      this._pages[--this._currentPage], this._updateNavigation.bind(this)
+    );
     this._show(this._currentPage);
-    this._updateNavigation();
   };
 
   FTEWizard.prototype.finish = function fw_finish() {
@@ -116,8 +123,29 @@
       this.uninit();
       this._launched = true;
 
-      localStorage.setItem(this._name + '.fteskip', true);
+      if (!this._launchEveryTime) {
+        localStorage.setItem(this._name + '.fteskip', true);
+      }
       this._onfinish && this._onfinish();
+    });
+  };
+
+  /**
+   * Skip applies the same CSS class as finish to close the FTE and
+   * triggers the onskip callback.
+   */
+  FTEWizard.prototype.skip = function fw_skip() {
+    this._container.classList.add('finish');
+
+    attachTransitionEnd(this._container, () => {
+
+      this._hide(this._currentPage);
+      this._container.style.display = 'none';
+      this.uninit();
+      this._launched = true;
+
+      localStorage.setItem(this._name + '.fteskip', true);
+      this._onskip && this._onskip();
     });
   };
 
@@ -133,11 +161,11 @@
   };
 
   FTEWizard.prototype._hide = function fw_hide(pageIdx) {
-    this._pages[pageIdx].style.display = 'none';
+    this._pages[pageIdx].classList.add(this._pageHiddenClass);
   };
 
   FTEWizard.prototype._show = function fw_hide(pageIdx) {
-    this._pages[pageIdx].style.display = '';
+    this._pages[pageIdx].classList.remove(this._pageHiddenClass);
   };
 
   FTEWizard.prototype.handleEvent = function fw_handleEvent(evt) {
@@ -157,6 +185,10 @@
 
             case 'finish':
               this.finish();
+              break;
+
+            case 'skip':
+              this.skip();
               break;
           }
         }

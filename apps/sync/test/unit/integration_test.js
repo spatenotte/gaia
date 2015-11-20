@@ -5,21 +5,13 @@
 'use strict';
 
 /* global
-  expect,
   FxSyncWebCryptoFixture,
   MocksHelper,
   MockIACPort,
   MockasyncStorage,
   MockDatastore,
   MockNavigatorDatastore,
-  require,
-  requireApp,
-  setup,
-  sinon,
-  suite,
-  SynctoServerFixture,
-  teardown,
-  test
+  SynctoServerFixture
 */
 
 
@@ -306,7 +298,8 @@ collections::history::mtime`]).to.equal(1234567890123);
 eference/Global_Objects/Object/proto`,
               title: 'Object.prototype.__proto__ € - JavaScript | MDN',
               visits: [ 1439366063808 ],
-              fxsyncId: '_9sCUbahs0ay'
+              fxsyncId: '_9sCUbahs0ay',
+              createdLocally: false
             });
           })
         ]);

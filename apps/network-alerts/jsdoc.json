@@ -4,7 +4,7 @@
     "dictionaries": ["jsdoc"]
   },
   "source": {
-    "include": ["apps/network-alerts/js"]
+    "include": ["apps/network-alerts/js/**/*.js"]
   },
   "plugins": [
     "plugins/markdown",
