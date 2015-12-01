@@ -129,8 +129,8 @@
     height: 28rem;
   }
 
-  body.showKeypad .duration,
-  body.showKeypad .sim  {
+  body.showKeypad.single-line .duration,
+  body.showKeypad.single-line .sim  {
     transition: opacity var(--transition-duration) ease;
     opacity: 0;
   }
@@ -1032,12 +1032,17 @@
   #incoming-container .sim {
     display: inline-block;
     position: absolute;
-    top: 2.2rem;
-    offset-inline-end: 4.4rem;
+    top: 3.1rem;
+    offset-inline-end: 4.8rem;
 
     text-align: end;
     font-size: 1.3rem;
     line-height: 1.5rem;
+    color: #333;
+  }
+
+  #incoming-info:not(.additionalInfo) .sim {
+    top: 4.1rem;
   }
 
   /* Hidden everywhere else */

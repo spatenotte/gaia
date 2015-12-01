@@ -239,14 +239,10 @@ gaia-header {
   text-decoration: none;
 }
 
-
-.screen input[type="text"],
-.screen input[type="password"],
-.screen input[type="email"] {
+.screen input {
   height: 5rem;
   padding: 0.5rem 0;
   font-family: Fira Sans;
-  font-variant: 3.8rem;
   color: #000000;
   border-top: none;
   border-right: none;
@@ -255,23 +251,24 @@ gaia-header {
   background-color: transparent;
   font-size: 3.8rem;
   line-height: 3.8rem;
-  text-align: center;
   box-sizing: content-box;
 }
 
+.screen input[type="text"],
+.screen input[type="password"],
+.screen input[type="email"] {
+  text-align: center;
+}
+
 .screen input:focus {
-  color: #000000;
-  box-shadow: unset;
   border-bottom-color: rgb(0, 202, 242);
 }
 
-.screen input[type="email"]:invalid {
+.screen input:invalid {
   color: rgb(185, 0, 0);
 }
 
-.screen input[type="email"]:invalid:focus,
-.screen input[type="password"]:invalid:focus {
-  box-shadow: unset;
+.screen input:invalid:focus {
   border-bottom-color: rgb(130, 0, 0);
 }
 
@@ -287,7 +284,8 @@ gaia-header {
   height: 80rem;
 }
 
-#fxa-email-input-wrapper {
+#fxa-email-input-wrapper,
+#fxa-pw-input-wrapper {
   position: relative;
 }
 
@@ -298,7 +296,8 @@ gaia-header {
   margin-bottom: 4.5rem;
 }
 
-#fxa-email-clean-btn {
+#fxa-email-clean-btn,
+#fxa-pw-clean-btn {
   position: absolute;
   top: 1.4rem;
   right: 5em;
@@ -315,18 +314,22 @@ gaia-header {
 }
 
 #fxa-email-clean-btn:focus,
-#fxa-email-clean-btn:hover {
+#fxa-email-clean-btn:hover,
+#fxa-pw-clean-btn:focus,
+#fxa-pw-clean-btn:hover {
   transform: scale(1.2);
   background-color: #fff;
   color: black;
   /*transform-origin: 50% 50%;*/
 }
 
-#fxa-email-clean-btn.show {
+#fxa-email-clean-btn.show,
+#fxa-pw-clean-btn.show {
   display: block;
 }
 
-#fxa-email-clean-btn:before {
+#fxa-email-clean-btn:before,
+#fxa-pw-clean-btn:before {
   offset-inline-end: 0;
 }
 
@@ -341,10 +344,19 @@ gaia-header {
 
 #fxa-notice #fxa-terms,
 #fxa-notice #fxa-privacy {
-  text-decoration: none;
-  color: inherit;
+  text-decoration: underline;
   cursor: unset;
-  pointer-events: none;
+  transition-property: color;
+  transition-timing-function: cubic-bezier(0.25, 0, 0, 1.0);
+  transition-duration: 0.42s;
+  display: inline-block;
+}
+
+#fxa-notice #fxa-terms:hover,
+#fxa-notice #fxa-terms:focus,
+#fxa-notice #fxa-privacy:hover,
+#fxa-notice #fxa-privacy:focus {
+  color: #00caf2;
 }
 
 /*

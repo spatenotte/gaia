@@ -295,6 +295,7 @@
     <script defer src="js/app_authentication_dialog.js"></script>
     <script defer src="js/app_window.js"></script>
     <script defer src="js/popup_window.js"></script>
+    <script defer src="js/preview_window.js"></script>
     <script defer src="js/browser_mixin.js"></script>
     <script defer src="js/wrapper_factory.js"></script>
     <script defer src="js/homescreen_window.js"></script>
@@ -582,13 +583,13 @@
         <div id="permission-dialog" role="dialog" class="generic-dialog">
           <div class="inner">
             <h1 id="permission-title"></h1>
+            <div id="permission-icon"></div>
             <h2 id="permission-message"></h2>
             <div id="permission-more-info" class="hidden">
-              <a id="permission-more-info-link" data-l10n-id="more-info" href="#">More Info…</a>
-              <a id="permission-hide-info-link" data-l10n-id="hide-info" href="#" class="hidden">Hide Info</a>
-              <div id="permission-more-info-box" class="hidden"> </div>
+              <smart-button id="permission-more-info-link" type="simple-text" data-l10n-id="more-info" href="#">More Info…</smart-button>
+              <div id="permission-more-info-box"> </div>
             </div>
-            <div id="permission-remember-section">
+            <div id="permission-remember-section" class="hidden" tabIndex="0">
               <label class="pack-checkbox">
                 <input type="checkbox" id="permission-remember-checkbox" />
                 <span></span>
@@ -599,9 +600,10 @@
             <ul id="permission-devices">
             </ul>
             <menu id="permission-buttons" data-items="2">
-              <button id="permission-no"></button>
-              <button id="permission-yes" class="affirmative"></button>
+              <smart-button id="permission-no" type="circle-text"></smart-button>
+              <smart-button id="permission-yes" type="circle-text" class="affirmative"></smart-button>
             </menu>
+            <smart-button id="permission-hide-info-link" type="circle-text" data-l10n-id="hide-info">Hide Info</smart-button>
           </div>
         </div>
       </div>
@@ -770,8 +772,7 @@
         <!--
         <section class="fte-page">
           <section class="fte-content">
-            <smart-button class="focused" type="contextmenu">
-              <div class="icon"></div>
+            <smart-button class="focused demo" type="contextmenu" data-icon="pin" aria-hidden="true">
               <span data-l10n-id="pin-to-home"></span>
             </smart-button>
             <div class="fte-description" data-l10n-id="fte-pin-to-home-description"></div>

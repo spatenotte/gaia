@@ -9,7 +9,6 @@
 /* global asyncStorage */
 /* global BaseModule */
 /* global ERROR_GET_FXA_ASSERTION */
-/* global ERROR_INVALID_SYNC_ACCOUNT */
 /* global ERROR_SYNC_APP_KILLED */
 /* global ERROR_UNVERIFIED_ACCOUNT */
 /* global expect */
@@ -29,7 +28,7 @@ requireApp('system/js/sync_state_machine.js');
 requireApp('system/js/sync_manager.js');
 requireApp('system/test/unit/mock_fxa_client.js');
 requireApp('system/test/unit/mock_iac_handler.js');
-requireApp('system/test/unit/mock_lazy_loader.js');
+require('/shared/test/unit/mocks/mock_lazy_loader.js');
 
 require('/shared/js/sync/errors.js');
 require('/shared/test/unit/mocks/mock_service.js');
@@ -540,14 +539,14 @@ suite('system/SyncManager >', () => {
         this.sinon.assert.calledOnce(getAssertionStub);
         this.sinon.assert.notCalled(getKeysStub);
         this.sinon.assert.notCalled(trySyncStub);
-        this.sinon.assert.notCalled(getAccountStub);
+        this.sinon.assert.calledOnce(getAccountStub);
         this.sinon.assert.calledOnce(addEventListenerSpy);
         this.sinon.assert.calledWith(addEventListenerSpy,
                                      'mozFxAccountsUnsolChromeEvent');
         this.sinon.assert.calledOnce(requestStub);
         assert.equal(requestStub.getCall(0).args[0], 'SyncStateMachine:error');
         assert.equal(requestStub.getCall(0).args[1],
-                     ERROR_INVALID_SYNC_ACCOUNT);
+                     ERROR_UNVERIFIED_ACCOUNT);
         done();
       });
     });
@@ -643,20 +642,24 @@ suite('system/SyncManager >', () => {
       requestStub.restore();
     });
 
-    [ERROR_SYNC_APP_KILLED,
-     ERROR_SYNC_APP_SYNC_IN_PROGRESS,
-     ERROR_SYNC_APP_GENERIC,
-     ERROR_SYNC_APP_TRY_LATER,
-     ERROR_UNVERIFIED_ACCOUNT,
-     ERROR_DIALOG_CLOSED_BY_USER,
-     ERROR_GET_FXA_ASSERTION,
-     ERROR_INVALID_SYNC_ACCOUNT,
-     ERROR_OFFLINE,
-     ERROR_REQUEST_SYNC_REGISTRATION,
-     ERROR_SYNC_INVALID_REQUEST_OPTIONS,
-     ERROR_SYNC_REQUEST,
-     ERROR_UNKNOWN].forEach(error => {
-      test(`onerrored received - ${error}`, done => {
+    const errors = [
+      ERROR_SYNC_APP_KILLED,
+      ERROR_SYNC_APP_SYNC_IN_PROGRESS,
+      ERROR_SYNC_APP_GENERIC,
+      ERROR_SYNC_APP_TRY_LATER,
+      ERROR_UNVERIFIED_ACCOUNT,
+      ERROR_DIALOG_CLOSED_BY_USER,
+      ERROR_GET_FXA_ASSERTION,
+      ERROR_INVALID_SYNC_ACCOUNT,
+      ERROR_OFFLINE,
+      ERROR_REQUEST_SYNC_REGISTRATION,
+      ERROR_SYNC_INVALID_REQUEST_OPTIONS,
+      ERROR_SYNC_REQUEST,
+      ERROR_UNKNOWN
+    ];
+
+    errors.forEach(error => {
+      test(`onerrored received while NOT syncing - ${error}`, done => {
         window.dispatchEvent(new CustomEvent('onsyncerrored', {
           detail: {
             args: [error]
@@ -665,7 +668,9 @@ suite('system/SyncManager >', () => {
         setTimeout(() => {
           this.sinon.assert.calledOnce(updateStateSpy);
           assert.equal(syncManager.error, error);
-          if (SyncRecoverableErrors.indexOf(error) > -1) {
+          if (error == ERROR_UNVERIFIED_ACCOUNT) {
+            this.sinon.assert.notCalled(requestStub);
+          } else if (error == ERROR_INVALID_SYNC_ACCOUNT) {
             assert.ok(requestStub.calledWith('SyncStateMachine:enable'));
           } else {
             assert.ok(requestStub.calledWith('SyncStateMachine:disable'));
@@ -674,6 +679,31 @@ suite('system/SyncManager >', () => {
         });
       });
     });
+
+    errors.forEach(error => {
+      test(`onerrored received while syncing - ${error}`, done => {
+        window.dispatchEvent(new CustomEvent('onsyncerrored', {
+          detail: {
+            args: [error],
+            from: 'syncing'
+          }
+        }));
+        setTimeout(() => {
+          this.sinon.assert.calledOnce(updateStateSpy);
+          assert.equal(syncManager.error, error);
+          if (error == ERROR_UNVERIFIED_ACCOUNT) {
+            this.sinon.assert.notCalled(requestStub);
+          } else if (SyncRecoverableErrors.indexOf(error) > -1 ||
+                     error == ERROR_INVALID_SYNC_ACCOUNT) {
+            assert.ok(requestStub.calledWith('SyncStateMachine:enable'));
+          } else {
+            assert.ok(requestStub.calledWith('SyncStateMachine:disable'));
+          }
+          done();
+        });
+      });
+    });
+
   });
 
   suite('onsyncsyncing', () => {

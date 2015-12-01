@@ -29,6 +29,7 @@ requireApp('system/lockscreen/js/lockscreen.js', () => {
 
 suite('system/LockScreen >', function() {
   var subject;
+  var realAudio;
   var realL10n;
   var realMozTelephony;
   var realClock;
@@ -80,6 +81,11 @@ suite('system/LockScreen >', function() {
     };
     window.LockScreenMediaPlaybackWidget = function() {};
     window.SettingsURL = function() {};
+
+    realAudio = window.Audio;
+    window.Audio = function(src) {
+      this.src = src;
+    };
 
     realL10n = navigator.mozL10n;
     navigator.mozL10n = window.MockL10n;
@@ -302,6 +308,13 @@ suite('system/LockScreen >', function() {
     subject.checkPassCode('0000');
     assert.isTrue(StubPasscodeHelper.called,
       'lockscreen did not call PasscodeHelper to validate passcode');
+  });
+
+  test('Unlock: play sound in system audio channel', function() {
+    window.Audio.prototype.play = function() {
+      assert.equal(this.mozAudioChannelType, 'system');
+    };
+    subject.unlock(true, { unlockSoundEnabled: true });
   });
 
   suite('Pass code validation >', function() {
@@ -551,6 +564,24 @@ suite('system/LockScreen >', function() {
           'the event was not fired');
         stubDispatch.restore();
       });
+
+  test('Handle event: when unlock animation ends,' +
+       'it would add `unlocked` class',
+    function() {
+      assert.isFalse(subject.overlay.classList.contains('unlocked'));
+      subject.locked = false;
+      subject.handleEvent({ type: 'transitionend', target: subject.overlay });
+      assert.isTrue(subject.overlay.classList.contains('unlocked'));
+  });
+
+  test('Unlock method will add `unlocked` class if it is not an' +
+       ' instant request',
+    function() {
+      assert.isFalse(subject.overlay.classList.contains('unlocked'));
+      subject.enabled = true;
+      subject.unlock(true);  // or lock screen is already enabled
+      assert.isTrue(subject.overlay.classList.contains('unlocked'));
+  });
 
   test('Switch panel: to Camera; should notify SecureWindowFactory\'s method',
     function() {
@@ -911,6 +942,7 @@ suite('system/LockScreen >', function() {
   teardown(function() {
     navigator.mozL10n = realL10n;
     navigator.mozTelephony = realMozTelephony;
+    window.Audio = realAudio;
     window.Clock = realClock;
     window.SettingsListener = realSettingsListener;
     navigator.mozSettings = realMozSettings;

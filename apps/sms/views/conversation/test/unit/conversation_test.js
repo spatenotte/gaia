@@ -2489,12 +2489,13 @@ suite('conversation.js >', function() {
       });
 
       suite('infinite rendering test', function() {
-        var chunkSize;
+        var chunkSize, firstChunkSize;
         var message;
         var onVisuallyLoaded;
 
         setup(function() {
           chunkSize = ConversationView.CHUNK_SIZE;
+          firstChunkSize = ConversationView.FIRST_CHUNK_SIZE;
           onVisuallyLoaded = sinon.stub();
           ConversationView.once('visually-loaded', onVisuallyLoaded);
         });
@@ -2504,14 +2505,14 @@ suite('conversation.js >', function() {
         });
 
         test('Messages are hidden before first chunk ready', function(done) {
-          for (var i = 1; i < chunkSize; i++) {
+          for (var i = 1; i < firstChunkSize; i++) {
             MessageManager.getMessages.yieldTo(
               'each', MockMessages.sms({ id: i })
             );
           }
 
           TaskRunner.prototype.push.lastCall.returnValue.then(() => {
-            for (var i = 1; i < chunkSize; i++) {
+            for (var i = 1; i < firstChunkSize; i++) {
               message = document.getElementById('message-' + i);
               assert.ok(
                 message.classList.contains('hidden'),
@@ -2524,14 +2525,14 @@ suite('conversation.js >', function() {
         });
 
         test('First chunk ready', function(done) {
-          for (var i = 1; i <= chunkSize; i++) {
+          for (var i = 1; i <= firstChunkSize; i++) {
             MessageManager.getMessages.yieldTo(
               'each', MockMessages.sms({ id: i })
             );
           }
 
           TaskRunner.prototype.push.lastCall.returnValue.then(() => {
-            var id = chunkSize +1;
+            var id = chunkSize + 1;
             assert.isNull(
               container.querySelector('li.hidden'),
               'all previously hidden messages should now be displayed'
@@ -2551,6 +2552,51 @@ suite('conversation.js >', function() {
             });
           }).then(done, done);
         });
+
+        test('second chunk ready, then scroll up', function(done) {
+          function assertVisibilityOfMessages(messages, lastVisibleId) {
+            Array.from(messages).forEach((message) => {
+              var id = +message.dataset.messageId;
+              if (id <= lastVisibleId) {
+                assert.isFalse(
+                  message.classList.contains('hidden'),
+                  `Message ${id} should be displayed`
+                );
+              } else {
+                assert.isTrue(
+                  message.classList.contains('hidden'),
+                  `Message ${id} should be hidden`
+                );
+              }
+            });
+          }
+
+          var messagesCount = firstChunkSize + 2 * chunkSize;
+          for (var i = 1; i <= messagesCount; i++) {
+            MessageManager.getMessages.yieldTo(
+              'each', MockMessages.sms({ id: i })
+            );
+          }
+
+          TaskRunner.prototype.push.lastCall.returnValue.then(() => {
+            var messages = container.querySelectorAll('.message');
+
+            assert.lengthOf(messages, messagesCount);
+            assertVisibilityOfMessages(messages, firstChunkSize);
+
+            // Simulate a scroll to the top
+            container.scrollTop = 0;
+            dispatchScrollEvent(container);
+
+            assertVisibilityOfMessages(messages, firstChunkSize + chunkSize);
+
+            // Simulate another scroll to the top
+            container.scrollTop = 0;
+            dispatchScrollEvent(container);
+
+            assertVisibilityOfMessages(messages, messagesCount);
+          }).then(done, done);
+        });
       });
 
       suite('scrolling behavior for first chunk', function() {
@@ -2560,7 +2606,7 @@ suite('conversation.js >', function() {
 
           this.sinon.stub(HTMLElement.prototype, 'scrollIntoView');
 
-          for (var i = 1; i < ConversationView.CHUNK_SIZE; i++) {
+          for (var i = 1; i < ConversationView.FIRST_CHUNK_SIZE; i++) {
             MessageManager.getMessages.yieldTo(
               'each', MockMessages.sms({ id: i })
             );
@@ -2574,7 +2620,7 @@ suite('conversation.js >', function() {
 
         test('should scroll to the end', function(done) {
           MessageManager.getMessages.yieldTo(
-            'each', MockMessages.sms({ id: ConversationView.CHUNK_SIZE })
+            'each', MockMessages.sms({ id: ConversationView.FIRST_CHUNK_SIZE })
           );
 
           TaskRunner.prototype.push.lastCall.returnValue.then(() => {
@@ -2587,7 +2633,7 @@ suite('conversation.js >', function() {
           Navigation.isCurrentPanel.withArgs('thread').returns(false);
 
           MessageManager.getMessages.yieldTo(
-            'each', MockMessages.sms({ id: ConversationView.CHUNK_SIZE })
+            'each', MockMessages.sms({ id: ConversationView.FIRST_CHUNK_SIZE })
           );
 
           TaskRunner.prototype.push.lastCall.returnValue.then(() => {
@@ -6574,46 +6620,6 @@ suite('conversation.js >', function() {
       assert.isFalse(mainWrapper.classList.contains('edit'));
     });
 
-    test('revokes all attachment thumbnail URLs', function(done) {
-      this.sinon.stub(window.URL, 'revokeObjectURL');
-      Navigation.isCurrentPanel.withArgs('thread').returns(true);
-
-      var attachments = [{
-        location: 'image',
-        content: testImageBlob
-      }, {
-        location: 'image',
-        content: testImageBlob
-      }, {
-        location: 'video',
-        content: testVideoBlob
-      }];
-
-      ConversationView.initializeRendering();
-      var promises = attachments.map((attachment, index) =>
-        ConversationView.appendMessage(MockMessages.mms({
-          id: index + 1,
-          attachments: [attachment]
-        })).then(() => {
-          if (attachment.content.type.indexOf('image') >= 0) {
-            var attachmentContainer = ConversationView.container.querySelector(
-              '[data-message-id="' + (index + 1) + '"] .attachment-container'
-            );
-            attachmentContainer.dataset.thumbnail = 'blob:fake' + index;
-          }
-        })
-      );
-
-      Promise.all(promises).then(() => {
-        ConversationView.stopRendering();
-        ConversationView.beforeLeave(transitionArgs);
-
-        sinon.assert.calledTwice(window.URL.revokeObjectURL);
-        sinon.assert.calledWith(window.URL.revokeObjectURL, 'blob:fake0');
-        sinon.assert.calledWith(window.URL.revokeObjectURL, 'blob:fake1');
-      }).then(done, done);
-    });
-
     test('to non-current view, activeThread and fields cleaned', function() {
       this.sinon.stub(ConversationView, 'isConversationPanel').returns(false);
 
@@ -6704,6 +6710,49 @@ suite('conversation.js >', function() {
     setup(function() {
       this.sinon.stub(Navigation, 'isCurrentPanel').returns(false);
       this.sinon.spy(Compose, 'clear');
+    });
+
+    test('revokes all attachment thumbnail URLs', function(done) {
+      this.sinon.stub(window.URL, 'revokeObjectURL');
+      Navigation.isCurrentPanel.withArgs('thread-list').returns(true);
+
+      setupEnterConversationView(
+        { threadId: 1, recipients: ['999'] }
+      ).then(() => {
+        var attachments = [{
+          location: 'image',
+          content: testImageBlob
+        }, {
+          location: 'image',
+          content: testImageBlob
+        }, {
+          location: 'video',
+          content: testVideoBlob
+        }];
+
+        var promises = attachments.map((attachment, index) =>
+          ConversationView.appendMessage(MockMessages.mms({
+            id: index + 1,
+            attachments: [attachment]
+          })).then(() => {
+            if (attachment.content.type.indexOf('image') >= 0) {
+              var attachmentContainer = container.querySelector(
+                '[data-message-id="' + (index + 1) + '"] .attachment-container'
+              );
+              attachmentContainer.dataset.thumbnail = 'blob:fake' + index;
+            }
+          })
+        );
+
+        return Promise.all(promises);
+      }).then(() => {
+        ConversationView.stopRendering();
+        ConversationView.afterLeave();
+
+        sinon.assert.calledTwice(window.URL.revokeObjectURL);
+        sinon.assert.calledWith(window.URL.revokeObjectURL, 'blob:fake0');
+        sinon.assert.calledWith(window.URL.revokeObjectURL, 'blob:fake1');
+      }).then(done, done);
     });
 
     test('properly clean the composer when moving back to thread list',

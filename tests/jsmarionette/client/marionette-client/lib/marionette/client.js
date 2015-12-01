@@ -435,6 +435,7 @@
      * @type {Function}
      */
     onScriptTimeout: function() {
+      this.switchToFrame();
       console.log('Screenshot: ' +
                   'data:image/png;base64,' +
                   this.screenshot());
@@ -488,7 +489,7 @@
 
       var driverSent;
       try {
-        driverSent = this.driver.send(body, cb);
+        driverSent = this.driver.send(data, cb);
       } catch (e) {
         // !!! HACK HACK HACK !!!
         // single retry when not connected. this should never happen, but
@@ -496,7 +497,7 @@
         if (e && e.message && e.message.indexOf('not connected') !== -1) {
           console.info('Will attempt re-connect and re-send *ONCE*');
           this.driver.connect(function() {
-            this.driver.send(body, cb);
+            this.driver.send(data, cb);
           }.bind(this));
         } else {
           // Unhandled.

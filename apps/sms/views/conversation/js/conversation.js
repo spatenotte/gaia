@@ -64,7 +64,8 @@ function conv_generateSmilSlides(slides, content) {
 }
 
 var ConversationView = {
-  CHUNK_SIZE: 10,
+  FIRST_CHUNK_SIZE: 10,
+  CHUNK_SIZE: 50,
   // duration of the notification that message type was converted
   CONVERTED_MESSAGE_DURATION: 3000,
   IMAGE_RESIZE_DURATION: 3000,
@@ -733,15 +734,6 @@ var ConversationView = {
     this.cancelEdit();
 
     if (Navigation.isCurrentPanel('thread')) {
-      // Revoke thumbnail URL for every image attachment rendered within thread
-      // Executed only when moving out of a conversation.
-      var nodes = this.container.querySelectorAll(
-        '.attachment-container[data-thumbnail]'
-      );
-      Array.from(nodes).forEach((node) => {
-        window.URL.revokeObjectURL(node.dataset.thumbnail);
-      });
-
       // If we're leaving conversation view, ensure that the thread object's
       // unreadCount value is current (set = 0).
       this.activeThread.unreadCount = 0;
@@ -768,7 +760,8 @@ var ConversationView = {
     if (Navigation.isCurrentPanel('thread-list')) {
       // We don't want to clean these things when moving from composer to
       // conversation
-      this.container.textContent = '';
+
+      this.clearContainer();
       this.cleanFields();
     }
     if (!Navigation.isCurrentPanel('composer')) {
@@ -838,6 +831,7 @@ var ConversationView = {
     // TODO add the activity/forward/draft stuff here
     // instead of in afterEnter: Bug 1010223
 
+    this.clearContainer();
     this.cleanFields();
     this.initRecipients();
     this.updateComposerHeader();
@@ -848,7 +842,6 @@ var ConversationView = {
       forceType: () => this.hasEmailRecipients() ? 'mms' : null
     });
 
-    this.container.textContent = '';
     this.threadMessages.classList.add('new');
 
     // not strictly necessary but being consistent
@@ -1451,12 +1444,25 @@ var ConversationView = {
     }
   },
 
+  clearContainer() {
+    // Revoke thumbnail URL for every image attachment rendered within thread
+    var nodes = this.container.querySelectorAll(
+      '.attachment-container[data-thumbnail]'
+    );
+    Array.from(nodes).forEach(
+      (node) => window.URL.revokeObjectURL(node.dataset.thumbnail)
+    );
+
+    // Clean list of messages
+    this.container.textContent = '';
+  },
+
   initializeRendering: function conv_initializeRendering() {
+    this.clearContainer();
+
     // Clean fields
     this.cleanFields();
 
-    // Clean list of messages
-    this.container.innerHTML = '';
     // Initialize infinite scroll params
     this.messageIndex = 0;
     // reset stopRendering boolean
@@ -1483,7 +1489,7 @@ var ConversationView = {
   // Method for rendering the first chunk at the beginning
   showFirstChunk: function conv_showFirstChunk() {
     // Show chunk of messages
-    this.showChunkOfMessages(this.CHUNK_SIZE);
+    this.showChunkOfMessages(this.FIRST_CHUNK_SIZE);
     // Boot update of headers
     TimeHeaders.updateAll('header[data-time-update]');
     // Go to Bottom
@@ -1525,7 +1531,7 @@ var ConversationView = {
     // Use taskRunner to make sure message appended in proper order
     var taskQueue = new TaskRunner();
     var onMessagesRendered = (function messagesRendered() {
-      if (this.messageIndex < this.CHUNK_SIZE) {
+      if (this.messageIndex < this.FIRST_CHUNK_SIZE) {
         taskQueue.push(this.showFirstChunk.bind(this));
       }
     }).bind(this);
@@ -1544,7 +1550,7 @@ var ConversationView = {
         return false;
       });
       this.messageIndex++;
-      if (this.messageIndex === this.CHUNK_SIZE) {
+      if (this.messageIndex === this.FIRST_CHUNK_SIZE) {
         taskQueue.push(this.showFirstChunk.bind(this));
       }
       return true;

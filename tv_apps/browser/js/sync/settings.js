@@ -162,6 +162,14 @@
       }
       switch (message.state) {
         case 'disabled':
+          // We want to show a dialog once Sync is disabled
+          // but we only want to do that if it's disabled via user action
+          // (and not because it is already disabled from a previous run).
+          if (this.state === 'disabling') {
+            navigator.mozL10n.formatValue('fxsync-disabled').then(result => {
+              window.alert(result);
+            });
+          }
           this.showScreen(DISABLED);
           this.hideEnabling();
           break;
@@ -169,11 +177,13 @@
           this.showEnabling();
           break;
         case 'enabled':
-          // We want to show the settings page once Sync is enabled
+          // We want to show a dialog once Sync is enabled
           // but we only want to do that if its enabled via user action
           // (and not because it is already enabled from a previous run).
           if (this.state === 'enabling') {
-            Settings.show.bind(Settings)();
+            navigator.mozL10n.formatValue('fxsync-enabled').then(result => {
+              window.alert(result);
+            });
           }
           this.hideEnabling();
           this.showScreen(ENABLED);
