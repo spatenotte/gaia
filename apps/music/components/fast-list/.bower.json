@@ -23,15 +23,16 @@
     "tests"
   ],
   "dependencies": {
-    "dom-scheduler": "etiennesegonzac/dom-scheduler"
+    "dom-scheduler": "etiennesegonzac/dom-scheduler#~1.0.1"
   },
-  "_release": "be247eecf8",
+  "version": "0.1.5",
+  "_release": "0.1.5",
   "_resolution": {
-    "type": "branch",
-    "branch": "master",
-    "commit": "be247eecf867b01e402e59348ad277d5635f47ee"
+    "type": "version",
+    "tag": "v0.1.5",
+    "commit": "7b2d68459c1c0710872045a8cb76edd61a013d05"
   },
   "_source": "git://github.com/gaia-components/fast-list.git",
-  "_target": "master",
+  "_target": "0.1.5",
   "_originalSource": "gaia-components/fast-list"
 }

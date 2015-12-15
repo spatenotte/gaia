@@ -7,16 +7,18 @@ Entrypoint for the task graph extension / decisions for gaia tests.
 var taskcluster = require('taskcluster-client');
 var fs = require('fs');
 var path = require('path');
-var template = require('json-templater/object');
+var template = require('json-templater-fix/object');
 
 var GAIA_DIR = path.resolve(__dirname, '..', '..', '..');
 
 // Default image name / version this can be overriden at the task level...
 var IMAGE =
   fs.readFileSync(GAIA_DIR + '/build/docker/gaia-taskenv/DOCKER_TAG', 'utf8');
+IMAGE = IMAGE.trim();
 
 var VERSION =
   fs.readFileSync(GAIA_DIR + '/build/docker/gaia-taskenv/VERSION', 'utf8');
+VERSION = VERSION.trim();
 
 // Default provisioner and worker types
 var COPIED_ENVS = [
@@ -82,7 +84,7 @@ function decorateTask(task, options) {
 
   // Default docker image...
   var payload = output.task.payload;
-  payload.image = payload.image || (IMAGE.trim()) + ':' + (VERSION.trim());
+  payload.image = payload.image || IMAGE + ':' + VERSION;
   payload.maxRunTime = payload.maxRunTime || 30 * 60; // 30 minutes in seconds
 
   // Copy over the important environment variables...
@@ -92,8 +94,10 @@ function decorateTask(task, options) {
   });
 
   output.task.scopes = output.task.scopes || [];
-  // Hack to ensure all tasks have the scope for the given image.
-  output.task.scopes.push('docker-worker:image:' + IMAGE + '*');
+  // this scope is only needed for private images
+  if (options.privateimage) {
+    output.task.scopes.push('docker-worker:image:' + payload.image);
+  }
 
   if (process.env.TREEHERDER_PROJECT && process.env.TREEHERDER_REVISION) {
     // defaults to 'tc-treeherder' only so existing tasks need not be changed

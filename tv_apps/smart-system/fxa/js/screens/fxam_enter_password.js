@@ -1,9 +1,16 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
-/* global FxaModuleUI, FxaModule, FxaModuleNavigation,
-   FxModuleServerRequest, FxaModuleOverlay, FxaModuleManager, KeyEvent,
-   FxaModuleKeyNavigation */
+/* global ERROR_INVALID_SYNC_ACCOUNT */
+/* global FxaModule */
+/* global FxaModuleKeyNavigation */
+/* global FxaModuleManager */
+/* global FxaModuleNavigation */
+/* global FxaModuleOverlay */
+/* global FxModuleServerRequest */
+/* global FxaModuleUI */
+/* global KeyEvent */
+
 /* exported FxaModuleEnterPassword */
 
 'use strict';
@@ -72,14 +79,20 @@ var FxaModuleEnterPassword = (function() {
         'fxa-hello-known-user',
         'fxa-pw-input',
         'fxa-show-pw',
-        'fxa-forgot-password'
+        'fxa-forgot-password',
+        'fxa-pw-clean-btn'
       );
       // Add listeners
       this.fxaPwInput.addEventListener(
         'input',
         function onInput(event) {
+          if(this.fxaPwInput.value) {
+            this.fxaPwCleanBtn.classList.add('show');
+          } else {
+            this.fxaPwCleanBtn.classList.remove('show');
+          }
           _enableNext(event.target);
-        }
+        }.bind(this)
       );
       // Ensure that pressing 'ENTER' (keycode 13) we send the form
       // as expected
@@ -88,7 +101,7 @@ var FxaModuleEnterPassword = (function() {
         function onKeypress(event) {
           if (_isPasswordValid(this.fxaPwInput) && event.keyCode === 13) {
             document.activeElement.blur();
-            FxaModuleNavigation.next();
+            FxaModuleNavigation.done();
           }
         }.bind(this)
       );
@@ -96,6 +109,18 @@ var FxaModuleEnterPassword = (function() {
       this.fxaPwInput.addEventListener('focus', () => {
         setTimeout(this.fxaPwInput.select.bind(this.fxaPwInput));
       });
+
+      this.fxaPwCleanBtn.addEventListener(
+        'click',
+        function onCleanButtonClick(e) {
+          if(e.button === 0 ||
+            (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN)) {
+            this.fxaPwInput.value = '';
+            FxaModuleKeyNavigation.focus(this.fxaPwInput);
+            this.fxaPwCleanBtn.classList.remove('show');
+          }
+        }.bind(this)
+      );
 
       this.fxaShowPw.addEventListener('keypress', e => {
         if (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN) {
@@ -115,6 +140,12 @@ var FxaModuleEnterPassword = (function() {
         _forgotPassword.bind(this),
         false
       );
+
+      this.fxaForgotPassword.addEventListener('keypress', e => {
+        if (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN) {
+          _forgotPassword.bind(this)();
+        }
+      });
       // Avoid repeated initialization
       this.initialized = true;
     }
@@ -153,14 +184,14 @@ var FxaModuleEnterPassword = (function() {
     setTimeout(() => {
       FxaModuleKeyNavigation.add([
         '#fxa-pw-input', '#fxa-forgot-password',
-        '#fxa-show-pw', '#fxa-module-next']);
+        '#fxa-show-pw', '#fxa-module-done', '#fxa-pw-clean-btn']);
     }, 500);
   };
 
   Module.onBack = function onBack() {
     FxaModuleKeyNavigation.remove([
       '#fxa-pw-input', '#fxa-forgot-password',
-      '#fxa-show-pw', '#fxa-module-next']);
+      '#fxa-show-pw', '#fxa-module-done', '#fxa-pw-clean-btn']);
   };
 
   Module.onDone = function onDone(done) {
@@ -174,10 +205,17 @@ var FxaModuleEnterPassword = (function() {
         FxaModuleOverlay.hide();
         FxaModuleKeyNavigation.remove([
           '#fxa-pw-input', '#fxa-forgot-password',
-          '#fxa-show-pw', '#fxa-module-next']);
+          '#fxa-show-pw', '#fxa-module-done', '#fxa-pw-clean-btn']);
 
         if (!response.authenticated) {
-          // XXX Show inactive sync account. Bug1215463
+          // XXX For now, because we don't allow the creation of new accounts
+          //     on the TV, we log the user out and show a dialog asking the
+          //     user to go to desktop or android to create the account and
+          //     retry from the TV.
+          FxModuleServerRequest.logout(() => {
+            this.showErrorResponse({error: ERROR_INVALID_SYNC_ACCOUNT});
+            FxaModuleManager.close('DIALOG_CLOSED_BY_USER');
+          }, this.showErrorResponse);
           return;
         }
         done();

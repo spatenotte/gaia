@@ -77,10 +77,13 @@ function NotificationList(client) {
 NotificationList.Selector = Object.freeze((function() {
   var listSelector = '#desktop-notifications-container';
   var itemsSelector = listSelector + ' .notification';
+  var allItemsSelector = '#notifications-container .notification';
   var countSelector = '#notification-some';
-
+  var systemUpdateSelector = '#update-manager-container .title-container';
   return {
     items: itemsSelector,
+    allItems: allItemsSelector,
+    systemUpdate: systemUpdateSelector,
     notificationsCount: countSelector
   };
 })());
@@ -100,7 +103,7 @@ NotificationList.prototype = {
         body: document.querySelector(query + ' > .detail .detail-content')
           .innerHTML,
         lang: document.querySelector(query).getAttribute('lang'),
-        dir: document.querySelector(query).getAttribute('data-predefined-dir'),
+        dir: document.querySelector(query).querySelector('.title').dir,
         manifestURL: node.getAttribute('data-manifest-u-r-l'),
         query: query
       });
@@ -180,6 +183,17 @@ NotificationList.prototype = {
       return expected === count;
     }.bind(this));
     return true;
+  },
+
+  clear: function() {
+    this.client.executeAsyncScript(function() {
+      var clearAll = document.getElementById('notification-clear');
+      var event = document.createEvent('CustomEvent');
+      event.initCustomEvent('click', true, true, {});
+      clearAll.dispatchEvent(event);
+      marionetteScriptFinished(true);
+    });
+    this.waitForNotificationCount(0);
   },
 
   _getNotificationsCountText: function(selector) {

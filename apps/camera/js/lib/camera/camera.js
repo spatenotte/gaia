@@ -196,19 +196,19 @@ Camera.prototype.requestCamera = function(camera, config) {
     attempts--;
   }
 
-  function onSuccess(params) {
-    debug('successfully got mozCamera');
+  function onSuccess(result) {
+    debug('successfully got mozCamera', result);
 
     // release camera when press power key
     // as soon as you open a camera app
     if (document.hidden) {
-      self.mozCamera = params.camera;
+      self.mozCamera = result.camera;
       self.release();
       return;
     }
 
-    self.updateConfig(params.configuration);
-    self.setupNewCamera(params.camera);
+    self.updateConfig(result.configuration);
+    self.setupNewCamera(result.camera);
     self.configureFocus();
     self.emit('focusconfigured', {
       mode: self.mozCamera.focusMode,
@@ -219,8 +219,19 @@ Camera.prototype.requestCamera = function(camera, config) {
 
     // If the camera was configured in the
     // `mozCamera.getCamera()` call, we can
-    // fire the 'configured' event now.
-    if (self.configured) { self.emit('configured'); }
+    // fire the 'configured' event now. We
+    // can also start the preview because
+    // gecko ensures that configuration only
+    // completes after the preview has been
+    // started. While we will get a preview
+    // started event after this, we can often
+    // save ourselves getting delayed by an
+    // extra refresh by configuring the
+    // viewfinder now.
+    if (self.configured) {
+      self.emit('configured');
+      self.onPreviewStateChange({newState: 'started'});
+    }
 
     self.ready();
   }
@@ -283,7 +294,12 @@ Camera.prototype.setupNewCamera = function(mozCamera) {
 
   this.capabilities = this.formatCapabilities(capabilities);
 
-  this.emit('newcamera', this.capabilities);
+  this.emit('newcamera', {
+    capabilities: this.capabilities,
+    pictureSize: this.pictureSize,
+    recorderProfile: this.recorderProfile
+  });
+
   debug('configured new camera');
 };
 
@@ -1087,6 +1103,7 @@ Camera.prototype.onClosed = function(e) {
 Camera.prototype.onPreviewStateChange = function(e) {
   var state = e.newState;
   debug('preview state change: %s', state);
+  if (state === this.previewState) { return; }
   this.previewState = state;
   this.emit('preview:' + state);
 };

@@ -37,12 +37,9 @@ define(function(require) {
    *
    * @access public
    * @memberOf AddonDetails.prototype
-   * @param {JSON} options that contain:
-   *        {Object}  app        Add-on to render
-   *        {Boolean} isActivity A flag indicating if the panel is accessed
-   *                             via activity handling.
+   * @param {Object} app Add-on to render
    */
-  AddonDetails.prototype.render = function render({app, isActivity}) {
+  AddonDetails.prototype.render = function render(app) {
     if (this._curApp !== null) {
       this._curApp.unobserve('enabled', this._boundUpdateEnabledState);
     }
@@ -53,12 +50,9 @@ define(function(require) {
     }
 
     var l10n = navigator.mozL10n;
-    var canDelete = AddonManager.canDelete(app);
-    this.noRename = !isActivity || !canDelete;
     var manifest =
       new ManifestHelper(app.instance.manifest || app.instance.updateManifest);
 
-    this._elements.body.classList.toggle('no-rename', this.noRename);
     this.updateNames(manifest);
 
     // Put an icon next to the description
@@ -67,6 +61,11 @@ define(function(require) {
     }).catch(() => {
       this._elements.icon.src = '../style/images/default.png';
     });
+
+    // Display the add-on version
+    if (manifest.version) {
+      this._elements.version.textContent = 'v' + manifest.version;
+    }
 
     // Display the add-on description if there is one
     if (manifest.description) {
@@ -91,7 +90,8 @@ define(function(require) {
     var oldAddonFormat = !!manifest.customizations;
     if (oldAddonFormat) {
       l10n.setAttributes(this._elements.obsoleteStatusInfo,
-        canDelete ? 'addon-obsolete-can-delete' : 'addon-obsolete');
+        AddonManager.canDelete(app) ? 'addon-obsolete-can-delete' :
+          'addon-obsolete');
     }
     this._elements.obsoleteStatus.hidden = !oldAddonFormat;
 
@@ -133,7 +133,8 @@ define(function(require) {
     l10n.setAttributes(
       this._elements.name, 'addon-details-header1', appnameArgs);
     // Put text description for an icon
-    l10n.setAttributes(this._elements.icon, 'accessible-app-icon', appnameArgs);
+    l10n.setAttributes(
+      this._elements.icon, 'accessibility-app-icon', appnameArgs);
   };
 
   return function ctor_addon_details(panel) {

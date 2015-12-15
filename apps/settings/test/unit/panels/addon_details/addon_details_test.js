@@ -50,6 +50,7 @@ suite('Addon Details Test > ', function() {
         enabledState: document.createElement('div'),
         name: document.createElement('div'),
         icon: document.createElement('div'),
+        version: document.createElement('div'),
         description: document.createElement('div'),
         developer: document.createElement('div'),
         targetsList: document.createElement('div'),
@@ -69,18 +70,12 @@ suite('Addon Details Test > ', function() {
 
   suite('render > obsoleteStatus', function() {
     test('hidden', function() {
-      subject.render({
-        app: MockAddon,
-        isActivity: false
-      });
+      subject.render(MockAddon);
       assert.isTrue(subject._elements.obsoleteStatus.hidden);
     });
 
     test('visible', function() {
-      subject.render({
-        app: MockObsoleteAddon,
-        isActivity: false
-      });
+      subject.render(MockObsoleteAddon);
       assert.isFalse(subject._elements.obsoleteStatus.hidden);
       assert.equal(
         subject._elements.obsoleteStatusInfo.getAttribute('data-l10n-id'),
@@ -88,10 +83,7 @@ suite('Addon Details Test > ', function() {
     });
 
     test('visible can delete', function() {
-      subject.render({
-        app: MockObsoleteRemovableAddon,
-        isActivity: false
-      });
+      subject.render(MockObsoleteRemovableAddon);
       assert.isFalse(subject._elements.obsoleteStatus.hidden);
       assert.equal(
         subject._elements.obsoleteStatusInfo.getAttribute('data-l10n-id'),

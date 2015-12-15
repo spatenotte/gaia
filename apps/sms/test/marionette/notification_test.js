@@ -3,6 +3,7 @@
 
 var assert = require('chai').assert;
 
+var ThreadGenerator = require('./generators/thread');
 var Messages = require('./lib/messages.js');
 var Storage = require('./lib/storage.js');
 var InboxView = require('./lib/views/inbox/view');
@@ -14,6 +15,7 @@ var NotificationList = require(
 marionette('Message notification tests', function() {
   var MOCKS = [
     '/mocks/mock_test_storages.js',
+    '/mocks/mock_test_blobs.js',
     '/mocks/mock_navigator_moz_icc_manager.js',
     '/mocks/mock_navigator_moz_mobile_message.js'
   ];
@@ -42,7 +44,7 @@ marionette('Message notification tests', function() {
   });
 
   suite('Run application via notification', function() {
-    var smsMessage, messagesStorage;
+    var smsMessage;
 
     function openNotification() {
       client.switchToFrame();
@@ -59,7 +61,8 @@ marionette('Message notification tests', function() {
 
       // Switch to messages so that it's able to remove notification.
       messagesApp.switchTo();
-      storage.setMessagesStorage(messagesStorage);
+      // Make sure we enter conversation view directly.
+      assert.equal(messagesApp.getActivePanelName(), 'ConversationView');
 
       // Verify that notification has been removed.
       client.switchToFrame();
@@ -94,7 +97,6 @@ marionette('Message notification tests', function() {
       // Switch to messages so that it's able to remove notification.
       messagesApp.launch();
       messagesApp.switchTo();
-      storage.setMessagesStorage(messagesStorage);
 
       // Verify that notification has been removed.
       client.switchToFrame();
@@ -139,14 +141,14 @@ marionette('Message notification tests', function() {
         timestamp: Date.now()
       };
 
-      messagesStorage = [{
+      storage.setMessagesStorage([{
         id: smsMessage.threadId,
         body: smsMessage.body,
         lastMessageType: smsMessage.type,
         timestamp: smsMessage.timestamp,
         messages: [smsMessage],
         participants: [smsMessage.sender]
-      }];
+      }]);
     });
 
     test('when "notification" system message is generated', function() {
@@ -156,7 +158,6 @@ marionette('Message notification tests', function() {
         data: { threadId: smsMessage.threadId, id: smsMessage.id }
       });
       messagesApp.switchTo();
-      storage.setMessagesStorage(messagesStorage);
 
       assertMessagesIsInCorrectState();
     });
@@ -167,7 +168,6 @@ marionette('Message notification tests', function() {
 
       // We should make Messages app visible, otherwise switchToApp won't work.
       messagesApp.launch();
-      storage.setMessagesStorage(messagesStorage);
 
       // Switch to system app to be sure that notification is generated.
       client.switchToFrame();
@@ -198,7 +198,6 @@ marionette('Message notification tests', function() {
 
       // We should make Messages app visible, otherwise switchToApp won't work.
       messagesApp.launch();
-      storage.setMessagesStorage(messagesStorage);
 
       // Switch to system app to be sure that notification is generated.
       client.switchToFrame();
@@ -224,6 +223,59 @@ marionette('Message notification tests', function() {
       openNotification();
 
       assertMessagesIsInCorrectState();
+    });
+  });
+
+  suite('Display a conversation from a notification', function() {
+    var thread1, thread2;
+
+    setup(function() {
+      thread1 = ThreadGenerator.generate({
+        numberOfMessages: 500,
+        participants: ['999']
+      });
+      thread2 = ThreadGenerator.generate({
+        numberOfMessages: 5,
+        participants: ['888']
+      });
+
+      storage.setMessagesStorage(
+        [thread1, thread2], ThreadGenerator.uniqueMessageId
+      );
+    });
+
+    test('Clicking a notification while a conversation is loading', function() {
+      messagesApp.launch();
+
+      var inbox = new InboxView(client);
+      var conversation = inbox.goToConversation(thread1.id);
+
+      // Receive 'notification' system message and fill up the storage.
+      messagesApp.sendSystemMessage('notification', {
+        clicked: true,
+        data: { threadId: thread2.id, id: thread2.messages[0].id }
+      });
+
+      var thread2Ids = thread2.messages.map(
+        function(message) { return message.id; }
+      );
+
+      // Our testing strategy is:
+      // 1. Wait that all messages are rendered for thread2.
+      thread2Ids.forEach(function(messageId) {
+        conversation.findMessage(messageId);
+      });
+
+      // 2. Look at all rendered messages and see if one of these is part of
+      // thread1.
+      conversation.messages(
+        { first: thread2Ids.length + 1 }
+      ).forEach(function(message) {
+        assert.include(
+          thread2Ids, message.id,
+          'Message ' + message.id + ' is in thread 2'
+        );
+      });
     });
   });
 });

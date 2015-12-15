@@ -11,7 +11,7 @@ define(function(require) {
   var SettingsCache = require('modules/settings_cache');
   var WifiHelper = require('shared/wifi_helper');
   var wifiManager = WifiHelper.getWifiManager();
-  var settings = Settings.mozSettings;
+  var settings = navigator.mozSettings;
 
   // observed objects
   var _currentNetwork =
@@ -189,7 +189,7 @@ define(function(require) {
 
         var networkProp = network ? {ssid: network.ssid} : null;
         this._wifiStatusText =
-          { id: 'fullStatus-' + status,
+          { id: 'full-status-' + status,
             args: networkProp };
       } else {
         this._wifiStatusText =

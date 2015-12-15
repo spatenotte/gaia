@@ -160,6 +160,21 @@ suite('conversation.js >', function() {
     delete ConversationView.activeThread;
   }
 
+  function setupEnterConversationView({ threadId, recipients }) {
+    var strThreadId = '' + threadId;
+
+    var mockThread = getMockThread(threadId, recipients, []);
+    Threads.get.withArgs(threadId).returns(mockThread);
+
+    var transitionArgs = {
+      id: strThreadId,
+      meta: { next: { panel: 'thread', id: strThreadId }}
+    };
+    return ConversationView.beforeEnter(transitionArgs).then(
+      () => ConversationView.afterEnter(transitionArgs)
+    );
+  }
+
   mocksHelperForConversationView.attachTestHelpers();
 
   suiteSetup(function(done) {
@@ -1568,11 +1583,14 @@ suite('conversation.js >', function() {
       );
     }
 
-    setup(function() {
+    setup(function(done) {
       this.sinon.stub(Navigation, 'isCurrentPanel');
       this.sinon.spy(ConversationView, 'appendMessage');
-    });
 
+      setupEnterConversationView(
+        { threadId: 1, recipients: ['999']}
+      ).then(done, done);
+    });
 
     test('onMessageSent for MMS', function(done) {
       fakeMessage = MockMessages.mms({
@@ -2043,12 +2061,15 @@ suite('conversation.js >', function() {
     setup(function(done) {
       someDateInThePast = new Date(2010, 10, 10, 16, 0);
 
-      ConversationView.initializeRendering();
-      ConversationView.appendMessage({
-        id: 1,
-        threadId: 1,
-        timestamp: +someDateInThePast
-      }).then(done,done);
+     setupEnterConversationView(
+       { threadId: 1, recipients: ['999'] }
+     ).then(() => {
+       return ConversationView.appendMessage({
+         id: 1,
+         threadId: 1,
+         timestamp: +someDateInThePast
+       });
+     }).then(done,done);
     });
 
     teardown(function() {
@@ -2468,12 +2489,13 @@ suite('conversation.js >', function() {
       });
 
       suite('infinite rendering test', function() {
-        var chunkSize;
+        var chunkSize, firstChunkSize;
         var message;
         var onVisuallyLoaded;
 
         setup(function() {
           chunkSize = ConversationView.CHUNK_SIZE;
+          firstChunkSize = ConversationView.FIRST_CHUNK_SIZE;
           onVisuallyLoaded = sinon.stub();
           ConversationView.once('visually-loaded', onVisuallyLoaded);
         });
@@ -2483,14 +2505,14 @@ suite('conversation.js >', function() {
         });
 
         test('Messages are hidden before first chunk ready', function(done) {
-          for (var i = 1; i < chunkSize; i++) {
+          for (var i = 1; i < firstChunkSize; i++) {
             MessageManager.getMessages.yieldTo(
               'each', MockMessages.sms({ id: i })
             );
           }
 
           TaskRunner.prototype.push.lastCall.returnValue.then(() => {
-            for (var i = 1; i < chunkSize; i++) {
+            for (var i = 1; i < firstChunkSize; i++) {
               message = document.getElementById('message-' + i);
               assert.ok(
                 message.classList.contains('hidden'),
@@ -2503,14 +2525,14 @@ suite('conversation.js >', function() {
         });
 
         test('First chunk ready', function(done) {
-          for (var i = 1; i <= chunkSize; i++) {
+          for (var i = 1; i <= firstChunkSize; i++) {
             MessageManager.getMessages.yieldTo(
               'each', MockMessages.sms({ id: i })
             );
           }
 
           TaskRunner.prototype.push.lastCall.returnValue.then(() => {
-            var id = chunkSize +1;
+            var id = chunkSize + 1;
             assert.isNull(
               container.querySelector('li.hidden'),
               'all previously hidden messages should now be displayed'
@@ -2530,6 +2552,51 @@ suite('conversation.js >', function() {
             });
           }).then(done, done);
         });
+
+        test('second chunk ready, then scroll up', function(done) {
+          function assertVisibilityOfMessages(messages, lastVisibleId) {
+            Array.from(messages).forEach((message) => {
+              var id = +message.dataset.messageId;
+              if (id <= lastVisibleId) {
+                assert.isFalse(
+                  message.classList.contains('hidden'),
+                  `Message ${id} should be displayed`
+                );
+              } else {
+                assert.isTrue(
+                  message.classList.contains('hidden'),
+                  `Message ${id} should be hidden`
+                );
+              }
+            });
+          }
+
+          var messagesCount = firstChunkSize + 2 * chunkSize;
+          for (var i = 1; i <= messagesCount; i++) {
+            MessageManager.getMessages.yieldTo(
+              'each', MockMessages.sms({ id: i })
+            );
+          }
+
+          TaskRunner.prototype.push.lastCall.returnValue.then(() => {
+            var messages = container.querySelectorAll('.message');
+
+            assert.lengthOf(messages, messagesCount);
+            assertVisibilityOfMessages(messages, firstChunkSize);
+
+            // Simulate a scroll to the top
+            container.scrollTop = 0;
+            dispatchScrollEvent(container);
+
+            assertVisibilityOfMessages(messages, firstChunkSize + chunkSize);
+
+            // Simulate another scroll to the top
+            container.scrollTop = 0;
+            dispatchScrollEvent(container);
+
+            assertVisibilityOfMessages(messages, messagesCount);
+          }).then(done, done);
+        });
       });
 
       suite('scrolling behavior for first chunk', function() {
@@ -2539,7 +2606,7 @@ suite('conversation.js >', function() {
 
           this.sinon.stub(HTMLElement.prototype, 'scrollIntoView');
 
-          for (var i = 1; i < ConversationView.CHUNK_SIZE; i++) {
+          for (var i = 1; i < ConversationView.FIRST_CHUNK_SIZE; i++) {
             MessageManager.getMessages.yieldTo(
               'each', MockMessages.sms({ id: i })
             );
@@ -2553,7 +2620,7 @@ suite('conversation.js >', function() {
 
         test('should scroll to the end', function(done) {
           MessageManager.getMessages.yieldTo(
-            'each', MockMessages.sms({ id: ConversationView.CHUNK_SIZE })
+            'each', MockMessages.sms({ id: ConversationView.FIRST_CHUNK_SIZE })
           );
 
           TaskRunner.prototype.push.lastCall.returnValue.then(() => {
@@ -2566,7 +2633,7 @@ suite('conversation.js >', function() {
           Navigation.isCurrentPanel.withArgs('thread').returns(false);
 
           MessageManager.getMessages.yieldTo(
-            'each', MockMessages.sms({ id: ConversationView.CHUNK_SIZE })
+            'each', MockMessages.sms({ id: ConversationView.FIRST_CHUNK_SIZE })
           );
 
           TaskRunner.prototype.push.lastCall.returnValue.then(() => {
@@ -2607,24 +2674,45 @@ suite('conversation.js >', function() {
     });
   });
 
-  suite('more complex renderMessages behavior,', function() {
-    var transitionArgs;
+  suite('more complex renderMessages behaviors,', function() {
+    var currentPanel;
 
-    setup(function() {
-      setActiveThread();
-
-      transitionArgs = {
-        id: '1',
+    function enterConversation(threadId) {
+      var nextPanel = { panel: 'thread', args: { id: '' + threadId } };
+      var transitionArgs = {
+        id: '' + threadId,
         meta: {
-          next: { panel: 'thread', args: { id: '1' } },
-          prev: { panel: 'thread-list', args: {} }
+          next: nextPanel,
+          prev: currentPanel
         }
       };
+      currentPanel = nextPanel;
+
+      return ConversationView.beforeEnter(transitionArgs).then(
+        () => ConversationView.afterEnter(transitionArgs)
+      );
+    }
+
+    setup(function() {
+      var mockThread1 = getMockThread(1, ['999'], []);
+      var mockThread2 = getMockThread(2, ['888'], []);
+      Threads.get.withArgs(1).returns(mockThread1);
+      Threads.get.withArgs(2).returns(mockThread2);
+
+      currentPanel = null;
+
+      this.sinon.stub(MessageManager, 'getMessages');
     });
 
     test('renderMessages does not render if we pressed back', function(done) {
-      this.sinon.stub(MessageManager, 'getMessages');
       this.sinon.stub(Navigation, 'isCurrentPanel').returns(false);
+      var transitionArgs = {
+        id: '1',
+        meta: {
+          prev: null,
+          next: { panel: 'thread', args: { id: '1' }}
+        }
+      };
 
       ConversationView.beforeEnter(transitionArgs).then(() => {
         // Trigger the action button on the header
@@ -2635,6 +2723,43 @@ suite('conversation.js >', function() {
         Navigation.isCurrentPanel.withArgs('thread').returns(true);
         ConversationView.afterEnter(transitionArgs);
         sinon.assert.notCalled(MessageManager.getMessages);
+      }).then(done, done);
+    });
+
+    test('renderMessages stops rendering if we enter another thread',
+    function(done) {
+
+      var messageId = 1;
+      function yieldMessageForThread(threadId) {
+        MessageManager.getMessages.withArgs(
+          sinon.match.has('filter', { threadId })
+        ).yieldTo('each', MockMessages.sms({ id: messageId++, threadId }));
+      }
+
+      this.sinon.spy(TaskRunner.prototype, 'push');
+
+      enterConversation(1).then(() => {
+        yieldMessageForThread(1); // id 1
+
+        return TaskRunner.prototype.push.lastCall.returnValue;
+      }).then(() => {
+        assert.ok(document.getElementById('message-1'));
+
+        yieldMessageForThread(1); // id 2
+        return enterConversation(2);
+      }).then(
+        () => TaskRunner.prototype.push.lastCall.returnValue
+      ).then(() => {
+        assert.isNull(document.getElementById('message-2'));
+
+        TaskRunner.prototype.push.reset();
+        yieldMessageForThread(1); // id 3
+        sinon.assert.notCalled(TaskRunner.prototype.push);
+
+        yieldMessageForThread(2); // id 4
+        return TaskRunner.prototype.push.lastCall.returnValue;
+      }).then(() => {
+        assert.ok(document.getElementById('message-4'));
       }).then(done, done);
     });
   });
@@ -2896,9 +3021,12 @@ suite('conversation.js >', function() {
       return testMessages[index];
     }
 
-    setup(function() {
+    setup(function(done) {
       this.sinon.stub(MessagingClient, 'retrieveMMS');
-      ConversationView.initializeRendering();
+
+      setupEnterConversationView(
+        { threadId: 8, recipients: ['123456'] }
+      ).then(done, done);
     });
 
     teardown(function() {
@@ -3448,11 +3576,14 @@ suite('conversation.js >', function() {
       return testMessages[index];
     }
 
-    setup(function() {
+    setup(function(done) {
       this.sinon.stub(MessageManager, 'retrieveMMS', function() {
         return {};
       });
-      ConversationView.initializeRendering();
+
+      setupEnterConversationView(
+        { threadId: 8, recipients: ['123456']}
+      ).then(done, done);
     });
 
     teardown(function() {
@@ -3744,13 +3875,18 @@ suite('conversation.js >', function() {
         '" data-action="dial-link">' + phone + '</a>';
       });
 
-      ConversationView.initializeRendering();
-      ConversationView.appendMessage({
-        id: messageId,
-        type: 'sms',
-        body: 'This is a test with 123123123',
-        delivery: 'error',
-        timestamp: Date.now()
+      setupEnterConversationView(
+        { threadId: 1, recipients: ['999'] }
+      ).then(() => {
+        return ConversationView.appendMessage({
+          id: messageId,
+          threadId: 1,
+          receiver: '999',
+          type: 'sms',
+          body: 'This is a test with 123123123',
+          delivery: 'error',
+          timestamp: Date.now()
+        });
       }).then(() => {
         // Retrieve DOM element for executing the event
         var messageDOM = document.getElementById('message-' + messageId);
@@ -3904,13 +4040,18 @@ suite('conversation.js >', function() {
         return '<a data-dial="123123123" data-action="dial-link">123123123</a>';
       });
 
-      ConversationView.initializeRendering();
-      ConversationView.appendMessage({
-        id: messageId,
-        type: 'sms',
-        body: 'This is a test with 123123123',
-        delivery: 'sent',
-        timestamp: Date.now()
+      setupEnterConversationView(
+        { threadId: 1, recipients: ['999'] }
+      ).then(() => {
+        return ConversationView.appendMessage({
+          id: messageId,
+          threadId: 1,
+          receiver: '999',
+          type: 'sms',
+          body: 'This is a test with 123123123',
+          delivery: 'sent',
+          timestamp: Date.now()
+        });
       }).then(() => {
         // Retrieve DOM element for executing the event
         messageDOM = document.getElementById('message-' + messageId);
@@ -3989,6 +4130,8 @@ suite('conversation.js >', function() {
         // Create a message with a delivery error
         ConversationView.appendMessage({
           id: 9,
+          threadId: 1,
+          receiver: '999',
           type: 'sms',
           body: 'This is a test with 123123123',
           delivery: 'error',
@@ -4015,9 +4158,11 @@ suite('conversation.js >', function() {
         // Create a message with a sending error
         ConversationView.appendMessage({
           id: 10,
+          threadId: 1,
+          receivers: ['999'],
           type: 'mms',
           delivery: 'error',
-          deliveryInfo: [{receiver: null, deliveryStatus: 'error'}],
+          deliveryInfo: [{receiver: '999', deliveryStatus: 'error'}],
           attachments: [],
           subject: 'error sending'
         }).then(() => {
@@ -4042,7 +4187,8 @@ suite('conversation.js >', function() {
         // Create a message with a download error
         ConversationView.appendMessage({
           id: 11,
-          sender: '123456',
+          threadId: 1,
+          sender: '999',
           iccId: 'B',
           type: 'mms',
           delivery: 'not-downloaded',
@@ -4071,6 +4217,8 @@ suite('conversation.js >', function() {
         // Create a message with an undownloaded attachment:
         ConversationView.appendMessage({
           id: 12,
+          threadId: 1,
+          sender: '999',
           type: 'mms',
           body: 'This is mms message test without attachment',
           delivery: 'received',
@@ -4116,24 +4264,30 @@ suite('conversation.js >', function() {
 
   suite('Message resending UI', function() {
     setup(function(done) {
-      var promises = [];
-
-      promises.push(ConversationView.appendMessage({
-        id: 23,
-        type: 'sms',
-        body: 'This is a test',
-        delivery: 'error',
-        timestamp: Date.now()
-      }), ConversationView.appendMessage({
-        id: 45,
-        type: 'sms',
-        body: 'This is another test',
-        delivery: 'sent',
-        timestamp: Date.now()
-      }));
-
-      ConversationView.initializeRendering();
-      Promise.all(promises).then(() => {
+      setupEnterConversationView(
+        { threadId: 1, recipients: ['999' ]}
+      ).then(() => {
+        return Promise.all([
+          ConversationView.appendMessage({
+            id: 23,
+            threadId: 1,
+            sender: '999',
+            type: 'sms',
+            body: 'This is a test',
+            delivery: 'error',
+            timestamp: Date.now()
+          }),
+          ConversationView.appendMessage({
+            id: 45,
+            threadId: 1,
+            sender: '999',
+            type: 'sms',
+            body: 'This is another test',
+            delivery: 'sent',
+            timestamp: Date.now()
+          })
+        ]);
+      }).then(() => {
         this.sinon.stub(Utils, 'confirm').returns(Promise.resolve());
         this.sinon.stub(ConversationView, 'resendMessage');
         this.elems = {
@@ -4279,7 +4433,7 @@ suite('conversation.js >', function() {
       }];
       var message;
 
-      setup(function() {
+      setup(function(done) {
         this.sinon.spy(Attachment.prototype, 'render');
         this.sinon.stub(Navigation, 'isCurrentPanel').returns(false);
         Navigation.isCurrentPanel.withArgs('thread').returns(true);
@@ -4292,8 +4446,12 @@ suite('conversation.js >', function() {
           id: '1',
           bodyHTML: 'test #1'
         });
+
         message = MockMessages.mms();
-        ConversationView.initializeRendering();
+
+        setupEnterConversationView(
+          { threadId: 1, recipients: ['999'] }
+        ).then(done, done);
       });
 
       teardown(function() {
@@ -4865,8 +5023,7 @@ suite('conversation.js >', function() {
         Threads.Messages.get.withArgs(1).returns(MockMessages.sms());
         ConversationView.initiateNewMessage({ messageId: 1 }).then(() => {
           sinon.assert.calledWith(
-            Navigation.toPanel,
-            'composer', { draftId: 'draftId', focusComposer: sinon.match.falsy }
+            Navigation.toPanel, 'composer', { draftId: 'draftId' }
           );
           sinon.assert.calledWithMatch(
             Drafts.add, { content: ['body'], type: 'sms' }
@@ -4888,8 +5045,7 @@ suite('conversation.js >', function() {
 
         ConversationView.initiateNewMessage({ messageId: 1 }).then(() => {
           sinon.assert.calledWith(
-            Navigation.toPanel,
-            'composer', { draftId: 'draftId', focusComposer: sinon.match.falsy }
+            Navigation.toPanel, 'composer', { draftId: 'draftId'}
           );
           sinon.assert.calledWithMatch(
             Drafts.add,
@@ -4910,8 +5066,7 @@ suite('conversation.js >', function() {
 
         ConversationView.initiateNewMessage({ number: '+123' }).then(() => {
           sinon.assert.calledWith(
-            Navigation.toPanel,
-            'composer', { draftId: 'draftId', focusComposer: true }
+            Navigation.toPanel, 'composer', { draftId: 'draftId' }
           );
           sinon.assert.calledWithMatch(
             Drafts.add, { recipients: ['+123'], type: 'sms' }
@@ -4928,7 +5083,7 @@ suite('conversation.js >', function() {
 
         ConversationView.initiateNewMessage({ number: '+123' }).then(() => {
           sinon.assert.calledWith(
-            Navigation.toPanel, 'thread', { id: 100, focusComposer: true }
+            Navigation.toPanel, 'thread', { id: 100, focus: 'composer' }
           );
         }).then(done, done);
       });
@@ -6053,7 +6208,11 @@ suite('conversation.js >', function() {
         id: 20
       });
 
-      addMessages().then(() => {
+      setupEnterConversationView(
+        { threadId: 1, recipients: ['999'] }
+      ).then(
+        addMessages
+      ).then(() => {
         //Put the scroll on top
         container.scrollTop = 0;
         dispatchScrollEvent(container);
@@ -6066,7 +6225,6 @@ suite('conversation.js >', function() {
         // so we need to run tests after the promise resolves.
         return Contacts.findByPhoneNumber.lastCall.returnValue;
       }).then(() => done(), done);
-      ConversationView.initializeRendering();
     });
 
     teardown(function() {
@@ -6462,46 +6620,6 @@ suite('conversation.js >', function() {
       assert.isFalse(mainWrapper.classList.contains('edit'));
     });
 
-    test('revokes all attachment thumbnail URLs', function(done) {
-      this.sinon.stub(window.URL, 'revokeObjectURL');
-      Navigation.isCurrentPanel.withArgs('thread').returns(true);
-
-      var attachments = [{
-        location: 'image',
-        content: testImageBlob
-      }, {
-        location: 'image',
-        content: testImageBlob
-      }, {
-        location: 'video',
-        content: testVideoBlob
-      }];
-
-      ConversationView.initializeRendering();
-      var promises = attachments.map((attachment, index) =>
-        ConversationView.appendMessage(MockMessages.mms({
-          id: index + 1,
-          attachments: [attachment]
-        })).then(() => {
-          if (attachment.content.type.indexOf('image') >= 0) {
-            var attachmentContainer = ConversationView.container.querySelector(
-              '[data-message-id="' + (index + 1) + '"] .attachment-container'
-            );
-            attachmentContainer.dataset.thumbnail = 'blob:fake' + index;
-          }
-        })
-      );
-
-      Promise.all(promises).then(() => {
-        ConversationView.stopRendering();
-        ConversationView.beforeLeave(transitionArgs);
-
-        sinon.assert.calledTwice(window.URL.revokeObjectURL);
-        sinon.assert.calledWith(window.URL.revokeObjectURL, 'blob:fake0');
-        sinon.assert.calledWith(window.URL.revokeObjectURL, 'blob:fake1');
-      }).then(done, done);
-    });
-
     test('to non-current view, activeThread and fields cleaned', function() {
       this.sinon.stub(ConversationView, 'isConversationPanel').returns(false);
 
@@ -6592,6 +6710,49 @@ suite('conversation.js >', function() {
     setup(function() {
       this.sinon.stub(Navigation, 'isCurrentPanel').returns(false);
       this.sinon.spy(Compose, 'clear');
+    });
+
+    test('revokes all attachment thumbnail URLs', function(done) {
+      this.sinon.stub(window.URL, 'revokeObjectURL');
+      Navigation.isCurrentPanel.withArgs('thread-list').returns(true);
+
+      setupEnterConversationView(
+        { threadId: 1, recipients: ['999'] }
+      ).then(() => {
+        var attachments = [{
+          location: 'image',
+          content: testImageBlob
+        }, {
+          location: 'image',
+          content: testImageBlob
+        }, {
+          location: 'video',
+          content: testVideoBlob
+        }];
+
+        var promises = attachments.map((attachment, index) =>
+          ConversationView.appendMessage(MockMessages.mms({
+            id: index + 1,
+            attachments: [attachment]
+          })).then(() => {
+            if (attachment.content.type.indexOf('image') >= 0) {
+              var attachmentContainer = container.querySelector(
+                '[data-message-id="' + (index + 1) + '"] .attachment-container'
+              );
+              attachmentContainer.dataset.thumbnail = 'blob:fake' + index;
+            }
+          })
+        );
+
+        return Promise.all(promises);
+      }).then(() => {
+        ConversationView.stopRendering();
+        ConversationView.afterLeave();
+
+        sinon.assert.calledTwice(window.URL.revokeObjectURL);
+        sinon.assert.calledWith(window.URL.revokeObjectURL, 'blob:fake0');
+        sinon.assert.calledWith(window.URL.revokeObjectURL, 'blob:fake1');
+      }).then(done, done);
     });
 
     test('properly clean the composer when moving back to thread list',
@@ -6859,6 +7020,7 @@ suite('conversation.js >', function() {
         ConversationView.initRecipients();
         Navigation.isCurrentPanel.withArgs('composer').returns(true);
         this.sinon.stub(ConversationView.recipients, 'focus');
+        this.sinon.stub(Compose, 'focus');
 
         // we test these functions separately so it's fine to merely test
         // they're called
@@ -6875,7 +7037,29 @@ suite('conversation.js >', function() {
         }).then(done, done);
       });
 
-      test('focus the composer', function(done) {
+      test('focus the recipients when no valid recipients', function(done) {
+        ConversationView.afterEnter(transitionArgs).then(() => {
+          sinon.assert.called(ConversationView.recipients.focus);
+        }).then(done, done);
+      });
+
+      test('focus the composer if we force it', function(done) {
+        transitionArgs.focus = 'composer';
+        ConversationView.afterEnter(transitionArgs).then(() => {
+          sinon.assert.called(Compose.focus);
+        }).then(done, done);
+      });
+
+      test('focus the composer if there are valid recipients', function(done) {
+        ConversationView.recipients.add({ number: '999' });
+        ConversationView.afterEnter(transitionArgs).then(() => {
+          sinon.assert.called(Compose.focus);
+        }).then(done, done);
+      });
+
+      test('focus the recipients if we force it', function(done) {
+        ConversationView.recipients.add({ number: '999' });
+        transitionArgs.focus = 'recipients';
         ConversationView.afterEnter(transitionArgs).then(() => {
           sinon.assert.called(ConversationView.recipients.focus);
         }).then(done, done);
@@ -7071,7 +7255,7 @@ suite('conversation.js >', function() {
         sinon.assert.notCalled(Compose.focus);
 
         ConversationView.afterEnter(
-          Object.assign({ focusComposer: true }, transitionArgs)
+          Object.assign({ focus: 'composer' }, transitionArgs)
         );
 
         sinon.assert.calledOnce(Compose.focus);
@@ -7348,12 +7532,19 @@ suite('conversation.js >', function() {
         'bubbles': true,
         'cancelable': true
       });
-      ConversationView.appendMessage({
-        id: messageId,
-        type: 'sms',
-        body: 'This is a test',
-        delivery: 'sent',
-        timestamp: Date.now()
+
+      setupEnterConversationView(
+        { threadId: 1, recipients: ['999'] }
+      ).then(() => {
+        return ConversationView.appendMessage({
+          id: messageId,
+          threadId: 1,
+          receiver: '999',
+          type: 'sms',
+          body: 'This is a test',
+          delivery: 'sent',
+          timestamp: Date.now()
+        });
       }).then(() => {
         messageDOM = document.getElementById('message-' + messageId);
         node = messageDOM.querySelector('.message-content-body');

@@ -28,6 +28,7 @@
       .next(this.queryElements.bind(this))
       .next(this.component.updateFormatters.bind(this.component))
       .next(this.component.updateClock.bind(this.component))
+      .next(this.component.updateAlarm.bind(this.component))
       .next(this.transferToTick.bind(this));
   };
 
@@ -43,6 +44,13 @@
         var result = document.getElementById(query);
         if (!result) {
           throw new Error(`Can't query element ${key} with query: ${query}`);
+        }
+
+        // Create a text node so we can update its data later, otherwise if we
+        // change textContent it will remove and insert a new text node, which
+        // could cause flickering if the docshell still has isActive false.
+        if (!result.firstChild) {
+          result.appendChild(document.createTextNode(''));
         }
         elements[key] = result;
       }

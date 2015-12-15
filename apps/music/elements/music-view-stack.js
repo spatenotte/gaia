@@ -3,7 +3,10 @@
 
 var proto = Object.create(HTMLElement.prototype);
 
-var template =
+
+proto.createdCallback = function() {
+  var style = document.createElement('style');
+  style.innerHTML =
 `music-view-stack {
   position: relative;
   width: 100%;
@@ -54,6 +57,18 @@ music-view-stack > iframe.push.in {
 music-view-stack > iframe.push.out {
   animation-name: push-out;
 }
+[dir="rtl"] music-view-stack > iframe.pop.in {
+  animation-name: push-in;
+}
+[dir="rtl"] music-view-stack > iframe.pop.out {
+  animation-name: push-out;
+}
+[dir="rtl"] music-view-stack > iframe.push.in {
+  animation-name: pop-in;
+}
+[dir="rtl"] music-view-stack > iframe.push.out {
+  animation-name: pop-out;
+}
 @keyframes fade-in {
   0%   { opacity: 0; }
   100% { opacity: 1; }
@@ -78,10 +93,6 @@ music-view-stack > iframe.push.out {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-100%); }
 }`;
-
-proto.createdCallback = function() {
-  var style = document.createElement('style');
-  style.innerHTML = template;
 
   if (this.firstChild) {
     this.insertBefore(style, this.firstChild);
@@ -130,46 +141,44 @@ proto.loadView = function(url) {
     return Promise.resolve(view);
   }
 
-  return new Promise((resolve) => {
-    var frame = document.createElement('iframe');
-    var view = {
-      url: url,
-      frame: frame,
-      title: ''
-    };
+  var frame = document.createElement('iframe');
+  this.appendChild(frame);
+  frame.src = url;
 
-    this.initializeView(view).then(resolve);
+  view = {
+    url: url,
+    frame: frame,
+    title: ''
+  };
 
-    this.appendChild(frame);
-    frame.src = url;
-  });
+  return this.initializeView(view);
 };
 
 proto.initializeView = function(view) {
-  return new Promise((resolve) => {
-    view.frame.addEventListener('load', () => {
-      this.cachedViews[view.url] = view;
-
-      view.title = view.frame.contentDocument.title;
-
-      resolve(view);
-      this.dispatchEvent(new CustomEvent('loaded'));
-    });
-
-    view.frame.addEventListener('rendered', () => {
-      this.dispatchEvent(new CustomEvent('rendered'));
-    });
-
-    view.frame.addEventListener('titlechange', (evt) => {
-      view.title = evt.detail;
-
-      if (this.activeView === view) {
-        this.dispatchEvent(new CustomEvent('titlechange', {
-          detail: evt.detail
-        }));
-      }
-    });
+  view.frame.addEventListener('rendered', () => {
+    this.dispatchEvent(new CustomEvent('rendered'));
   });
+
+  view.frame.addEventListener('titlechange', (evt) => {
+    view.title = evt.detail;
+
+    if (this.activeView === view) {
+      this.dispatchEvent(new CustomEvent('titlechange', {
+        detail: evt.detail
+      }));
+    }
+  });
+
+  const onL10nReady = () => {
+    view.title = view.frame.contentDocument.title;
+    this.cachedViews[view.url] = view;
+    this.dispatchEvent(new CustomEvent('loaded'));
+    return view;
+  };
+
+  return loaded(view.frame)
+    .then(() => view.frame.contentDocument.l10n.ready)
+    .then(onL10nReady);
 };
 
 proto.destroyView = function(url) {
@@ -284,6 +293,15 @@ try {
   if (e.name !== 'NotSupportedError') {
     throw e;
   }
+}
+
+function loaded(frame) {
+  return new Promise((resolve) => {
+    frame.addEventListener('load', function onLoad() {
+      frame.removeEventListener('load', onLoad);
+      resolve();
+    });
+  });
 }
 
 })(window);

@@ -3,8 +3,12 @@
   <head>
     <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1">
     <meta charset="utf-8">
+    <meta name="theme-group" content="theme-communications">
+    <meta name="theme-color" content="var(--header-background)">
     <title>Dialer</title>
-    <link rel="stylesheet" type="text/css" href="app://theme.gaiamobile.org/shared/elements/gaia-theme/gaia-theme.css" />
+
+    <!-- CSS -->
+    <link rel="stylesheet" type="text/css" href="app://theme.gaiamobile.org/shared/elements/gaia-theme/gaia-theme.css">
     <link rel="stylesheet" type="text/css" href="/style/oncall.css">
     <link rel="stylesheet" type="text/css" href="/style/conference_group_ui.css">
     <link rel="stylesheet" type="text/css" href="/style/oncall_status_bar.css">
@@ -73,14 +77,16 @@
 
     <link rel="import" href="/elements/conference_group_details.html">
   </head>
-  <body>
+  <body class="skin-comms theme-communications">
     <article id="call-screen" data-layout class="displayed"
              aria-labelledby="call-number-wrapper, group-call-number-wrapper">
       <div id="lockscreen-header">
         <div id="lockscreen-conn-states">
         </div>
-        <div id="lockscreen-clock-time"></div>
-        <div id="lockscreen-date"></div>
+        <div id="lockscreen-clock-widget">
+          <div id="lockscreen-clock-time"></div>
+          <div id="lockscreen-date"></div>
+        </div>
       </div>
       <article id="calls" data-count="0">
         <section id="handled-call-template" role="dialog" hidden>
@@ -163,7 +169,7 @@
             <p></p>
           </section>
           <footer id="call-options">
-            <section id="co-advanced" dir="ltr">
+            <section id="co-advanced">
               <div class="grid-wrapper grid">
                 <span class="grid-cell options-column">
                   <button id="mute" class="co-advanced-option grid center" data-l10n-id="mute">
@@ -213,7 +219,7 @@
       </article>
     </article>
     <article id="incoming-container">
-      <header>
+      <header dir="ltr">
         <button id="incoming-end" data-l10n-id="hangup-a11y-button">
         </button>
         <button id="incoming-answer" data-l10n-id="hold">
@@ -221,7 +227,7 @@
       </header>
       <section id="incoming-info">
         <div class="incoming-number-info">
-          <span id="incoming-number" dir="bdi"></span>
+          <span id="incoming-number" dir="auto"></span>
           <div id="incoming-number-additional-info" class="font-light">
             <span id="incoming-number-additional-info-tel-type" dir="auto"></span>
             <span class="separator"></span>
@@ -316,7 +322,7 @@
               </span>
             </div>
           </section>
-          <section id="keypad-hidebar" dir="ltr">
+          <section id="keypad-hidebar">
             <button id= "keypad-hidebar-mute-action" class="kh__button kh__button--mute"></button>
             <button id= "keypad-hidebar-hang-up-action-wrapper" class="kh__call-end-button"></button>
             <button id= "keypad-hidebar-hide-keypad-action" class="kh__button kh__button--hide"></button>

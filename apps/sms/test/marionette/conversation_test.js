@@ -2,14 +2,18 @@
 'use strict';
 
 var assert = require('chai').assert;
+var _ = require('SMS/node_modules/lodash');
+
 var ThreadGenerator = require('./generators/thread');
 var Messages = require('./lib/messages.js');
 var InboxView = require('./lib/views/inbox/view');
 var Storage = require('./lib/storage.js');
+var Tools = require('./lib/views/shared/tools.js');
 
 marionette('Conversation Panel Tests', function() {
   var MOCKS = [
     '/mocks/mock_test_storages.js',
+    '/mocks/mock_test_blobs.js',
     '/mocks/mock_navigator_moz_icc_manager.js',
     '/mocks/mock_navigator_moz_mobile_message.js',
     '/mocks/mock_navigator_moz_contacts.js'
@@ -21,12 +25,6 @@ marionette('Conversation Panel Tests', function() {
 
   function assertIsDisplayed(element) {
     assert.isTrue(element.displayed(), 'Element should be displayed');
-  }
-
-  function assertIsFocused(element, message) {
-    assert.isTrue(element.scriptWith(function(el) {
-      return document.activeElement === el;
-    }), message);
   }
 
   setup(function() {
@@ -43,13 +41,10 @@ marionette('Conversation Panel Tests', function() {
       var thread;
       setup(function() {
         thread = ThreadGenerator.generate({
-          numberOfMessages: 50
+          numberOfMessages: 150
         });
-        messagesApp.launch();
-
         storage.setMessagesStorage([thread], ThreadGenerator.uniqueMessageId);
-        // Set empty contacts store.
-        storage.setContactsStorage();
+        messagesApp.launch();
       });
 
       test('User can see all messages when scrolls up', function() {
@@ -76,6 +71,67 @@ marionette('Conversation Panel Tests', function() {
         assertIsDisplayed(messagesApp.Composer.messageInput);
       });
     });
+
+
+    suite('Long MMS thread', function() {
+      var thread;
+      var inboxView;
+      var attachmentScreenshot;
+
+      suiteSetup(function() {
+        attachmentScreenshot = Tools.loadAsset('mms-attachment.png');
+      });
+
+      suiteTeardown(function() {
+        attachmentScreenshot = null;
+      });
+
+      setup(function() {
+        thread = ThreadGenerator.generate({
+          numberOfMessages: 150,
+          baseTimestamp: Date.UTC(2015, 8, 1, 13, 40),
+          messageType: 'mms',
+          attachments: [
+            { type: 'image/png', width: 10, height: 10 }
+          ]
+        });
+
+        storage.setMessagesStorage([thread], ThreadGenerator.uniqueMessageId);
+        messagesApp.launch();
+
+        inboxView = new InboxView(client);
+      });
+
+      test('MMS are properly displayed after going to a subview', function() {
+        var conversationView = inboxView.goToConversation(thread.id);
+        conversationView.waitForFullRendering(thread);
+
+        var recentId = thread.messages[0].id;
+        var reportView = conversationView.openReport(recentId);
+        reportView.back();
+
+        var message = conversationView.findMessage(recentId);
+        var screenshot = message.attachments[0].screenshot();
+        assert.equal(screenshot, attachmentScreenshot);
+
+        conversationView.fakeScrollUpTo(0);
+
+        // Find the first displayed message. Displayed does not especially mean
+        // that we see it in the viewport, it merely means it's not "hidden"
+        // using CSS (eg: "display: none" here).
+        // I want to find the topmost already displayed message, and then scroll
+        // to it so that Gecko tries to load the attachment's background image.
+        var displayedMessage = _.find(
+          conversationView.messages(),
+          function(message) { return message.isDisplayed; }
+        );
+
+        conversationView.fakeScrollUpTo(0);
+
+        screenshot = displayedMessage.attachments[0].screenshot();
+        assert.equal(screenshot, attachmentScreenshot);
+      });
+    });
   });
 
   suite('Forward message', function() {
@@ -99,13 +155,11 @@ marionette('Conversation Panel Tests', function() {
         ]
       });
 
-      messagesApp.launch();
       storage.setMessagesStorage(
         [smsThread, mmsThread],
         ThreadGenerator.uniqueMessageId
       );
-      // empty contact store
-      storage.setContactsStorage();
+      messagesApp.launch();
     });
 
     test('Forward a SMS', function() {
@@ -121,7 +175,7 @@ marionette('Conversation Panel Tests', function() {
 
       assert.equal(
         messagesApp.Composer.messageInput.text(),
-        smsBody,
+        smsThread.messages[0].body,
         'Forwarded body is the initial body'
       );
 
@@ -131,7 +185,7 @@ marionette('Conversation Panel Tests', function() {
         'Header title should indicate that we are composing new message'
       );
 
-      assertIsFocused(
+      Tools.assertElementFocused(
         messagesApp.NewMessage.recipientsInput,
         'Recipients input should be focused'
       );
@@ -166,7 +220,7 @@ marionette('Conversation Panel Tests', function() {
         'Header title should indicate that we are composing new message'
       );
 
-      assertIsFocused(
+      Tools.assertElementFocused(
         messagesApp.NewMessage.recipientsInput,
         'Recipients input should be focused'
       );
@@ -187,8 +241,6 @@ marionette('Conversation Panel Tests', function() {
         })
       ];
 
-      messagesApp.launch();
-
       storage.setMessagesStorage(threads, ThreadGenerator.uniqueMessageId);
 
       storage.setContactsStorage([{
@@ -198,6 +250,8 @@ marionette('Conversation Panel Tests', function() {
           type: 'Mobile'
         }]
       }]);
+
+      messagesApp.launch();
 
       messagesApp.Inbox.findConversation(threads[1].id).tap();
     });
@@ -219,7 +273,7 @@ marionette('Conversation Panel Tests', function() {
       assert.equal(recipients[0].text(), '+200000');
       assert.equal(recipients[0].getAttribute('data-source'), 'manual');
 
-      assertIsFocused(
+      Tools.assertElementFocused(
         messagesApp.Composer.messageInput, 'Message input should be focused'
       );
     });
@@ -241,7 +295,7 @@ marionette('Conversation Panel Tests', function() {
       assert.equal(recipients[0].text(), 'Alan Turing');
       assert.equal(recipients[0].getAttribute('data-source'), 'contacts');
 
-      assertIsFocused(
+      Tools.assertElementFocused(
         messagesApp.Composer.messageInput, 'Message input should be focused'
       );
     });
@@ -261,7 +315,7 @@ marionette('Conversation Panel Tests', function() {
         threads[0].messages[0].body
       );
 
-      assertIsFocused(
+      Tools.assertElementFocused(
         messagesApp.Composer.messageInput, 'Message input should be focused'
       );
     });
@@ -280,11 +334,9 @@ marionette('Conversation Panel Tests', function() {
         expiryDate: Date.now() + 100000
       });
 
-      messagesApp.launch();
-
-      // Set empty messages and contacts store.
       storage.setMessagesStorage([thread], ThreadGenerator.uniqueMessageId);
-      storage.setContactsStorage();
+
+      messagesApp.launch();
 
       var inboxView = new InboxView(client);
 
@@ -292,7 +344,7 @@ marionette('Conversation Panel Tests', function() {
     });
 
     test('MMS should be retrieved successfully', function() {
-      var notDownloadedMessage = conversationView.messages[0];
+      var notDownloadedMessage = conversationView.messages()[0];
 
       assert.isFalse(notDownloadedMessage.isDownloaded);
       assert.isFalse(notDownloadedMessage.isPending);
@@ -322,24 +374,24 @@ marionette('Conversation Panel Tests', function() {
         numberOfMessages: 4
       });
 
-      messagesApp.launch();
       storage.setMessagesStorage([thread], ThreadGenerator.uniqueMessageId);
-      storage.setContactsStorage();
+
+      messagesApp.launch();
 
       var inboxView = new InboxView(client);
       conversationView = inboxView.goToConversation(thread.id);
     });
-    
+
     test('User can enter and exit edit mode', function () {
       conversationView.enterEditMode();
 
-      conversationView.messages.forEach(function(message) {
+      conversationView.messages().forEach(function(message) {
         assert.isTrue(message.isInEditMode);
       });
 
       conversationView.exitEditMode();
 
-      conversationView.messages.forEach(function(message) {
+      conversationView.messages().forEach(function(message) {
         assert.isFalse(message.isInEditMode);
       });
     });
@@ -353,14 +405,14 @@ marionette('Conversation Panel Tests', function() {
         // Selecting all messages
         conversationView.toggleMessagesSelection();
 
-        conversationView.messages.forEach(function(message) {
+        conversationView.messages().forEach(function(message) {
           assert.isTrue(message.isSelected);
         });
         assert.equal(
           conversationView.toggleSelectionButtonTitle,
           'Deselect all',
           'Select / Deselect all button should display correct text'
-        );      
+        );
         assert.equal(
           conversationView.editHeaderTitle,
           '4 selected',
@@ -370,32 +422,32 @@ marionette('Conversation Panel Tests', function() {
         // Deselecting all messages
         conversationView.toggleMessagesSelection();
 
-        conversationView.messages.forEach(function(message) {
+        conversationView.messages().forEach(function(message) {
           assert.isFalse(message.isSelected);
         });
         assert.equal(
           conversationView.toggleSelectionButtonTitle,
           'Select all',
           'Select / Deselect all button should display correct text'
-        );      
+        );
         assert.equal(
           conversationView.editHeaderTitle,
           'Delete messages',
           'Edit mode header should not indicate that any message is selected'
         );
-      }); 
+      });
 
       test('User selects a few and then selects/deselects all', function() {
         // Selecting the 1st and 3rd message
         var messageIndicesToSelect = [2, 0];
 
-        var messages = conversationView.messages;
+        var messages = conversationView.messages();
 
         messageIndicesToSelect.forEach(function(messageIndex) {
           conversationView.tapOnMessage(messages[messageIndex].id);
         });
 
-        conversationView.messages.forEach(function(message, index) {
+        conversationView.messages().forEach(function(message, index) {
           if (messageIndicesToSelect.indexOf(index) >= 0) {
             assert.isTrue(message.isSelected);
           } else {
@@ -406,19 +458,19 @@ marionette('Conversation Panel Tests', function() {
           conversationView.editHeaderTitle,
           '2 selected',
           'Edit mode header should show correct number of messages'
-        ); 
+        );
 
         // Selecting all messages
         conversationView.toggleMessagesSelection();
 
-        conversationView.messages.forEach(function(message) {
+        conversationView.messages().forEach(function(message) {
           assert.isTrue(message.isSelected);
         });
         assert.equal(
           conversationView.toggleSelectionButtonTitle,
           'Deselect all',
           'Select / Deselect all button should display correct text'
-        );     
+        );
         assert.equal(
           conversationView.editHeaderTitle,
           '4 selected',
@@ -428,14 +480,14 @@ marionette('Conversation Panel Tests', function() {
         // Deselecting all messages
         conversationView.toggleMessagesSelection();
 
-        conversationView.messages.forEach(function(message) {
+        conversationView.messages().forEach(function(message) {
           assert.isFalse(message.isSelected);
         });
         assert.equal(
           conversationView.toggleSelectionButtonTitle,
           'Select all',
           'Select / Deselect all button should display correct text'
-        );      
+        );
         assert.equal(
           conversationView.editHeaderTitle,
           'Delete messages',
@@ -447,14 +499,14 @@ marionette('Conversation Panel Tests', function() {
         // Selecting all messages
         conversationView.toggleMessagesSelection();
 
-        conversationView.messages.forEach(function(message) {
+        conversationView.messages().forEach(function(message) {
           assert.isTrue(message.isSelected);
         });
         assert.equal(
           conversationView.toggleSelectionButtonTitle,
           'Deselect all',
           'Select / Deselect all button should display correct text'
-        );     
+        );
         assert.equal(
           conversationView.editHeaderTitle,
           '4 selected',
@@ -464,13 +516,13 @@ marionette('Conversation Panel Tests', function() {
         // Deselecting 1st and 3rd message
         var messageIndicesToDeselect = [2, 0];
 
-        var messages = conversationView.messages;
+        var messages = conversationView.messages();
 
         messageIndicesToDeselect.forEach(function(messageIndex) {
           conversationView.tapOnMessage(messages[messageIndex].id);
         });
 
-        conversationView.messages.forEach(function(message, index) {
+        conversationView.messages().forEach(function(message, index) {
           if (messageIndicesToDeselect.indexOf(index) >= 0) {
             assert.isFalse(message.isSelected);
           } else {
@@ -486,20 +538,20 @@ marionette('Conversation Panel Tests', function() {
         // Selecting all messages
         conversationView.toggleMessagesSelection();
 
-        conversationView.messages.forEach(function(message) {
+        conversationView.messages().forEach(function(message) {
           assert.isTrue(message.isSelected);
         });
         assert.equal(
           conversationView.toggleSelectionButtonTitle,
           'Deselect all',
           'Select / Deselect all button should display correct text'
-        );     
+        );
         assert.equal(
           conversationView.editHeaderTitle,
           '4 selected',
           'Edit mode header should show correct number of messages'
-        );                       
-      });    
+        );
+      });
     });
   });
 });

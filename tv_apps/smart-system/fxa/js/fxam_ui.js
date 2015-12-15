@@ -30,18 +30,36 @@ var FxaModuleUI = {
       FxaModuleNavigation.back();
     });
 
-    this.fxaModuleNext.addEventListener('click', function(e) {
-      // left mouse button or return key
-      if(e.button === 0 ||
-        (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN)) {
+    // To enable click animation on buttons, the next and done method should
+    // be invoked at mouseup or keyup event.
+    this.fxaModuleNext.addEventListener('mouseup',
+        FxaModuleNavigation.next.bind(FxaModuleNavigation));
+
+    this.fxaModuleDone.addEventListener('mouseup',
+        FxaModuleNavigation.done.bind(FxaModuleNavigation));
+
+    this.fxaModuleNext.addEventListener('keydown', e => {
+      if(e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN) {
+        this.fxaModuleNext.classList.add('active');
+      }
+    });
+
+    this.fxaModuleDone.addEventListener('keydown', e => {
+      if(e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN) {
+        this.fxaModuleDone.classList.add('active');
+      }
+    });
+
+    this.fxaModuleNext.addEventListener('keyup', e => {
+      if(e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN) {
+        this.fxaModuleNext.classList.remove('active');
         FxaModuleNavigation.next();
       }
     });
 
-    this.fxaModuleDone.addEventListener('click', function(e) {
-      // left mouse button or return key
-      if(e.button === 0 ||
-        (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN)) {
+    this.fxaModuleDone.addEventListener('keyup', e => {
+      if(e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN) {
+        this.fxaModuleDone.classList.remove('active');
         FxaModuleNavigation.done();
       }
     });
@@ -62,13 +80,7 @@ var FxaModuleUI = {
       }, OFFLINE_TIMEOUT);
     });
 
-    window.addEventListener('keypress', function onkeypress(e) {
-      if (e.keyCode === KeyEvent.DOM_VK_BACK_SPACE) {
-        // BACK_SPACE key on TV doesn't work for text input elements,
-        // there's a backspace button to delete text.
-        FxaModuleNavigation.back();
-      }
-    });
+    this.enableEscapeButton();
 
     FxaModuleNavigation.init(flow);
   },
@@ -183,6 +195,17 @@ var FxaModuleUI = {
   },
   enableDoneButton: function() {
     this.fxaModuleDone.removeAttribute('disabled');
+  },
+  onkeypress: function(e) {
+    if (e.keyCode === KeyEvent.DOM_VK_ESCAPE) {
+      FxaModuleNavigation.back();
+    }
+  },
+  disableEscapeButton: function() {
+    window.removeEventListener('keypress', this.onkeypress);
+  },
+  enableEscapeButton: function() {
+    window.addEventListener('keypress', this.onkeypress);
   },
   focusDoneButton: function() {
     document.activeElement.blur();

@@ -58,7 +58,7 @@
     }
 
     // Then look for an icon in the Firefox manifest.
-    if (!iconUrl && siteObj.manifest) {
+    if (!iconUrl && siteObj.manifest && siteObj.manifest.icons) {
       iconUrl = getBestIconFromWebManifest({
         icons: _convertToWebManifestIcons(siteObj.manifest,
           siteObj.origin || siteObj.manifest.origin)
@@ -69,7 +69,7 @@
     }
 
     // Otherwise, look into the meta tags.
-    if (!iconUrl && placeObj.icons) {
+    if (!iconUrl && placeObj && placeObj.icons) {
       iconUrl = getBestIconFromMetaTags(placeObj.icons, iconTargetSize);
       if (DEBUG && iconUrl) {
         console.log('Icon from Meta tags');
@@ -129,6 +129,9 @@
                         resolve(iconObj);
 
                         iconStore.add(iconObj, iconUrl);
+                      },
+                      onerror: function(e) {
+                        reject(`Failed to fetch icon ${iconUrl}`);
                       }
                     });
                   })
@@ -159,21 +162,22 @@
    * @returns {Promise}
    */
   function setElementIcon(icon, targetSize) {
-    getIconBlob(icon.bookmark.url, targetSize, icon.bookmark, icon.bookmark)
+    return getIconBlob(icon.bookmark.url, targetSize,
+                       icon.bookmark, icon.bookmark)
       .then(iconObj => {
         if (iconObj.blob) {
           icon.icon = iconObj.blob;
+          return Promise.resolve();
         } else if (icon.bookmark.icon) {
           // We fallback to the bookmark.icon property if no icons were found.
-          fetchIconBlob(icon.bookmark.icon)
+          return fetchIconBlob(icon.bookmark.icon)
             .then(iconBlob => {
               icon.icon = iconBlob;
-            });
+              return Promise.resolve();
+            }, Promise.reject.bind(Promise)); // XXXbz Why second arg?
         }
-      })
-      .catch((e) => {
-        console.error('The icon image could not be set to the element.', e);
-      });
+        return Promise.reject('No icon data found');
+      }, Promise.reject.bind(Promise));  // XXXbz Why bother with second arg?
   }
 
   function getBestIconFromWebManifest(webManifest, iconSize) {
@@ -344,26 +348,30 @@
    */
   function fetchIcon(iconUrl) {
     return new Promise((resolve, reject) => {
-      fetchIconBlob(iconUrl).then((iconBlob) => {
-        var img = document.createElement('img');
+      fetchIconBlob(iconUrl)
+        .then((iconBlob) => {
+          var img = document.createElement('img');
 
-        img.src = URL.createObjectURL(iconBlob);
+          img.src = URL.createObjectURL(iconBlob);
 
-        img.onload = () => {
-          var iconSize = Math.max(img.naturalWidth, img.naturalHeight);
+          img.onload = () => {
+            var iconSize = Math.max(img.naturalWidth, img.naturalHeight);
 
-          resolve({
-            blob: iconBlob,
-            url: iconUrl,
-            size: iconSize,
-            timestamp: Date.now()
-          });
-        };
+            resolve({
+              blob: iconBlob,
+              url: iconUrl,
+              size: iconSize,
+              timestamp: Date.now()
+            });
+          };
 
-        img.onerror = () => {
-          reject(new Error(`Error while loading image.`));
-        };
-      });
+          img.onerror = () => {
+            reject(new Error(`Error while loading image.`));
+          };
+        })
+        .catch((e) => {
+          reject(new Error(`Error while loading image: ${e}`));
+        });
     });
   }
 

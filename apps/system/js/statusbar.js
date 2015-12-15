@@ -84,7 +84,10 @@
       window.addEventListener('homescreentitlestatechanged', this);
       window.addEventListener('appchromecollapsed', this);
       window.addEventListener('appchromeexpanded', this);
+      window.addEventListener('iconshown', this);
+      window.addEventListener('iconhidden', this);
       window.addEventListener('iconrendered', this);
+
       if (Service.query('FtuLauncher.isFinished')) {
         this.finishInit();
       } else {
@@ -92,6 +95,7 @@
         window.addEventListener('ftudone', this);
       }
       Service.registerState('height', this);
+      Service.register('iconContainer', this);
     },
 
     calculateMinimized: function sb_calculateMinimized() {
@@ -125,8 +129,6 @@
       window.addEventListener('utility-tray-abortclose', this);
       window.addEventListener('cardviewshown', this);
       window.addEventListener('cardviewclosed', this);
-      window.addEventListener('iconshown', this);
-      window.addEventListener('iconhidden', this);
 
       window.addEventListener('attentionopened', this);
       window.addEventListener('appwillopen', this);
@@ -137,6 +139,7 @@
       window.addEventListener('activityopened', this);
       window.addEventListener('homescreenopened', this);
       window.addEventListener('stackchanged', this);
+      window.addEventListener('lockscreen-request-unlock', this);
 
       // Listen to updates dialog
       window.addEventListener('updatepromptshown', this);
@@ -160,8 +163,6 @@
         console.error('UtilityTray load or init error', err);
       });
 
-      Service.register('onIconCreated', this);
-      Service.register('iconContainer', this);
       this.calculateMinimized();
     },
 
@@ -233,6 +234,7 @@
           /* falls through */
         case 'appclosed':
         case 'hierarchytopmostwindowchanged':
+        case 'lockscreen-request-unlock':
         case 'appchromeexpanded':
           this.element.classList.remove('hidden');
           this.setAppearance();

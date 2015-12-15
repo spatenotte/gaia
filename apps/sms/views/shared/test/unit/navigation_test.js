@@ -83,6 +83,7 @@ suite('navigation >', function() {
   setup(function() {
     this.sinon.stub(window, 'setTimeout').yieldsAsync();
     loadBodyHTML('/index.html');
+    navigator.mozHasPendingMessage = sinon.stub();
 
     fakeLocation = {
       assign: sinon.spy(fakeAssign),
@@ -118,11 +119,13 @@ suite('navigation >', function() {
     elements = null;
     window.Navigation = null;
     document.body.innerHTML = '';
+    delete navigator.mozHasPendingMessage;
   });
 
   suite('non split views >', function() {
     setup(function() {
       window.Navigation = NavigationFactory(fakeWindow);
+      navigator.mozHasPendingMessage.withArgs('notification').returns(false);
     });
 
     suite('init() >', function() {
@@ -167,6 +170,35 @@ suite('navigation >', function() {
           assert.equal(elements.InboxView.getAttribute('aria-hidden'), 'true');
           sinon.assert.calledTwice(console.error);
         }).then(done, done);
+      });
+
+      test('Set init pending when launched by notification', function(done) {
+        this.sinon.stub(console, 'error');
+        navigator.mozHasPendingMessage.withArgs('notification').returns(true);
+
+        assert.isFalse(Navigation.hasPendingInit());
+        Navigation.init().catch(() => {}).then(() => {
+          assert.isTrue(Navigation.hasPendingInit());
+          sinon.assert.notCalled(fakeWindow.InboxView.beforeEnter);
+          sinon.assert.notCalled(fakeWindow.InboxView.afterEnter);
+          assert.isFalse(Navigation.isCurrentPanel('thread-list'));
+          assert.isFalse(elements.InboxView.classList.contains('panel-active'));
+          assert.equal(elements.InboxView.getAttribute('aria-hidden'), 'true');
+          sinon.assert.notCalled(console.error);
+
+          // Navigate to composer panel
+          return Navigation.toPanel('composer');
+        }).then(() => {
+          assert.isFalse(Navigation.hasPendingInit());
+        }).then(done, done);
+      });
+
+      test('Initial navigation request should proceed to the completion ' +
+           'without waiting for the document to be completely loaded',
+      function(done) {
+        Object.defineProperty(document, 'readyState', { value: 'interactive' });
+
+        Navigation.init().then(done, done);
       });
     });
 
@@ -632,6 +664,9 @@ suite('navigation >', function() {
       setFakeLocation({ pathname: '/views/inbox/' });
 
       window.Navigation = NavigationFactory(fakeWindow);
+      navigator.mozHasPendingMessage.withArgs('notification').returns(false);
+
+      Navigation.setReady();
     });
 
     suite('init()) >', function() {
@@ -724,6 +759,40 @@ suite('navigation >', function() {
           assert.equal(elements.InboxView.getAttribute('aria-hidden'), 'false');
           sinon.assert.calledOnce(console.error);
         }).then(done, done);
+      });
+
+      test('Set init pending when launched by notification', function(done) {
+        this.sinon.stub(console, 'error');
+        navigator.mozHasPendingMessage.withArgs('notification').returns(true);
+
+        assert.isFalse(Navigation.hasPendingInit());
+        Navigation.init().catch(() => {}).then(() => {
+          assert.isTrue(Navigation.hasPendingInit());
+          sinon.assert.notCalled(fakeWindow.InboxView.beforeEnter);
+          sinon.assert.notCalled(fakeWindow.InboxView.afterEnter);
+          assert.isFalse(Navigation.isCurrentPanel('thread-list'));
+          assert.isFalse(elements.InboxView.classList.contains('panel-active'));
+          assert.equal(elements.InboxView.getAttribute('aria-hidden'), 'true');
+          sinon.assert.notCalled(console.error);
+
+          // Navigate to composer panel
+          return Navigation.toPanel('composer');
+        }).then(() => {
+          assert.isFalse(Navigation.hasPendingInit());
+        }).then(done, done);
+      });
+
+      test('Initial navigation request should proceed to the completion ' +
+           'without waiting for the document to be completely loaded and ' +
+           'Navigation to be marked as ready',
+      function(done) {
+        Object.defineProperty(document, 'readyState', { value: 'interactive' });
+
+        var NonReadyNavigation = NavigationFactory(fakeWindow);
+
+        // For the split-view case Navigation.init doesn't wait for the setReady
+        // call or document load event.
+        NonReadyNavigation.init().then(done, done);
       });
     });
 

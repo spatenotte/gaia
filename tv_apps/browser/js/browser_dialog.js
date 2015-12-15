@@ -33,7 +33,7 @@ var BrowserDialog = {
       'browser-dialog-input',
       'browser-dialog-input-area',
       'browser-dialog-input-clear',
-      'browser-dialog-button', 'browser-dialog-button-margin',
+      'browser-dialog-button',
       'browser-dialog-button1', 'browser-dialog-button2',
     ];
 
@@ -166,12 +166,13 @@ var BrowserDialog = {
         };
         break;
 
+//IFDEF_FIREFOX_SYNC
       case 'signout_confirm':
         opt = {
           title: null,
-          msg: _('fxsync-confirm-disconnect'),
+          msg: _('fxsync-confirm-sign-out'),
           bt1: _('LT_CANCEL'),
-          bt2: _('fxsync-disconnect')
+          bt2: _('fxsync-sign-out')
         };
         var deferred = {};
         deferred.promise = new Promise(function(resolve, reject) {
@@ -181,6 +182,7 @@ var BrowserDialog = {
         promise = deferred.promise;
         this.deferredActions.set('signout_confirm', deferred);
         break;
+//ENDIF_FIREFOX_SYNC
 
       default:
         return;

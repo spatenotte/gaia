@@ -7,10 +7,6 @@
       ["apps", "email"],
       ["apps", "search"]
     ], [
-      ["apps/collection/collections", "social"],
-      ["apps/collection/collections", "games"],
-      ["apps/collection/collections", "music"]
-    ], [
       ["apps", "camera"],
       ["apps", "gallery"],
       ["apps", "music"],
@@ -22,9 +18,12 @@
       ["apps", "settings"],
       ["apps", "fm"]
     ], [
+      ["hosted_apps", "buddyup"],
       ["hosted_apps", "bugzillalite"],
       ["hosted_apps", "facebook"],
       ["hosted_apps", "twitter"],
+      ["hosted_apps", "notes"],
+      ["hosted_apps", "calculator"],
       ["apps", "costcontrol"]
     ]
   ],

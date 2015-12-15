@@ -3,24 +3,14 @@
 var Server = require('../../../../shared/test/integration/server');
 var Rocketbar = require('./lib/rocketbar');
 var PinTheWeb = require('./lib/pinning_the_web');
+var UtilityTray = require('./lib/utility_tray.js');
 var assert = require('assert');
 
 marionette('Pinning the Web', function() {
 
-  var client = marionette.client({
-    profile: {
-      prefs: {
-        // APZ was causing a crash, so we disable it for this test.
-        // see https://bugzilla.mozilla.org/show_bug.cgi?id=1200580
-        'layers.async-pan-zoom.enabled': false
-      },
-      settings: {
-        'dev.gaia.pinning_the_web': true
-      }
-    }
-  });
+  var client = marionette.client();
 
-  var rocketbar, server, system, actions, home, pinTheWeb;
+  var rocketbar, server, system, actions, home, pinTheWeb, utilityTray;
 
   suiteSetup(function(done) {
     Server.create(__dirname + '/fixtures/', function(err, _server) {
@@ -38,9 +28,19 @@ marionette('Pinning the Web', function() {
     home = client.loader.getAppClass('homescreen');
     rocketbar = new Rocketbar(client);
     pinTheWeb = new PinTheWeb(client);
+    utilityTray = new UtilityTray(client);
     system.waitForFullyLoaded();
     actions = client.loader.getActions();
   });
+
+  function lastIconMatches(id) {
+    system.tapHome();
+    client.switchToFrame(system.getHomescreenIframe());
+    client.waitFor(function() {
+      var ids = home.getIconIdentifiers();
+      return id == ids[ids.length - 1];
+    });
+  }
 
   test('Pin site', function() {
     // Count the current number of site icons
@@ -78,17 +78,28 @@ marionette('Pinning the Web', function() {
     });
   });
 
-  test('Unpin site', function() {
-    var url, lastIconId;
+  test('Pin site with start_url', function() {
+    // Count the current number of site icons
+    system.tapHome();
+    client.switchToFrame(system.getHomescreenIframe());
+    var numIcons = 0;
+    client.waitFor(function() {
+      numIcons = home.visibleIcons.length;
+      return numIcons > 0;
+    });
 
-    function lastIconMatches(id) {
-      system.tapHome();
-      client.switchToFrame(system.getHomescreenIframe());
-      client.waitFor(function() {
-        var ids = home.getIconIdentifiers();
-        return id == ids[ids.length - 1];
-      });
-    }
+    var url = server.url('scoped/page_2.html');
+    var start_url = server.url('scoped/page_1.html');
+    pinTheWeb.openAndPinSiteFromBrowser(url);
+
+    // Check that icon was added to homescreen
+    system.tapHome();
+    client.switchToFrame(system.getHomescreenIframe());
+    lastIconMatches(start_url);
+  });
+
+  test('Unpin site from same url', function() {
+    var url, lastIconId;
 
     system.tapHome();
     client.switchToFrame(system.getHomescreenIframe());
@@ -102,8 +113,46 @@ marionette('Pinning the Web', function() {
     pinTheWeb.openAndPinSiteFromBrowser(url);
     lastIconMatches(url);
 
-    pinTheWeb.openAndUnpinSiteFromBrowser(url);
+    pinTheWeb.openAndPinSiteFromBrowser(url);
     lastIconMatches(lastIconId);
+  });
+
+  test('Unpin site from url in the scope', function() {
+    var url, lastIconId;
+
+    system.tapHome();
+    client.switchToFrame(system.getHomescreenIframe());
+    client.waitFor(function() {
+      var ids = home.getIconIdentifiers();
+      lastIconId = ids[ids.length - 1];
+      return lastIconId;
+    });
+    client.switchToFrame();
+    url = server.url('scoped/page_1.html');
+    pinTheWeb.openAndPinSiteFromBrowser(url);
+    lastIconMatches(url);
+    var url2 = server.url('scoped/page_2.html');
+    pinTheWeb.openAndPinSiteFromBrowser(url2);
+    lastIconMatches(lastIconId);
+  });
+
+  test('Pin a site from same origin', function() {
+    var url, lastIconId;
+
+    client.switchToFrame(system.getHomescreenIframe());
+    client.waitFor(function() {
+      var ids = home.getIconIdentifiers();
+      lastIconId = ids[ids.length - 1];
+      return lastIconId;
+    });
+    client.switchToFrame();
+    url = server.url('sample.html');
+    var url2 = server.url('app-name.html');
+    pinTheWeb.openAndPinSiteFromBrowser(url);
+    lastIconMatches(url);
+
+    pinTheWeb.openAndPinSiteFromBrowser(url2);
+    lastIconMatches(url2);
   });
 
   // Skip test since we are disabling pinning door hanger in 2.5
@@ -148,7 +197,7 @@ marionette('Pinning the Web', function() {
     var url, lastIconId;
 
     function lastIconMatches(id) {
-      system.tapHome();
+      system.goHome();
       client.switchToFrame(system.getHomescreenIframe());
       client.waitFor(function() {
         var ids = home.getIconIdentifiers();
@@ -180,7 +229,7 @@ marionette('Pinning the Web', function() {
     var url = server.url('windowopen.html');
     var url2 = server.url('darkpage.html');
 
-    rocketbar.homescreenFocus();
+    rocketbar.appTitleFocus();
     rocketbar.enterText(url, true);
     system.gotoBrowser(url);
     client.helper.waitForElement('#trigger3').tap();
@@ -231,18 +280,30 @@ marionette('Pinning the Web', function() {
 
     client.switchToFrame();
     pinTheWeb.openAndPinPage(url);
-    system.tapHome();
+    system.goHome();
     client.switchToFrame(system.getHomescreenIframe());
 
     client.waitFor(function() {
       return home.visibleCards.length === 1;
     });
 
+    client.switchToFrame();
     pinTheWeb.openAndPinPage(url);
     system.tapHome();
     client.switchToFrame(system.getHomescreenIframe());
-
     assert(home.visibleCards.length === 0, 'There is no pinned pages');
   });
 
+  test('Opening quick settings should close pin dialog', function() {
+    var url = server.url('sample.html');
+
+    client.switchToFrame();
+    pinTheWeb.openPinDialog(url);
+    var pinDialog = pinTheWeb.pinDialog;
+
+    utilityTray.open();
+    utilityTray.quickSettings.tap();
+
+    client.helper.waitForElementToDisappear(pinDialog);
+  });
 });

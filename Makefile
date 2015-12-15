@@ -86,7 +86,6 @@ PRODUCTION?=0
 GAIA_OPTIMIZE?=0
 GAIA_DEV_PIXELS_PER_PX?=1
 NGA_SERVICE_WORKERS?=0
-FIREFOX_SYNC?=0
 
 # Parallel build for multicores CPU
 P?=1
@@ -105,6 +104,7 @@ NODE_MODULES_CACHEDIR=modules_tar_cachedir
 # tablet
 # tv
 GAIA_DEVICE_TYPE?=phone
+-include build/config/$(GAIA_DEVICE_TYPE)/device.mk
 
 TEST_AGENT_PORT?=8789
 GAIA_APP_TARGET?=engineering
@@ -132,8 +132,10 @@ HARDWARE_COMPOSER?=1
 # Share performance and usage data
 SHARE_PERF_USAGE?=1
 
-# what major version of node we expect to run?
-NODE_VERSION=v0.10
+# what version of node we expect to run for ideal support.
+NODE_VERSION=v4.2
+# the minimum major version is absolutely required.
+NODE_MIN_VERSION=4
 
 ifeq ($(DEVICE_DEBUG),1)
 REMOTE_DEBUGGER=1
@@ -411,6 +413,8 @@ ifdef GAIA_DISTRIBUTION_DIR
   ifneq ($(wildcard $(DISTRIBUTION_EMAIL_SERVICES)),)
     EMAIL_SERVICES_PATH := $(DISTRIBUTION_EMAIL_SERVICES)
   endif
+
+  -include $(GAIA_DISTRIBUTION_DIR)$(SEP)distro.mk
 endif
 
 # Read the file specified in $GAIA_APP_CONFIG and turn them into $GAIA_APPDIRS,
@@ -454,7 +458,7 @@ GAIA_CONCAT_LOCALES?=1
 # This variable is for customizing the keyboard layouts in a build.
 # Include the ID of the layout in this variable will make both the dictionary
 # and the layout included in the package.
-GAIA_KEYBOARD_LAYOUTS?=en,pt-BR,es,de,fr,fr-CA,pl,ko,zh-Hans-Pinyin,en-Dvorak
+GAIA_KEYBOARD_LAYOUTS?=en,emoji,pt-BR,es,de,fr,fr-CA,pl,ko,zh-Hans-Pinyin,en-Dvorak
 # We optionally offers downloading the dictionary from the CDN, instead of
 # including it in the build.
 # Include the ID of the layout in this variable will make it appear in the
@@ -785,6 +789,10 @@ ifneq ($(strip $(NODEJS)),)
 ifneq ($(NODE_VERSION),$(shell $(NODEJS) --version | awk -F. '{print $$1"."$$2}'))
 	@printf '\033[0;33mPlease use $(NODE_VERSION) of nodejs or it may cause unexpected error.\033[0m\n'
 endif
+ifneq (1,$(shell expr `node --version | cut -c2` \>= $(NODE_MIN_VERSION)))
+	@printf '\033[0;33mMinimum required version of nodejs v$(NODE_MIN_VERSION) not satisfied. Aborting. Install the required minimum version before continuing.\033[0m\n'
+	exit 1
+endif
 endif
 	# TODO: Get rid of references to gaia-node-modules stuff.
 	$(NPM) install
@@ -850,9 +858,9 @@ caldav-server-install:
 .PHONY: raptor
 raptor: node_modules
 ifneq ($(APP),)
-	RAPTOR=1 PERF_LOGGING=1 DEVICE_DEBUG=1 GAIA_OPTIMIZE=1 NOFTU=1 SCREEN_TIMEOUT=0 APP=$(APP) make install-gaia
+	GAIA_DISTRIBUTION_DIR=distros/raptor APP=$(APP) make install-gaia
 else
-	RAPTOR=1 PERF_LOGGING=1 DEVICE_DEBUG=1 GAIA_OPTIMIZE=1 NOFTU=1 SCREEN_TIMEOUT=0 make reset-gaia
+	GAIA_DISTRIBUTION_DIR=distros/raptor make reset-gaia
 endif
 
 .PHONY: raptor-transformer
@@ -861,7 +869,7 @@ ifeq ($(RAPTOR_TRANSFORM_RULES),)
 	@(echo "Please ensure you specify the 'RAPTOR_TRANSFORM_RULES=<directory with the *.esp files>'" && exit 1)
 endif
 	@test -d $(RAPTOR_TRANSFORM_RULES) || (echo "Please ensure the '$(RAPTOR_TRANSFORM_RULES)' directory exists" && exit 1)
-	RAPTOR_TRANSFORM=1 RAPTOR=1 PERF_LOGGING=1 DEVICE_DEBUG=1 GAIA_OPTIMIZE=1 NOFTU=1 SCREEN_TIMEOUT=0 make reset-gaia
+	RAPTOR_TRANSFORM=1 GAIA_DISTRIBUTION_DIR=distros/raptor make reset-gaia
 
 .PHONY: tests
 tests: app offline

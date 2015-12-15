@@ -279,13 +279,15 @@ function execute(config) {
   if (config.PRODUCTION === '0') {
     settings['dom.mozApps.signed_apps_installable_from'] =
       'https://marketplace.firefox.com,https://marketplace.allizom.org';
-    settings['devtools.qps.enabled'] = true;
+    settings['devtools.pseudolocalization.enabled'] = true;
   }
 
   if (config.DOGFOOD === '1') {
     settings['debug.performance_data.dogfooding'] = true;
     settings['metrics.appusage.reportInterval'] = 24 * 60 * 60 * 1000;
     settings['metrics.selectedMetrics.level'] = 'Enhanced';
+    settings['hud.hide'] = true;
+    settings['devtools.overlay'] = true;
   }
 
   settings['language.current'] = config.GAIA_DEFAULT_LOCALE;

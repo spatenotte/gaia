@@ -25,6 +25,7 @@
     this._childSections = {};
     this._activeChildSectionId = '';
     this._defaultFocusElement = undefined;
+    this._focusableElementCount = focusables.length;
   }
 
   Section.prototype = {
@@ -67,6 +68,14 @@
       if (activeChildSection) {
         activeChildSection.handleMove(direction);
       } else {
+        if (this._handleMove) {
+          var nextElement = this._handleMove(direction);
+          if (nextElement) {
+            if (this._spatialNav.focus(nextElement)) {
+              return;
+            }
+          }
+        }
         if (!this._spatialNav.move(direction)) {
           // If failed to move, re-focus the current one.
           this._spatialNav.focus();
@@ -80,6 +89,9 @@
         activeChildSection.handleClick();
       } else if (this._handleClick) {
         this._handleClick();
+      } else if (!this._focusableElementCount) {
+        // If there is no focusable element in this section, just close it.
+        this.backToParent();
       }
     },
 

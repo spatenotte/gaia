@@ -4,7 +4,7 @@
 require('/shared/js/component_utils.js');
 require('/shared/elements/gaia_radio/script.js');
 require('/shared/test/unit/mocks/mock_navigator_moz_settings.js');
-requireApp('settings/shared/test/unit/load_body_html_helper.js');
+require('/shared/test/unit/load_body_html_helper.js');
 
 suite('Improve browser os panel > ', function() {
   var realMozSettings;
@@ -226,6 +226,60 @@ suite('Improve browser os panel > ', function() {
         assert.equal(basicElem.getAttribute('disabled'), 'true');
         assert.equal(enhancedElem.getAttribute('disabled'), 'true');
       }).then(done, done);
+    });
+
+    test('metrics level Enhanced, devtools should be enabled', function(done) {
+      MockSettingsCache._settings = {
+        'metrics.selectedMetrics.level': 'Basic',
+        'debug.performance_data.dogfooding': false,
+        'devtools.overlay': 'false'
+      };
+      panel.init(document.body).then((setMetricLevel) => {
+        setMetricLevel('Enhanced');
+        assert.equal(
+          MockNavigatorSettings.mSettings['metrics.selectedMetrics.level'],
+          'Enhanced');
+        assert.equal(
+          MockNavigatorSettings.mSettings['devtools.overlay'],
+          true);
+        done();
+      });
+    });
+
+    test('metrics level Basic, devtools should be disabled', function(done) {
+      MockSettingsCache._settings = {
+        'metrics.selectedMetrics.level': 'None',
+        'debug.performance_data.dogfooding': false,
+        'devtools.overlay': 'true'
+      };
+      panel.init(document.body).then((setMetricLevel) => {
+        setMetricLevel('Basic');
+        assert.equal(
+          MockNavigatorSettings.mSettings['metrics.selectedMetrics.level'],
+          'Basic');
+        assert.equal(
+          MockNavigatorSettings.mSettings['devtools.overlay'],
+          false);
+        done();
+      });
+    });
+
+    test('metrics level None, devtools should be disabled', function(done) {
+      MockSettingsCache._settings = {
+        'metrics.selectedMetrics.level': 'Basic',
+        'debug.performance_data.dogfooding': false,
+        'devtools.overlay': 'true'
+      };
+      panel.init(document.body).then((setMetricLevel) => {
+        setMetricLevel('None');
+        assert.equal(
+          MockNavigatorSettings.mSettings['metrics.selectedMetrics.level'],
+          'None');
+        assert.equal(
+          MockNavigatorSettings.mSettings['devtools.overlay'],
+          false);
+        done();
+      });
     });
   });
 });

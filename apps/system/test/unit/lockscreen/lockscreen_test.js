@@ -21,10 +21,15 @@ var mocksForLockScreen = new window.MocksHelper([
   'SettingsListener', 'Image', 'Canvas', 'Service'
 ]).init();
 
-requireApp('system/lockscreen/js/lockscreen.js');
+var stub = sinon.stub(document, 'getElementById');
+stub.returns(document.createElement('div'));
+requireApp('system/lockscreen/js/lockscreen.js', () => {
+  stub.restore();
+});
 
 suite('system/LockScreen >', function() {
   var subject;
+  var realAudio;
   var realL10n;
   var realMozTelephony;
   var realClock;
@@ -35,6 +40,7 @@ suite('system/LockScreen >', function() {
   var domOverlay;
   var domPasscodeCode;
   var domMainScreen;
+  var domMaskedBackground;
   var domCamera;
   var stubById;
   var domMessage;
@@ -76,6 +82,11 @@ suite('system/LockScreen >', function() {
     window.LockScreenMediaPlaybackWidget = function() {};
     window.SettingsURL = function() {};
 
+    realAudio = window.Audio;
+    window.Audio = function(src) {
+      this.src = src;
+    };
+
     realL10n = navigator.mozL10n;
     navigator.mozL10n = window.MockL10n;
 
@@ -100,10 +111,11 @@ suite('system/LockScreen >', function() {
     domPasscodeCode = document.createElement('div');
     document.body.appendChild(domPasscodePad);
     domMainScreen = document.createElement('div');
+    domMaskedBackground = document.createElement('div');
+    domMaskedBackground.id = 'lockscreen-masked-background';
     subject.passcodePad = domPasscodePad;
     domMessage = document.createElement('div');
     subject.message = domMessage;
-    subject.chargingStatus.elements.charging = document.createElement('div');
     subject.lockScreenClockWidget = new window.LockScreenClockWidget();
 
     var mockClock = {
@@ -115,6 +127,7 @@ suite('system/LockScreen >', function() {
 
     subject.overlay = domOverlay;
     subject.mainScreen = domMainScreen;
+    subject.maskedBackground = domMaskedBackground;
     subject.camera = domCamera;
     subject.lock();
   });
@@ -261,6 +274,7 @@ suite('system/LockScreen >', function() {
   test('Lock: would create the clock widget', function() {
     subject.overlay = domOverlay;
     var stubCreateClockWidget = this.sinon.stub(subject, 'createClockWidget');
+    MockService.mockQueryWith('screenEnabled', true);
     subject.locked = false;
     subject.lock();
     assert.isTrue(stubCreateClockWidget.called);
@@ -294,6 +308,13 @@ suite('system/LockScreen >', function() {
     subject.checkPassCode('0000');
     assert.isTrue(StubPasscodeHelper.called,
       'lockscreen did not call PasscodeHelper to validate passcode');
+  });
+
+  test('Unlock: play sound in system audio channel', function() {
+    window.Audio.prototype.play = function() {
+      assert.equal(this.mozAudioChannelType, 'system');
+    };
+    subject.unlock(true, { unlockSoundEnabled: true });
   });
 
   suite('Pass code validation >', function() {
@@ -544,6 +565,24 @@ suite('system/LockScreen >', function() {
         stubDispatch.restore();
       });
 
+  test('Handle event: when unlock animation ends,' +
+       'it would add `unlocked` class',
+    function() {
+      assert.isFalse(subject.overlay.classList.contains('unlocked'));
+      subject.locked = false;
+      subject.handleEvent({ type: 'transitionend', target: subject.overlay });
+      assert.isTrue(subject.overlay.classList.contains('unlocked'));
+  });
+
+  test('Unlock method will add `unlocked` class if it is not an' +
+       ' instant request',
+    function() {
+      assert.isFalse(subject.overlay.classList.contains('unlocked'));
+      subject.enabled = true;
+      subject.unlock(true);  // or lock screen is already enabled
+      assert.isTrue(subject.overlay.classList.contains('unlocked'));
+  });
+
   test('Switch panel: to Camera; should notify SecureWindowFactory\'s method',
     function() {
       var stubDispatch = this.sinon.stub(window, 'dispatchEvent');
@@ -619,6 +658,7 @@ suite('system/LockScreen >', function() {
       locked: false,
       overlayLocked: stubOverlayLocked,
       mainScreen: document.createElement('div'),
+      maskedBackground : document.createElement('div'),
       createClockWidget: function() {},
       dispatchEvent: function() {},
       _checkGenerateMaskedBackgroundColor: function() {
@@ -727,6 +767,26 @@ suite('system/LockScreen >', function() {
       subject._shouldRegenerateMaskedBackgroundColor = false;
       subject._regenerateMaskedBackgroundColorFrom = undefined;
       assert.isFalse(subject._checkGenerateMaskedBackgroundColor());
+    });
+
+    test('Lock : Removes masked Overlay if there are no notifications',
+      function() {
+      var method = window.LockScreen.prototype.lock;
+      subject.maskedBackground.classList.add('blank');
+      var mockThis = {
+        locked: false,
+        overlayLocked: function() {},
+        mainScreen: document.createElement('div'),
+        maskedBackground : subject.maskedBackground,
+        createClockWidget: function() {},
+        dispatchEvent: function() {},
+        _checkGenerateMaskedBackgroundColor: function() {
+          return false;
+        }
+      };
+      method.call(mockThis);
+      assert.strictEqual(subject.maskedBackground.style.backgroundColor,
+        'transparent');
     });
 
     suite('generateMaskedBackgroundColor', function() {
@@ -882,6 +942,7 @@ suite('system/LockScreen >', function() {
   teardown(function() {
     navigator.mozL10n = realL10n;
     navigator.mozTelephony = realMozTelephony;
+    window.Audio = realAudio;
     window.Clock = realClock;
     window.SettingsListener = realSettingsListener;
     navigator.mozSettings = realMozSettings;

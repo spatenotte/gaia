@@ -57,7 +57,7 @@
     'attentionopened',
     'homegesture-enabled',
     'homegesture-disabled',
-    'orientationchange',
+    'appwindow-orientationchange',
     'sheets-gesture-begin',
     'sheets-gesture-end',
       // XXX: PermissionDialog is shared so we need AppWindowManager
@@ -76,6 +76,7 @@
     'inputblur'
   ];
   AppWindowManager.SUB_MODULES = [
+    'PinPageSystemDialog',
     'FtuLauncher',
     'AppWindowFactory',
     'LockScreenLauncher',
@@ -209,12 +210,17 @@
      * @param  {String} scope The scope to be matched.
      * @return {AppWindow}        The app window object matched.
      */
-    getAppInScope: function awm_getAppInScope(scope) {
+    getAppInScope: function awm_getAppInScope(scope, origin, name) {
       var keys = Object.keys(this._apps);
       var appInScope;
       keys.forEach(function(id) {
         var app = this._apps[id];
-        if (app.inScope(scope)) {
+        var inScope = (scope && app.inScope(scope));
+        if (scope && !inScope) {
+          return;
+        }
+
+        if (inScope || app.matchesOriginAndName(origin, name)) {
           var replace = (!appInScope || appInScope.launchTime < app.launchTime);
           appInScope = replace ? app : appInScope;
         }
@@ -265,6 +271,9 @@
     // reference to active appWindow instance.
     _activeApp: null,
 
+    // the user is transitioning between apps through edge gestures
+    _sheetTransitioning: false,
+
     // store all alive appWindow instances.
     // note: the id is instanceID instead of origin here.
     _apps: {},
@@ -308,9 +317,13 @@
                   '; next is ' + (appNext ? appNext.url : 'none'));
 
       if (appCurrent && appCurrent.instanceID == appNext.instanceID) {
-        // Do nothing.
-        this.debug('the app has been displayed.');
-        return;
+        if (!appCurrent.isHomescreen) {
+          // Do nothing.
+          this.debug('the app has been displayed.');
+          return;
+        } else if (appCurrent.manifestURL == appNext.manifestURL) {
+          return;
+        }
       }
 
       if (document.mozFullScreen) {
@@ -369,10 +382,11 @@
       this._updateActiveApp(appNext.instanceID);
 
       appNext.ready(function() {
-        if (appNext.isDead()) {
+        if (appNext.isDead() || this._sheetTransitioning) {
           if (!appNext.isHomescreen) {
             // The app was killed while we were opening it,
-            // let's not switch to a dead app!
+            // or we switched via edge gesture to a new app
+            // before fully opening this.
             this._updateActiveApp(appCurrent.instanceID);
             return;
           } else {
@@ -416,6 +430,11 @@
         if (appNext.resized &&
             !this.service.query('match', appNext.width, appNext.height)) {
           this.debug('immediate due to resized');
+          immediateTranstion = true;
+        }
+
+        if (appCurrent && appNext &&
+            appCurrent.isHomescreen && appNext.isHomescreen) {
           immediateTranstion = true;
         }
 
@@ -586,7 +605,7 @@
       this._activeApp && this._activeApp.broadcast('focus');
     },
 
-    _handle_orientationchange: function() {
+    '_handle_appwindow-orientationchange': function() {
       this.broadcastMessage('orientationchange',
         this.service.query('getTopMostUI') === this);
     },
@@ -724,6 +743,7 @@
     },
 
     '_handle_sheets-gesture-begin': function() {
+      this._sheetTransitioning = true;
       if (document.mozFullScreen) {
         document.mozCancelFullScreen();
       }
@@ -732,6 +752,7 @@
     },
 
     '_handle_sheets-gesture-end': function() {
+      this._sheetTransitioning = false;
       // All inactive app window instances need to be aware of this so they
       // can hide the screenshot overlay. The check occurs in the AppWindow.
       this._activeApp && this._activeApp.setVisibleForScreenReader(true);

@@ -2,7 +2,7 @@
   ManifestHelper,ThumbnailItem,ThumbnailList,ThumbnailDateGroup,initDB,
   ForwardRewindController,ScreenLayout,processingQueue,VideoUtils,MediaUtils,
   MozActivity,MediaDB,metadataQueue,processingQueue,LazyLoader,Dialogs,
-  captureFrame,VideoStats,noMoreWorkCallback:true,IntlHelper */
+  captureFrame,VideoStats,noMoreWorkCallback:true,IntlHelper,Seeker,Captions */
 /* exported resetCurrentVideo,updateLoadingSpinner,thumbnailClickHandler,
   showThrobber,hideThrobber,$ */
 'use strict';
@@ -32,7 +32,7 @@ var ids = ['thumbnail-list-title', 'thumbnails', 'thumbnails-video-button',
            'playHead', 'timeSlider', 'elapsedTime', 'video-title',
            'duration-text', 'elapsed-text', 'bufferedTime', 'slider-wrapper',
            'throbber', 'picker-close', 'picker-title', 'picker-header',
-           'picker-done', 'options', 'options-view', 'options-cancel-button',
+           'picker-done', 'options', 'options-view',
            'seek-backward', 'seek-forward', 'in-use-overlay',
            'in-use-overlay-title', 'in-use-overlay-text'];
 
@@ -43,6 +43,9 @@ ids.forEach(function createElementRef(name) {
 dom.player.mozAudioChannelType = 'content';
 
 function $(id) { return document.getElementById(id); }
+
+var seeker = new Seeker(dom.player);
+var captions = new Captions(dom.player);
 
 var playing = false;
 
@@ -78,7 +81,6 @@ var dragging = false;
 // touch start id is the identifier of touch event. we only need to process
 // events related to this id.
 var touchStartID = null;
-var isPausedWhileDragging;
 var sliderRect;
 var thumbnailList;
 
@@ -109,6 +111,8 @@ var loadingChecker =
                           dom.inUseOverlayText);
 
 var lastPlayTime = 0;
+
+init();
 
 // Workaround to fix issue reported in Bug 1214157
 // We would like to pause video playback when interrupted by competing audio.
@@ -157,26 +161,17 @@ document.addEventListener('visibilitychange', function visibilityChange() {
   }
 });
 
-navigator.mozL10n.once(function() {
-
-  // Tell performance monitors that our chrome is visible
-  window.performance.mark('navigationLoaded');
-
-  // Reformatting eventlistener is handled by ThumbnailList
-  IntlHelper.define('date-group', 'datetime', {
-    month: 'long',
-    year: 'numeric',
+// We get headphoneschange event when the headphones is plugged or unplugged
+var acm = navigator.mozAudioChannelManager;
+if (acm) {
+  acm.addEventListener('headphoneschange', function onheadphoneschange() {
+    if (!acm.headphones && playing) {
+      setVideoPlaying(false);
+    }
   });
+}
 
-  init();
-
-  // Tell performance monitors that our chrome is ready to interact with.
-  window.performance.mark('navigationInteractive');
-});
-
-// we don't need to wait for l10n ready to have correct css layout.
-initLayout();
-initThumbnailSize();
+navigator.mozSetMessageHandler('activity', handleActivityEvents);
 
 if (!isPhone) {
   navigator.mozL10n.ready(function localizeThumbnailListTitle() {
@@ -190,43 +185,60 @@ if (!isPhone) {
 }
 
 function init() {
+
+  // Tell performance monitors that our chrome is visible
+  window.performance.mark('navigationLoaded');
+
+  // Reformatting eventlistener is handled by ThumbnailList
+  IntlHelper.define('date-group', 'datetime', {
+    month: 'long',
+    year: 'numeric',
+  });
+
   thumbnailList = new ThumbnailList(ThumbnailDateGroup, dom.thumbnails);
   ThumbnailItem.titleMaxLines = isPhone ? 2 : (isPortrait ? 4 : 2);
 
+  // Initializing the database does not need to wait for l10n to be ready.
+  // Also, db initialization should start as soon as possible to reduce
+  // the time until the app is 'visuallyLoaded'.
   initDB();
 
-  // if video is not start with activity mode, we need to wire all event
-  // handlers.
-  if (!navigator.mozHasPendingMessage('activity')) {
-    // options button only needed by normal mode. if we are under pick activity,
-    // there is only pick view enabled that is enabled at showPickView();
-    initOptionsButtons();
-  }
+  addUIEventListeners();
+  initLayout();
+  initThumbnailSize();
 
-  initPlayerControls();
-  ForwardRewindController.init(dom.player, dom.seekForward, dom.seekBackward);
+  function addUIEventListeners() {
+    // if video is not start with activity mode, we need to wire all event
+    // handlers.
+    if (!navigator.mozHasPendingMessage('activity')) {
+      // options button only needed by normal mode. if we are under pick
+      // activity, there is only pick view enabled that is enabled at
+      // showPickView();
+      initOptionsButtons();
+    }
 
-  // We get headphoneschange event when the headphones is plugged or unplugged
-  var acm = navigator.mozAudioChannelManager;
-  if (acm) {
-    acm.addEventListener('headphoneschange', function onheadphoneschange() {
-      if (!acm.headphones && playing) {
-        setVideoPlaying(false);
+    // Ensure code that accesses html dir is executed after
+    // `documentElement.dir` is set.
+    navigator.mozL10n.once(function() {
+      initPlayerControls();
+    });
+
+    ForwardRewindController.init(dom.player, dom.seekForward, dom.seekBackward,
+                                 seeker);
+
+    // the overlay action button may be used in both normal mode and activity
+    // mode, we need to wire its event handler here.
+    dom.overlayActionButton.addEventListener('click', function() {
+      if (pendingPick) {
+        cancelPick();
+      } else if (currentOverlay === 'empty') {
+        launchCameraApp();
       }
     });
+
+    // Tell performance monitors that our chrome is ready to interact with.
+    window.performance.mark('navigationInteractive');
   }
-
-  navigator.mozSetMessageHandler('activity', handleActivityEvents);
-
-  // the overlay action button may be used in both normal mode and activity
-  // mode, we need to wire its event handler here.
-  dom.overlayActionButton.addEventListener('click', function() {
-    if (pendingPick) {
-      cancelPick();
-    } else if (currentOverlay === 'empty') {
-      launchCameraApp();
-    }
-  });
 }
 
 function initThumbnailSize() {
@@ -299,7 +311,7 @@ function initOptionsButtons() {
   // info buttons
   dom.infoCloseButton.addEventListener('click', hideInfoView);
   // option button cancel
-  dom.optionsCancelButton.addEventListener('click', hideOptionsView);
+  dom.optionsView.addEventListener('gaiamenu-cancel', hideOptionsView);
   // fullscreen player
   dom.fullscreenButton.addEventListener('click', toggleFullscreenPlayer);
   // fullscreen toolbar
@@ -506,12 +518,12 @@ function showOptionsView() {
   if (playing) {
     pause();
   }
-  dom.optionsView.classList.remove('hidden');
+  dom.optionsView.removeAttribute('hidden');
   document.body.classList.add('options-view');
 }
 
 function hideOptionsView() {
-  dom.optionsView.classList.add('hidden');
+  dom.optionsView.setAttribute('hidden', true);
   document.body.classList.remove('options-view');
 }
 
@@ -866,7 +878,7 @@ function setControlsVisibility(visible) {
 }
 
 function movePlayHead(percent) {
-  if (navigator.mozL10n.language.direction === 'ltr') {
+  if (document.documentElement.dir === 'ltr') {
     dom.playHead.style.left = percent;
   }
   else {
@@ -972,7 +984,6 @@ function handleSliderTouchStart(event) {
   }
   touchStartID = event.changedTouches[0].identifier;
 
-  isPausedWhileDragging = dom.player.paused;
   dragging = true;
   // calculate the slider wrapper size for slider dragging.
   sliderRect = dom.sliderWrapper.getBoundingClientRect();
@@ -980,10 +991,6 @@ function handleSliderTouchStart(event) {
   // We can't do anything if we don't know our duration
   if (dom.player.duration === Infinity) {
     return;
-  }
-
-  if (!isPausedWhileDragging) {
-    dom.player.pause();
   }
 
   handleSliderTouchMove(event);
@@ -1006,8 +1013,12 @@ function setVideoUrl(player, video, callback) {
     player.src = url;
   }
 
+  // Make sure we don't display captions from an old video
+  captions.remove();
+
   if ('name' in video) {
     videodb.getFile(video.name, function(file) {
+      captions.findAndDisplay(file.name);
       var url = URL.createObjectURL(file);
       loadVideo(url);
 
@@ -1150,6 +1161,7 @@ function hidePlayer(updateVideoMetadata, callback) {
     updateDialog();
 
     // The video is no longer being played; unload the it.
+    captions.remove();
     dom.player.removeAttribute('src');
     dom.player.load();
 
@@ -1304,10 +1316,12 @@ function handleSliderTouchEnd(event) {
 
   dom.playHead.classList.remove('active');
 
+  // We didn't move the play head while the user's finger was on it
+  // so now it may be in the wrong place.
+  updateVideoControlSlider();
+
   if (dom.player.currentTime === dom.player.duration) {
     pause();
-  } else if (!isPausedWhileDragging) {
-    dom.player.play();
   }
 }
 
@@ -1323,7 +1337,7 @@ function handleSliderTouchMove(event) {
   }
 
   function getTouchPos() {
-    return (navigator.mozL10n.language.direction === 'ltr') ?
+    return (document.documentElement.dir === 'ltr') ?
        (touch.clientX - sliderRect.left) :
        (sliderRect.right - touch.clientX);
   }
@@ -1341,7 +1355,7 @@ function handleSliderTouchMove(event) {
   dom.playHead.classList.add('active');
   movePlayHead(percent);
   dom.elapsedTime.style.width = percent;
-  dom.player.fastSeek(dom.player.duration * pos);
+  seeker.seekTo(dom.player.duration * pos);
 }
 
 function handleSliderKeypress(event) {
@@ -1354,9 +1368,9 @@ function handleSliderKeypress(event) {
   // seconds.
   var step = Math.max(dom.player.duration / 20, 2);
   if (event.keyCode === event.DOM_VK_DOWN) {
-    dom.player.fastSeek(dom.player.currentTime - step);
+    seeker.seekTo(dom.player.currentTime - step);
   } else if (event.keyCode === event.DOM_VK_UP) {
-    dom.player.fastSeek(dom.player.currentTime + step);
+    seeker.seekTo(dom.player.currentTime + step);
   }
 }
 
@@ -1423,6 +1437,7 @@ function releaseVideo() {
   else {
     restoreTime = 0;
   }
+  captions.remove();
   dom.player.removeAttribute('src');
   dom.player.load();
 }

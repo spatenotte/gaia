@@ -41,20 +41,12 @@ define(function(require) {
           hour: 'numeric',
           minute: 'numeric'
         });
-
-        if (navigator.language in navigator.mozL10n.qps) {
-          timeString =
-            navigator.mozL10n.qps[navigator.language].translate(timeString);
-          dateString =
-            navigator.mozL10n.qps[navigator.language].translate(dateString);
-        }
-
-
         this.panel.querySelector('#region-date').textContent = dateString;
         this.panel.querySelector('#region-time').textContent = timeString;
       }
     },
     showMoreLanguages: function() {
+      this.elements.moreLanguages.blur();
       SettingsCache.getSettings(function(result) {
         var version = result['langpack.channel'];
         /* jshint nonew: false */
@@ -76,9 +68,11 @@ define(function(require) {
       // see https://bugzil.la/1124098.  On other device types the link to the
       // Marketpace is hidden.  Don't set the handler if it's display: none.
       if (this.elements.moreLanguages.offsetParent) {
-        this.elements.moreLanguages.onclick = this.showMoreLanguages;
+        this.elements.moreLanguages.addEventListener('click',
+          this.showMoreLanguages.bind(this));
       }
-      this.elements.langSel.onblur = this.buildList.bind(this);
+      this.elements.langSel.addEventListener('blur',
+        this.buildList.bind(this));
     },
     onLocalized: function() {
       // update keyboard layout

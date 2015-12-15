@@ -110,6 +110,10 @@ const OA_VIEWS = Object.freeze([
 
 const VIEWS = isUsingOldArchitecture() ? OA_VIEWS : NGA_VIEWS;
 
+const priv = {
+  pendingInit: Symbol('pendingInit')
+};
+
 var currentState;
 var navigationTransition;
 
@@ -487,31 +491,6 @@ function executeNavigationStep(stepName) {
 }
 
 /**
- * Attach a handler to run the `afterEnter` step after the page is loaded.
- * It uses either the custom event `navigation-transition-end` or the usual
- * `load` event.
- * @returns {Promise} Resolved once afterEnter is run.
- */
-function attachAfterEnterHandler() {
-  if (document.readyState === 'complete') {
-    return executeNavigationStep('afterEnter').catch(catchStepError);
-  }
-
-  var defer = Utils.Promise.defer();
-
-  function onNavigationEnd() {
-    window.removeEventListener('navigation-transition-end', onNavigationEnd);
-    window.removeEventListener('load', onNavigationEnd);
-    defer.resolve(executeNavigationStep('afterEnter'));
-  }
-
-  window.addEventListener('navigation-transition-end', onNavigationEnd);
-  window.addEventListener('load', onNavigationEnd); // simulate navigation end
-
-  return defer.promise.catch(catchStepError);
-}
-
-/**
  * Used in `waitForSlideAnimation` to help solving race conditions.
  * @type {Defer}
  */
@@ -760,6 +739,9 @@ var Navigation = {
       );
     }
 
+    // Set pendingInit to false if we start to navigate to other panel.
+    this[priv.pendingInit] = false;
+
     var hash = '#';
     if (view.partOf) {
       hash += '/' + viewName;
@@ -799,6 +781,14 @@ var Navigation = {
 
     attachHistoryListener();
 
+    // Early reject when app is started via notification
+    if (navigator.mozHasPendingMessage('notification')) {
+      this[priv.pendingInit] = true;
+      return Promise.reject();
+    }
+
+    this[priv.pendingInit] = false;
+
     return startNavigationFromCurrentLocation().then(
       // right away as we don't execute anything on the previous panel, and we
       // need a state at startup.
@@ -808,12 +798,18 @@ var Navigation = {
     ).then(
       switchPanel
     ).then(
-      attachAfterEnterHandler
+      () => executeNavigationStep('afterEnter').catch(catchStepError)
     ).then(
       endNavigation
     ).then(
       () => Navigation.emit('navigated')
     ).catch(onNavigationError);
+  },
+
+  [priv.pendingInit]: false,
+
+  hasPendingInit() {
+    return this[priv.pendingInit];
   },
 
   /* will be used by tests */

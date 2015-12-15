@@ -251,11 +251,14 @@ TaskManager.prototype = {
 
     this._browserOnly = opts && opts.browserOnly;
 
-    this.publish('cardviewbeforeshow'); // Will hide the keyboard if needed
+    this.publish('cardviewprepare'); // Will hide the keyboard if needed
 
     // Wait for the screen to rotate into portrait orientation,
     // and for the keyboard to dismiss completely, if applicable.
     return TaskManagerUtils.waitForScreenToBeReady().then(() => {
+      // Will update and display app screenshots
+      this.publish('cardviewbeforeshow');
+
       window.addEventListener('lockscreen-appopened', this);
       window.addEventListener('attentionopened', this);
       window.addEventListener('appopen', this);
@@ -285,6 +288,11 @@ TaskManager.prototype = {
       // for showing the task manager before cleaning things up.
       return TaskManagerUtils.waitForAppToClose(activeApp);
     }).then(() => {
+      // Load app icons asynchronously
+      this.appToCardMap.forEach((card, app) => {
+        card.loadIcon();
+      });
+
       this.publish('cardviewshown');
       this.screenElement.classList.add('cards-view');
       this.element.classList.remove('from-home');

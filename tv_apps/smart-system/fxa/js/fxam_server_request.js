@@ -95,12 +95,19 @@
         //      need to dismiss this app in order to let the user reset their
         //      password.
         onsuccess && onsuccess();
-        FxaModuleManager.close();
+        FxaModuleManager.close('DIALOG_CLOSED_BY_USER');
       };
       activity.onerror = function on_reset_error(err) {
         console.error(err);
         onerror && onerror(err);
       };
+    },
+    logout: function fxmsr_logout(onsuccess, onerror) {
+      _ensureFxaClient(() => {
+         window.parent.FxAccountsClient.logout(
+                onsuccess,
+                onerror);
+      });
     }
   };
   exports.FxModuleServerRequest = FxModuleServerRequest;

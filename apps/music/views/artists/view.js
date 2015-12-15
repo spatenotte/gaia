@@ -8,57 +8,29 @@ var ArtistsView = View.extend(function ArtistsView() {
   this.searchResults = document.getElementById('search-results');
   this.list = document.getElementById('list');
 
-  this.searchBox.addEventListener('search', (evt) => this.search(evt.detail));
-
-  this.searchResults.addEventListener('open', () => {
-    this.client.method('searchOpen');
-  });
-
-  this.searchResults.addEventListener('close', () => {
-    this.client.method('searchClose');
-    this.list.scrollTop = this.searchBox.HEIGHT;
-  });
-
-  this.searchResults.addEventListener('resultclick', (evt) => {
-    var link = evt.detail;
-    if (link) {
-      this.client.method('navigate', link.getAttribute('href'));
-    }
-  });
-
-  this.searchResults.getItemImageSrc = (item) => this.getThumbnail(item.name);
-
-  this.list.scrollTop = this.searchBox.HEIGHT;
-  this.list.minScrollHeight = `calc(100% + ${this.searchBox.HEIGHT}px)`;
-
-  this.list.configure({
-    getItemImageSrc: (item) => {
-      return this.getThumbnail(item.name);
-    }
-  });
-
   this.client.on('databaseChange', () => this.update());
 
+  this.setupSearch();
+  this.setupList();
   this.update();
 });
 
 ArtistsView.prototype.update = function() {
-  this.getArtists().then((artists) => {
+  return this.getArtists().then((artists) => {
     this.artists = artists;
-    this.render();
+    return this.render();
   });
 };
 
 ArtistsView.prototype.destroy = function() {
   this.client.destroy();
-
   View.prototype.destroy.call(this); // super(); // Always call *last*
 };
 
 ArtistsView.prototype.render = function() {
-  View.prototype.render.call(this); // super();
-
-  this.list.model = this.artists;
+  return this.list.setModel(this.artists)
+    .then(() => this.list.cache())
+    .then(this.onRenderDone);
 };
 
 ArtistsView.prototype.getArtists = function() {
@@ -69,8 +41,8 @@ ArtistsView.prototype.getArtists = function() {
         .then((artists) => {
           return artists.map((artist) => {
             return {
-              name:   artist.name,
-              url:    '/artist-detail?id=' + encodeURIComponent(artist.name),
+              name: artist.name,
+              url: '/artist-detail?id=' + encodeURIComponent(artist.name),
               artist: artist.metadata.artist || unknownArtist
             };
           });

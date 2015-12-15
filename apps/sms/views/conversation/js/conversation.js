@@ -64,7 +64,8 @@ function conv_generateSmilSlides(slides, content) {
 }
 
 var ConversationView = {
-  CHUNK_SIZE: 10,
+  FIRST_CHUNK_SIZE: 10,
+  CHUNK_SIZE: 50,
   // duration of the notification that message type was converted
   CONVERTED_MESSAGE_DURATION: 3000,
   IMAGE_RESIZE_DURATION: 3000,
@@ -656,10 +657,20 @@ var ConversationView = {
       args.draftId ? this.handleDraft(+args.draftId) : Promise.resolve();
 
     return draftPromise.then(() => {
-      if (args.focusComposer) {
-        Compose.focus();
-      } else {
-        this.recipients.focus();
+      switch (args.focus) {
+        case 'composer':
+          Compose.focus();
+          break;
+        case 'recipients':
+          this.recipients.focus();
+          break;
+        default:
+          if (this.hasValidRecipients()) {
+            Compose.focus();
+          } else {
+            this.recipients.focus();
+          }
+          break;
       }
 
       this.emit('visually-loaded');
@@ -706,7 +717,7 @@ var ConversationView = {
       this.enableConvertNoticeBanners();
     }
 
-    if (args.focusComposer) {
+    if (args.focus === 'composer') {
       Compose.focus();
     }
 
@@ -723,15 +734,6 @@ var ConversationView = {
     this.cancelEdit();
 
     if (Navigation.isCurrentPanel('thread')) {
-      // Revoke thumbnail URL for every image attachment rendered within thread
-      // Executed only when moving out of a conversation.
-      var nodes = this.container.querySelectorAll(
-        '.attachment-container[data-thumbnail]'
-      );
-      Array.from(nodes).forEach((node) => {
-        window.URL.revokeObjectURL(node.dataset.thumbnail);
-      });
-
       // If we're leaving conversation view, ensure that the thread object's
       // unreadCount value is current (set = 0).
       this.activeThread.unreadCount = 0;
@@ -758,7 +760,8 @@ var ConversationView = {
     if (Navigation.isCurrentPanel('thread-list')) {
       // We don't want to clean these things when moving from composer to
       // conversation
-      this.container.textContent = '';
+
+      this.clearContainer();
       this.cleanFields();
     }
     if (!Navigation.isCurrentPanel('composer')) {
@@ -791,10 +794,14 @@ var ConversationView = {
         return;
       }
 
+      // Render draft contents into the composer input area.
+      Compose.fromDraft(this.draft);
+      this.draft.isEdited = false;
+
       // Recipients will exist for draft messages in threads
       // Otherwise find them from draft recipient numbers
-      this.draft.recipients.forEach(function(number) {
-        Contacts.findByAddress(number).then(function(contacts) {
+      return Promise.all(this.draft.recipients.map((number) => {
+        return Contacts.findByAddress(number).then((contacts) => {
           var recipient;
           if (contacts.length) {
             recipient = Utils.basicContact(number, contacts[0]);
@@ -811,12 +818,8 @@ var ConversationView = {
           // Since recipient is added from draft, we should not consider it as
           // edit operation.
           this.draft.isEdited = false;
-        }.bind(this));
-      }, this);
-
-      // Render draft contents into the composer input area.
-      Compose.fromDraft(this.draft);
-      this.draft.isEdited = false;
+        });
+      }));
     });
   },
 
@@ -828,6 +831,7 @@ var ConversationView = {
     // TODO add the activity/forward/draft stuff here
     // instead of in afterEnter: Bug 1010223
 
+    this.clearContainer();
     this.cleanFields();
     this.initRecipients();
     this.updateComposerHeader();
@@ -838,7 +842,6 @@ var ConversationView = {
       forceType: () => this.hasEmailRecipients() ? 'mms' : null
     });
 
-    this.container.textContent = '';
     this.threadMessages.classList.add('new');
 
     // not strictly necessary but being consistent
@@ -1206,9 +1209,8 @@ var ConversationView = {
         throw new TypeError('Unknown parameter');
       }
 
-      var focusComposer = !!(parameters && parameters.number);
       return draftCreatePromise.then(
-        (draftId) => Navigation.toPanel('composer', { draftId, focusComposer })
+        (draftId) => Navigation.toPanel('composer', { draftId })
       );
     };
 
@@ -1219,7 +1221,7 @@ var ConversationView = {
       Promise.reject();
 
     return threadExistingPromise.then(
-      (id) => Navigation.toPanel('thread', { id: id, focusComposer: true }),
+      (id) => Navigation.toPanel('thread', { id: id, focus: 'composer' }),
       navigateToComposer
     );
   },
@@ -1442,12 +1444,25 @@ var ConversationView = {
     }
   },
 
+  clearContainer() {
+    // Revoke thumbnail URL for every image attachment rendered within thread
+    var nodes = this.container.querySelectorAll(
+      '.attachment-container[data-thumbnail]'
+    );
+    Array.from(nodes).forEach(
+      (node) => window.URL.revokeObjectURL(node.dataset.thumbnail)
+    );
+
+    // Clean list of messages
+    this.container.textContent = '';
+  },
+
   initializeRendering: function conv_initializeRendering() {
+    this.clearContainer();
+
     // Clean fields
     this.cleanFields();
 
-    // Clean list of messages
-    this.container.innerHTML = '';
     // Initialize infinite scroll params
     this.messageIndex = 0;
     // reset stopRendering boolean
@@ -1459,10 +1474,22 @@ var ConversationView = {
     this._stopRenderingNextStep = true;
   },
 
+  /**
+   * This method checks whether we're in the right state to render something for
+   * this threadId.
+   * @param {Number} threadId The threadId we'd like to render.
+   * @returns {Boolean} True if we can render for this threadId.
+   */
+  shouldRenderForThreadId(threadId) {
+    return !this._stopRenderingNextStep &&
+      this.activeThread &&
+      this.activeThread.id === threadId;
+  },
+
   // Method for rendering the first chunk at the beginning
   showFirstChunk: function conv_showFirstChunk() {
     // Show chunk of messages
-    this.showChunkOfMessages(this.CHUNK_SIZE);
+    this.showChunkOfMessages(this.FIRST_CHUNK_SIZE);
     // Boot update of headers
     TimeHeaders.updateAll('header[data-time-update]');
     // Go to Bottom
@@ -1504,32 +1531,32 @@ var ConversationView = {
     // Use taskRunner to make sure message appended in proper order
     var taskQueue = new TaskRunner();
     var onMessagesRendered = (function messagesRendered() {
-      if (this.messageIndex < this.CHUNK_SIZE) {
+      if (this.messageIndex < this.FIRST_CHUNK_SIZE) {
         taskQueue.push(this.showFirstChunk.bind(this));
       }
     }).bind(this);
 
     var onRenderMessage = (function renderMessage(message) {
-      if (this._stopRenderingNextStep) {
+      if (!this.shouldRenderForThreadId(threadId)) {
         // stop the iteration and clear the taskQueue
         taskQueue = null;
         return false;
       }
       taskQueue.push(() => {
-        if (!this._stopRenderingNextStep) {
+        if (this.shouldRenderForThreadId(threadId)) {
           Threads.registerMessage(message);
           return this.appendMessage(message,/*hidden*/ true);
         }
         return false;
       });
       this.messageIndex++;
-      if (this.messageIndex === this.CHUNK_SIZE) {
+      if (this.messageIndex === this.FIRST_CHUNK_SIZE) {
         taskQueue.push(this.showFirstChunk.bind(this));
       }
       return true;
     }).bind(this);
 
-    if (this._stopRenderingNextStep) {
+    if (!this.shouldRenderForThreadId(threadId)) {
       // we were already asked to stop rendering, before even starting
       return;
     }
@@ -1725,8 +1752,8 @@ var ConversationView = {
         .toDocumentFragment();
 
       document.l10n.setAttributes(
-        lateArrivalNoticeDOM.querySelector('.late-arrival-notice'), 
-        lateArrivalInfos.l10nId, 
+        lateArrivalNoticeDOM.querySelector('.late-arrival-notice'),
+        lateArrivalInfos.l10nId,
         lateArrivalInfos.l10nArgs
       );
 
@@ -1764,7 +1791,7 @@ var ConversationView = {
   /**
    * @param  {Object} A SMS/MMS message
    * @param  {String} The status of the message
-   * @return {Object|null} An object containing the l10n late notice infos 
+   * @return {Object|null} An object containing the l10n late notice infos
    *  of the message or null if a notice is not required.
    *  - l10nId : the id of the localized message
    *  - l10nArgs : the value of the lateness
@@ -1781,7 +1808,7 @@ var ConversationView = {
     if (doNotDisplayNotice) {
       return null;
     }
-    
+
     var unit = MONTH;
     var noticeL10nIds = {
       [MONTH]:  'late-arrival-notice-in-months',
@@ -1790,12 +1817,12 @@ var ConversationView = {
       [MINUTE]: 'late-arrival-notice-in-minutes'
     };
 
-    if (lateness < limits.IN_HOURS)       { unit = MINUTE; } 
-    else if (lateness < limits.IN_DAYS)   { unit = HOUR; } 
+    if (lateness < limits.IN_HOURS)       { unit = MINUTE; }
+    else if (lateness < limits.IN_DAYS)   { unit = HOUR; }
     else if (lateness < limits.IN_MONTHS) { unit = DAY; }
-    
+
     lateness = Math.floor(lateness / unit);
-    
+
     return { l10nId : noticeL10nIds[unit], l10nArgs: { lateness }};
   },
 
@@ -1812,7 +1839,7 @@ var ConversationView = {
 
     // build messageDOM adding the links
     return this.buildMessageDOM(message, hidden).then((messageDOM) => {
-      if (this._stopRenderingNextStep) {
+      if (!this.shouldRenderForThreadId(message.threadId)) {
         return;
       }
 

@@ -38,9 +38,9 @@
     <meta name="availableLanguages" content="en-US">
     <link rel="localization" href="/locales/sms.{locale}.properties">
     <link rel="localization" href="/shared/locales/date/date.{locale}.properties">
+    <script defer src="/mocks/navigator_moz_icc_manager.js"></script>
     <!-- Firefox Desktop shims -->
-    <script defer src="/desktop-mock/navigator_moz_has_pending_message.js"></script>
-    <script defer src="/desktop-mock/navigator_moz_icc_manager.js"></script>
+    <script defer src="/desktop-mock/navigator_moz_system_messages.js"></script>
     <script defer src="/desktop-mock/navigator_moz_settings.js"></script>
     <script defer src="/desktop-mock/navigator_moz_mobilemessage.js"></script>
     <script defer src="/desktop-mock/navigator_moz_contacts.js"></script>
@@ -49,7 +49,7 @@
     <link rel="stylesheet" type="text/css" href="app://theme.gaiamobile.org/shared/elements/gaia-theme/gaia-theme.css" />
     <script async src="/shared/elements/gaia-header/dist/gaia-header.js"></script>
     <!-- Shared code -->
-    <script type="application/javascript;version=1.8" defer src="shared/js/intl/l20n.js"></script>
+    <script defer src="/shared/js/intl/l20n.js"></script>
     <!-- Should be removed while gecko support navigator.mozHour12 API -->
     <script defer src="/shared/js/date_time_helper.js"></script>
     <script defer src="/shared/js/template.js"></script>
@@ -73,7 +73,7 @@
     <script defer src="/services/js/threads.js"></script>
     <script defer src="/views/inbox/js/inbox.js"></script>
     <script defer src="/views/shared/js/settings.js"></script>
-    <script defer src="/lib/bridge/bridge.js"></script>
+    <script defer src="/lib/bridge/client.js"></script>
     <script defer src="/lib/bridge/plugins/stream/client.js"></script>
     <script defer src="/services/js/conversation/conversation_client.js"></script>
     <script defer src="/services/js/message_manager.js"></script>
@@ -162,17 +162,17 @@
         <span></span>
       </label>
       <a href="${hash}">
-        <aside role="note" data-l10n-id="${iconLabel}" class="icon icon-unread icon-draft"></aside>
+        <aside role="note" class="icon icon-unread icon-draft js-conversation-state"></aside>
         <aside class="pack-end threadlist-item-picture"
                role="img" aria-label="Contact photo"
                data-l10n-id="contact-photo">
           <span data-type="img"></span>
         </aside>
-        <p class="threadlist-item-title"><bdi class="ellipsis-dir-fix">${number}</bdi></p>
+        <p class="threadlist-item-title"><bdi class="ellipsis-dir-fix"></bdi></p>
         <p class="summary">
           <time data-time-update="true" data-time-only="true" data-time="${timestamp}"></time>
           <span class="mms-icon" data-l10n-id="mms-label">MMS</span>
-          <span dir="auto" class="body-text ellipsis-dir-fix">${bodyHTML}</span>
+          <span dir="auto" class="body-text js-conversation-body ellipsis-dir-fix"></span>
         </p>
       </a>
       -->

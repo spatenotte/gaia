@@ -115,6 +115,8 @@
       window.addEventListener('online', this);
       window.addEventListener('offline', this);
       window.addEventListener('lockscreen-appopened', this);
+      window.addEventListener('home', this);
+      window.addEventListener('holdhome', this);
 
       SettingsListener.observe('gaia.system.checkForUpdates', false,
                                this.checkForUpdates.bind(this));
@@ -440,6 +442,7 @@
       }, this);
 
       window.dispatchEvent(new CustomEvent('updatepromptshown'));
+      this._hasDialog = true;
       this.downloadDialog.classList.add('visible');
       this.updateDownloadButton();
     },
@@ -807,6 +810,12 @@
           // only request while update manager shows a dialog
           if (this._hasDialog) {
             Service.request('hideCustomDialog');
+          }
+          break;
+        case 'home':
+        case 'holdhome':
+          if (this._hasDialog) {
+            this.cancelPrompt();
           }
           break;
       }

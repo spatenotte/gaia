@@ -5,6 +5,9 @@
 # for more options.
 export MOZ_DISABLE_NONLOCAL_CONNECTIONS=1
 
+# Force the locale in this script so that it's reproducible
+export LC_ALL=C
+
 # Find the source of this file. This will exist in
 # $GAIA/node_modules/.bin/gaia-marionette.
 SOURCE="${BASH_SOURCE[0]}"
@@ -49,47 +52,24 @@ HARNESS_PATHS="$(cat "$BINDIR/../tests/jsmarionette/marionette_tests.txt")"
 
 if [ -z "$TEST_FILES" ]; then
   if [ -z "$APP" ]; then
-    if [ -z "$SKIP_TEST_FILES" ]; then
-      if [ -z "$HARNESS_ONLY" ]; then
-        TEST_FILES=$(find "$BINDIR/.." -path "*/apps/*/test/marionette/*_test.js" \
-                              -or -path "*/dev_apps/*/test/marionette/*_test.js" \
-                              -or -path "*/tv_apps/*/test/marionette/*_test.js" \
-                              -or -path "*/tests/integration/*/*_test.js")
-      else
-        TEST_FILES=""
-      fi
-
-      for wildcard in $HARNESS_PATHS; do
-        HARNESS_FILES=$(find "$BINDIR/../tests/jsmarionette" -path $wildcard)
-        TEST_FILES="$TEST_FILES $HARNESS_FILES"
-      done
+    if [ -z "$HARNESS_ONLY" ]; then
+      TEST_FILES=$(find "$BINDIR/.." -path "*/apps/*/test/marionette/*_test.js" $SKIP_TEST_FILES \
+                            -or -path "*/dev_apps/*/test/marionette/*_test.js" $SKIP_TEST_FILES \
+                            -or -path "*/tv_apps/*/test/marionette/*_test.js" $SKIP_TEST_FILES \
+                            -or -path "*/tests/integration/*/*_test.js" $SKIP_TEST_FILES)
     else
-      if [ -z "$HARNESS_ONLY" ]; then
-        TEST_FILES=$(find "$BINDIR/.." -path "*/apps/*/test/marionette/*_test.js" $SKIP_TEST_FILES \
-                              -or -path "*/dev_apps/*/test/marionette/*_test.js" $SKIP_TEST_FILES \
-                              -or -path "*/tv_apps/*/test/marionette/*_test.js" $SKIP_TEST_FILES \
-                              -or -path "*/tests/integration/*/*_test.js" $SKIP_TEST_FILES)
-      else
-        TEST_FILES=""
-      fi
-
-      for wildcard in $HARNESS_PATHS; do
-        HARNESS_FILES=$(find "$BINDIR/../tests/jsmarionette" -path $wildcard $SKIP_TEST_FILES)
-        TEST_FILES="$TEST_FILES $HARNESS_FILES"
-      done
+      TEST_FILES=""
     fi
+
+    for wildcard in $HARNESS_PATHS; do
+      HARNESS_FILES=$(find "$BINDIR/../tests/jsmarionette" -path $wildcard $SKIP_TEST_FILES)
+      TEST_FILES="$TEST_FILES"$'\n'"$HARNESS_FILES" # $'\n' is a bashism to insert a litteral new line
+    done
   else
-    if [ -z "$SKIP_TEST_FILES" ]; then
-      TEST_FILES=$(find "$BINDIR/.." -path "*/apps/$APP/test/marionette/*_test.js" \
-                            -or -path "*/dev_apps/$APP/test/marionette/*_test.js" \
-                            -or -path "*/tv_apps/$APP/test/marionette/*_test.js" \
-                            -or -path "*/tests/integration/$APP/*_test.js")
-    else
-      TEST_FILES=$(find "$BINDIR/.." -path "*/apps/$APP/test/marionette/*_test.js" $SKIP_TEST_FILES \
-                            -or -path "*/dev_apps/$APP/test/marionette/*_test.js" $SKIP_TEST_FILES \
-                            -or -path "*/tv_apps/$APP/test/marionette/*_test.js" $SKIP_TEST_FILES \
-                            -or -path "*/tests/integration/$APP/*_test.js" $SKIP_TEST_FILES)
-    fi
+    TEST_FILES=$(find "$BINDIR/.." -path "*/apps/$APP/test/marionette/*_test.js" $SKIP_TEST_FILES \
+                          -or -path "*/dev_apps/$APP/test/marionette/*_test.js" $SKIP_TEST_FILES \
+                          -or -path "*/tv_apps/$APP/test/marionette/*_test.js" $SKIP_TEST_FILES \
+                          -or -path "*/tests/integration/$APP/*_test.js" $SKIP_TEST_FILES)
   fi
 fi
 
@@ -105,7 +85,6 @@ if [ -n "$PART" ] ; then
   # spaces
   echo "$TEST_FILES" | sort > $TEMP_FILE
   TEST_FILES=$(split -n l/$PART/$NBPARTS $TEMP_FILE)
-  echo -e "------- Will run the following test files:\n$TEST_FILES\n-------"
   rm -f $TEMP_FILE
 fi
 
@@ -189,9 +168,14 @@ if [ ! -z $TEST_MANIFEST ]; then
   TEST_FILES="$("$DIR/apply-manifest" $TEST_MANIFEST $TEST_FILES)"
 fi
 
-# We export TEST_FILES here to enable gaia_marionette_retry to self
+# Now that we've applied the manifest we can actually report which tests
+# will get run.
+PRETTY_TEST_FILES=$(echo $TEST_FILES | tr " " "\n" | sort)
+echo -e "------- Will run the following test files:\n$PRETTY_TEST_FILES\n-------"
+
+# We export _RETRY_TEST_FILES here to enable gaia_marionette_retry to self
 # diagnose in the case where we told it to run tests but it ran none.
-export TEST_FILES
+export _RETRY_TEST_FILES=$TEST_FILES
 
 # wrap marionette-mocha with gaia's defaults. We also need to alter the paths to
 # xpcshell in available for email fake servers.

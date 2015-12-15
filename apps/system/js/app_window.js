@@ -75,6 +75,7 @@
     this.isCrashed = false;
     this.launchTime = Date.now();
     this.metachangeDetails = [];
+    this.meta = {};
 
     return this;
   };
@@ -225,13 +226,23 @@
   };
 
   AppWindow.prototype.inScope = function(scope) {
-    if (!this.isBrowser()) {
+    if (!this.isBrowser() || !scope) {
       return false;
     }
     // within-scope per http://www.w3.org/TR/appmanifest/#dfn-within-scope
     // except we also support paths
     var target = this.config.url;
-    return scope && target.startsWith(scope);
+    var fullScopeUrl = new URL(scope, target).href;
+    return fullScopeUrl && target.startsWith(fullScopeUrl);
+  };
+
+  AppWindow.prototype.matchesOriginAndName = function(origin, name) {
+    if (!this.isBrowser()) {
+      return false;
+    }
+
+    var target = this.config.url;
+    return new URL(target).origin === origin && this.name === name;
   };
 
   /**
@@ -292,6 +303,12 @@
       if (!this.element) {
         return;
       }
+
+      // We need to let the screenreader reach the frontWindow if it's visible
+      if (this.frontWindow && this.frontWindow.isVisible()) {
+        visible = true;
+      }
+
       this.element.setAttribute('aria-hidden', !visible);
       this._setVisibleForScreenReader(visible);
     };
@@ -811,7 +828,7 @@
     ['mozbrowserclose', 'mozbrowsererror', 'mozbrowservisibilitychange',
      'mozbrowserloadend', 'mozbrowseractivitydone', 'mozbrowserloadstart',
      'mozbrowsertitlechange', 'mozbrowserlocationchange',
-     'mozbrowsermetachange', 'mozbrowsericonchange', 'mozbrowserasyncscroll',
+     'mozbrowsermetachange', 'mozbrowsericonchange',
      'mozbrowsersecuritychange', 'mozbrowsermanifestchange',
      '_localized', '_swipein', '_swipeout', '_kill_suspended',
      '_orientationchange', '_focus', '_blur',  '_hidewindow', '_sheetdisplayed',
@@ -823,7 +840,6 @@
     'modalDialog': 'AppModalDialog',
     'valueSelector': 'ValueSelector',
     'authDialog': 'AppAuthenticationDialog',
-    'contextmenu': 'BrowserContextMenu',
     'childWindowFactory': 'ChildWindowFactory',
     'statusbar': 'AppStatusbar',
     'textSelectionDialog': 'AppTextSelectionDialog'
@@ -864,13 +880,11 @@
         }
       }
 
-      if (this.constructor.SUB_MODULES) {
-        for (var propertyName in this.constructor.SUB_MODULES) {
-          var moduleName = this.constructor.SUB_MODULES[propertyName];
-          if (moduleName) {
-            this[propertyName] = BaseModule.instantiate(moduleName, this);
-            this[propertyName].start();
-          }
+      for (var propertyName in this.constructor.SUB_MODULES) {
+        var moduleName = this.constructor.SUB_MODULES[propertyName];
+        if (moduleName) {
+          this[propertyName] = BaseModule.instantiate(moduleName, this);
+          this[propertyName].start();
         }
       }
 
@@ -926,6 +940,13 @@
         this[componentName] = null;
       }
 
+      for (var propertyName in this.constructor.SUB_MODULES) {
+        if (this[propertyName] && this[propertyName].stop) {
+          this[propertyName].stop();
+        }
+        this[propertyName] = null;
+      }
+
       this._unregisterAudioChannels();
 
       if (this.appChrome) {
@@ -974,7 +995,8 @@
 
   AppWindow.prototype._handle__orientationchange = function(evt) {
     if (this.isActive()) {
-      this.frontWindow && this.frontWindow.broadcast('orientationchange');
+      this.frontWindow &&
+        this.frontWindow.broadcast('orientationchange');
 
       if (!this.isHomescreen) {
         this._resize(evt.detail);
@@ -1063,6 +1085,7 @@
       this.loading = true;
       this.inError = false;
       this._changeState('loading', true);
+      this.nameChanged = false;
       this.publish('loading');
     };
 
@@ -1121,9 +1144,6 @@
 
   AppWindow.prototype._handle_mozbrowserlocationchange =
     function aw__handle_mozbrowserlocationchange(evt) {
-      if (!this.manifest) {
-        this.name = new URL(evt.detail).hostname;
-      }
       // Integration test needs to locate the frame by this attribute.
       this.browser.element.dataset.url = evt.detail;
       if (this.config.url !== evt.detail) {
@@ -1131,7 +1151,11 @@
         this.favicons = {};
         this.webManifestURL = null;
         this.webManifest = null;
+        this.meta = {};
         this.config.url = evt.detail;
+        if (!this.manifest && !this.nameChanged) {
+          this.name = new URL(evt.detail).hostname;
+        }
       }
       this.publish('locationchange');
     };
@@ -1159,15 +1183,6 @@
           'url("' + evt.detail.href + '")';
       }
       this.publish('iconchange');
-    };
-
-  AppWindow.prototype._handle_mozbrowserasyncscroll =
-    function aw__handle_mozbrowserasyncscroll(evt) {
-      if (this.manifest) {
-        return;
-      }
-      this.scrollPosition = evt.detail.top;
-      this.publish('scroll');
     };
 
   AppWindow.prototype._handle_mozbrowsermetachange =
@@ -1198,6 +1213,11 @@
 
           break;
 
+        case 'og:site_name':
+          if (this.nameChanged) {
+            break;
+          }
+          /* falls through */
         case 'application-name':
           // Apps have a compulsory name field in their manifest
           // which takes precedence.
@@ -1207,9 +1227,13 @@
             return;
           }
           this.name = name;
+          this.nameChanged = true;
           this.publish('namechanged');
           break;
       }
+      this.meta = this.meta || {};
+      this.meta[detail.name] = detail.content || '';
+      this.publish('metachange');
     };
 
   AppWindow.prototype._handle_mozbrowsermanifestchange =
@@ -2019,7 +2043,6 @@
       setTimeout(callback);
     });
     if (this.isHomescreen) {
-      this.setVisible(true);
       return;
     }
     this.tryWaitForFullRepaint(function() {
@@ -2098,11 +2121,18 @@
   };
 
   AppWindow.prototype._handle__cardviewbeforeshow = function aw_cvbeforeshow() {
-    this.debug('showing screenshot for cardsview.');
-    this._showScreenshotOverlay();
+    if (this.isActive()) {
+      // Hopefully update the screenshot in time for the cards view to show
+      this.debug('requesting, then showing screenshot for cardsview.');
+      this.getScreenshot(this._showScreenshotOverlay.bind(this));
+    } else {
+      this.debug('showing screenshot for cardsview.');
+      this._showScreenshotOverlay();
+    }
   };
 
   AppWindow.prototype._handle__cardviewshown = function aw_cvshown() {
+    this._showScreenshotOverlay();
     if (this.element && this.element.classList.contains('no-screenshot') &&
         this._screenshotBlob) {
       this.element.classList.remove('no-screenshot');

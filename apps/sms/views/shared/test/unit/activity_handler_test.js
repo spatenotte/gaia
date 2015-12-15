@@ -1,6 +1,6 @@
 /*global ActivityClient,
          ActivityHandler,
-         ActivityShim,
+         App,
          Attachment,
          Drafts,
          MessageManager,
@@ -16,6 +16,7 @@ require('/views/shared/test/unit/mock_attachment.js');
 require('/services/test/unit/mock_message_manager.js');
 require('/services/test/unit/activity/mock_activity_shim.js');
 require('/services/test/unit/activity/mock_activity_client.js');
+require('/views/shared/test/unit/mock_app.js');
 require('/views/shared/test/unit/mock_settings.js');
 require('/views/shared/test/unit/mock_navigation.js');
 require('/services/test/unit/mock_drafts.js');
@@ -28,6 +29,7 @@ require('/views/shared/js/activity_handler.js');
 var mocksHelperForActivityHandler = new MocksHelper([
   'ActivityClient',
   'ActivityShim',
+  'App',
   'Attachment',
   'Draft',
   'Drafts',
@@ -40,53 +42,21 @@ var mocksHelperForActivityHandler = new MocksHelper([
 suite('ActivityHandler', function() {
   mocksHelperForActivityHandler.attachTestHelpers();
 
-  var navigatorMocks = new Map([
-    ['mozSetMessageHandler', () => {}]
-  ]);
-
-  suiteSetup(function() {
-    navigatorMocks.forEach((mock, key) => {
-      if (!(key in navigator)) {
-        navigator[key] = mock;
-      }
-    });
-  });
-
   setup(function() {
     this.sinon.stub(Utils, 'onceDocumentIsVisible').returns(Promise.resolve());
     this.sinon.stub(Utils, 'alert').returns(Promise.resolve());
 
-    this.sinon.stub(ActivityShim);
     this.sinon.stub(ActivityClient);
-
-    ActivityHandler.init();
   });
 
-  suite('init', function() {
-    setup(function() {
-      this.sinon.stub(window.navigator, 'mozSetMessageHandler');
-    });
+  test('init()', function() {
+    ActivityHandler.init();
 
-    test('if app is run as inline activity', function() {
-      ActivityShim.hasPendingRequest.returns(true);
+    sinon.assert.calledOnce(ActivityClient.init);
+    sinon.assert.calledWith(ActivityClient.init, App.instanceId);
 
-      ActivityHandler.init();
-
-      sinon.assert.calledOnce(ActivityShim.init);
-      sinon.assert.calledOnce(ActivityClient.init);
-
-      sinon.assert.calledWith(ActivityClient.on, 'new-activity-request');
-      sinon.assert.calledWith(ActivityClient.on, 'share-activity-request');
-    });
-
-    test('if app is run in non-activity mode', function() {
-      ActivityShim.hasPendingRequest.returns(false);
-
-      ActivityHandler.init();
-
-      sinon.assert.notCalled(ActivityShim.init);
-      sinon.assert.notCalled(ActivityClient.init);
-    });
+    sinon.assert.calledWith(ActivityClient.on, 'new-activity-request');
+    sinon.assert.calledWith(ActivityClient.on, 'share-activity-request');
   });
 
   suite('"share" activity', function() {
@@ -118,7 +88,6 @@ suite('ActivityHandler', function() {
         ]
       };
 
-      ActivityShim.hasPendingRequest.returns(true);
       ActivityHandler.init();
     });
 
@@ -143,7 +112,8 @@ suite('ActivityHandler', function() {
         sinon.assert.callOrder(Drafts.request, Drafts.add, Drafts.store);
         sinon.assert.calledWith(
           Navigation.toPanel,
-          'composer', { draftId: 'draftId', focusComposer: sinon.match.falsy }
+          'composer',
+          { draftId: 'draftId', focus: sinon.match.falsy }
         );
       }).then(done, done);
     });
@@ -189,7 +159,8 @@ suite('ActivityHandler', function() {
         sinon.assert.callOrder(Drafts.request, Drafts.add, Drafts.store);
         sinon.assert.calledWith(
           Navigation.toPanel,
-          'composer', { draftId: 'draftId', focusComposer: sinon.match.falsy }
+          'composer',
+          { draftId: 'draftId', focus: sinon.match.falsy }
         );
       }).then(done, done);
     });
@@ -213,7 +184,8 @@ suite('ActivityHandler', function() {
         sinon.assert.callOrder(Drafts.request, Drafts.add, Drafts.store);
         sinon.assert.calledWith(
           Navigation.toPanel,
-          'composer', { draftId: 'draftId', focusComposer: sinon.match.falsy }
+          'composer',
+          { draftId: 'draftId', focus: sinon.match.falsy }
         );
       }).then(done, done);
     });
@@ -241,7 +213,8 @@ suite('ActivityHandler', function() {
         sinon.assert.callOrder(Drafts.request, Drafts.add, Drafts.store);
         sinon.assert.calledWith(
           Navigation.toPanel,
-          'composer', { draftId: 'draftId', focusComposer: sinon.match.falsy }
+          'composer',
+          { draftId: 'draftId', focus: sinon.match.falsy }
         );
       }).then(done, done);
     });
@@ -307,7 +280,6 @@ suite('ActivityHandler', function() {
       this.sinon.spy(Drafts, 'request');
       this.sinon.spy(ActivityHandler, '_onNewActivity');
 
-      ActivityShim.hasPendingRequest.returns(true);
       ActivityHandler.init();
     });
 
@@ -331,7 +303,8 @@ suite('ActivityHandler', function() {
         });
         sinon.assert.calledWith(
           Navigation.toPanel,
-          'composer', { draftId: 'draftId', focusComposer: true }
+          'composer',
+          { draftId: 'draftId', focus: 'composer' }
         );
       }).then(done,done);
     });
@@ -358,7 +331,7 @@ suite('ActivityHandler', function() {
 
         sinon.assert.calledWithMatch(
           Navigation.toPanel,
-          'composer', { draftId: 'draftId', focusComposer: true }
+          'composer', { draftId: 'draftId' }
         );
       }).then(done,done);
     });
@@ -378,7 +351,8 @@ suite('ActivityHandler', function() {
         });
         sinon.assert.calledWith(
           Navigation.toPanel,
-          'composer', { draftId: 'draftId', focusComposer: sinon.match.falsy }
+          'composer',
+          { draftId: 'draftId', focus: sinon.match.falsy }
         );
       }).then(done,done);
     });
@@ -400,7 +374,8 @@ suite('ActivityHandler', function() {
         });
         sinon.assert.calledWith(
           Navigation.toPanel,
-          'composer', { draftId: 'draftId', focusComposer: true }
+          'composer',
+          { draftId: 'draftId', focus: 'composer' }
         );
       }).then(done,done);
     });
@@ -423,7 +398,8 @@ suite('ActivityHandler', function() {
         });
         sinon.assert.calledWith(
           Navigation.toPanel,
-          'composer', { draftId: 'draftId', focusComposer: true }
+          'composer',
+          { draftId: 'draftId', focus: 'composer' }
         );
       }).then(done,done);
     });
@@ -439,7 +415,7 @@ suite('ActivityHandler', function() {
 
       onceNewActivityCompleted().then(function() {
         sinon.assert.calledWithMatch(
-          Navigation.toPanel, 'thread', { id: 42, focusComposer: true }
+          Navigation.toPanel, 'thread', { id: 42, focus: 'composer' }
         );
       }).then(done,done);
     });

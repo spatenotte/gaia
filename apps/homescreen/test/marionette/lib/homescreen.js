@@ -14,10 +14,12 @@ Homescreen.URL = 'app://homescreen.gaiamobile.org';
 Homescreen.Selectors = {
   appsScrollable: '#apps-panel .scrollable',
   apps: '#apps',
+  pages: '#pages',
   icon: '#apps gaia-app-icon',
   card: '#pages gaia-pin-card',
   remove: '#remove',
-  edit: '#edit',
+  rename: '#rename',
+  done: '#done',
   cancelDownload: '#cancel-download',
   resumeDownload: '#resume-download'
 };
@@ -59,12 +61,16 @@ Homescreen.prototype = {
     });
   },
 
-  get removeTray() {
-    return this.client.findElement(Homescreen.Selectors.remove);
+  get removeButton() {
+    return this.client.helper.waitForElement(Homescreen.Selectors.remove);
   },
 
-  get editTray() {
-    return this.client.findElement(Homescreen.Selectors.edit);
+  get renameButton() {
+    return this.client.helper.waitForElement(Homescreen.Selectors.rename);
+  },
+
+  get doneButton() {
+    return this.client.helper.waitForElement(Homescreen.Selectors.done);
   },
 
   get cancelDownloadDialog() {
@@ -107,6 +113,17 @@ Homescreen.prototype = {
   getIcon: function(identifier) {
     return this.client.findElement(
       Homescreen.Selectors.apps + ' [data-identifier*="' + identifier + '"]');
+  },
+
+  /**
+   * Fetch a card element on the homescreen by its identifier.
+   * For apps, the identifier is the manifestURL, or its manifestURL,
+   * followed by a '/' followed by its entry point. For pin, the
+   * identifier is the pinned URL.
+   */
+  getCard: function(identifier) {
+    return this.client.findElement(
+      Homescreen.Selectors.pages + ' [data-id="' + identifier + '"]');
   },
 
   /**
@@ -183,6 +200,18 @@ Homescreen.prototype = {
   getIconImageUrl: function(icon) {
     return icon.scriptWith(function(el) {
       return el.dataset.testIconUrl;
+    });
+  },
+
+  /**
+   * Returns a homescreen card element's image URL.
+   *
+   * @param {Marionette.Element} card A homescreen card element reference.
+   */
+  getCardImageUrl: function(card) {
+    return card.scriptWith(function(el) {
+      var icon = el.shadowRoot.querySelector('.icon-container i');
+      return icon.style.backgroundImage;
     });
   },
 
@@ -374,7 +403,7 @@ Homescreen.prototype = {
       return false;
     }
 
-    if (locale.indexOf('qps') === 0) {
+    if (locale.indexOf('-x-ps') > -1) {
       return this.client.executeScript(function(locale, name) {
         var mozL10n = window.wrappedJSObject.navigator.mozL10n;
         return mozL10n.qps[locale].translate(name);

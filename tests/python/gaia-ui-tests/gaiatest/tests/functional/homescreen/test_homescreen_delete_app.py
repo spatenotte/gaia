@@ -6,6 +6,7 @@ from gaiatest import GaiaTestCase
 from gaiatest.apps.homescreen.app import Homescreen
 from gaiatest.apps.homescreen.regions.confirm_install import ConfirmInstall
 from marionette.marionette_test import parameterized
+from marionette_driver import expected, By, Wait
 
 
 class TestDeleteApp(GaiaTestCase):
@@ -27,28 +28,25 @@ class TestDeleteApp(GaiaTestCase):
         self.homescreen = Homescreen(self.marionette)
         self.apps.switch_to_displayed_app()
 
-    def parameterized_set_up(self, app_to_delete, install_method):
+    def parameterized_set_up(self, app_to_delete, install_method_name):
         self.app_to_delete = app_to_delete
         self.app_to_delete['url'] = self.marionette.absolute_url(self.app_to_delete['partial_url'])
 
-        self.marionette.execute_script('navigator.mozApps.{}("{}")'.format(install_method, self.app_to_delete['url']))
-
-        # Confirm the installation and wait for the app icon to be present
-        confirm_install = ConfirmInstall(self.marionette)
-        confirm_install.tap_confirm()
+        # Install app so we can delete it
+        install_method = self.apps.__getattribute__(install_method_name)
+        install_method(self.app_to_delete['url'])
 
         self.apps.switch_to_displayed_app()
         self.homescreen.wait_for_app_icon_present(self.app_to_delete['url'])
 
     @parameterized('regular_app', regular_app, 'install')
-    @parameterized('packaged_app', packaged_app, 'installPackage')
-    def test_delete(self, app_to_delete, install_method):
+    @parameterized('packaged_app', packaged_app, 'install_package')
+    def test_delete(self, app_to_delete, install_method_name):
         # We can't pass parameters to the setUp(). Bug # to be filed
-        self.parameterized_set_up(app_to_delete, install_method)
+        self.parameterized_set_up(app_to_delete, install_method_name)
 
-        self.homescreen.delete_app(self.app_to_delete['url']).tap_confirm()
-        self.homescreen.wait_to_be_displayed()
-        self.apps.switch_to_displayed_app()
+        bottom_bar = self.homescreen.delete_app(self.app_to_delete['url']).tap_confirm()
+        bottom_bar.tap_exit_edit_mode()
         self.homescreen.wait_for_app_icon_not_present(self.app_to_delete['url'])
 
         # Check that the app is no longer available

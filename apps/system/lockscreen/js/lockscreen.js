@@ -192,7 +192,7 @@
         }
 
         if (!this.locked) {
-          this.overlay.hidden = true;
+          this.overlay.classList.add('unlocked');
           this.unlockDetail = undefined;
         }
         break;
@@ -524,19 +524,18 @@
 
     if (details.unlockSoundEnabled) {
       var unlockAudio = new Audio('/resources/sounds/unlock.opus');
+      unlockAudio.mozAudioChannelType = 'system';
       unlockAudio.play();
     }
 
     this.overlay.classList.toggle('no-transition', instant);
     this.dispatchEvent('lockscreen-request-unlock', this._unlockingMessage);
     this.dispatchEvent('secure-modeoff');
-    this.overlay.classList.add('unlocked');
-
-    // If we don't unlock instantly here,
-    // these are run in transitioned callback.
     if (instant) {
-      this.overlay.hidden = true;
+      this.overlay.classList.add('unlocked');
+      // Otherwise, postpone it to transitionend.
     }
+
     // Clear the state after we send the request.
     this._unlockingMessage = {};
   };
@@ -545,8 +544,6 @@
     this.overlay.focus();
     this.overlay.classList.toggle('no-transition', instant);
     this.overlay.classList.remove('unlocked');
-    this.overlay.hidden = false;
-
   };
 
   LockScreen.prototype.lock =
@@ -564,7 +561,7 @@
       // Because 'document.hidden' changes slower than this,
       // so if we depend on that it would create the widget
       // while the screen is off.
-      if (!this.mainScreen.classList.contains('screenoff')) {
+      if (Service.query('screenEnabled')) {
         this.createClockWidget();
       }
       if (document.mozFullScreen) {
@@ -576,6 +573,11 @@
 
       if(this._checkGenerateMaskedBackgroundColor()){
         this._generateMaskedBackgroundColor();
+      }
+      // Remove Masked Background if there are no
+      // notifications
+      if (this.maskedBackground.classList.contains('blank')) {
+        this.maskedBackground.style.backgroundColor = 'transparent';
       }
     }
   };

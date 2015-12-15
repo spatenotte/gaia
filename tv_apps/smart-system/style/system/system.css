@@ -351,16 +351,10 @@ body {
 }
 
 .generic-dialog.banner[data-button="false"] button {
-  visibility: hidden;
+  display: none;
 }
 
 #screen iframe.communication-frame {
   visibility: hidden;
 }
 
-@media (min-width: 768px) {
-  #dialog-overlay {
-    background-color: rgba(0,0,0,0.6);
-    background: url(../themes/default/images/ui/menu_bg.png) no-repeat;
-  }
-}

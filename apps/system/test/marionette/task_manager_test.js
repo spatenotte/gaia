@@ -94,26 +94,6 @@ marionette('Task Manager', function() {
       taskManager.show();
     });
 
-    test('should display a blob screenshot only for the current app',
-    function() {
-      var current = taskManager.cards[1];
-      var screenshot = current.findElement(taskManager.selectors.screenshot);
-      client.waitFor(function() {
-        return screenshot.scriptWith(function(div) {
-          return div.style.backgroundImage.contains('blob');
-        });
-      });
-
-      var app = taskManager.cards[0];
-      var otherScreenshot = app.findElement(taskManager.selectors.screenshot);
-      client.waitFor(function() {
-        return otherScreenshot.scriptWith(function(div) {
-          return div.style.backgroundImage.contains('-moz-element') &&
-                 !div.style.backgroundImage.contains('blob:');
-        });
-      });
-    });
-
     test('pressing home should still take you back to the homescreen',
     function() {
       actions.flick(taskManager.element, 30, halfHeight,
@@ -176,6 +156,48 @@ marionette('Task Manager', function() {
         '.appWindow.in-task-manager.overlay.no-screenshot ' +
         '> .identification-overlay');
       assert(idOverlay);
+    });
+  });
+
+  suite('closing apps', function() {
+    setup(function() {
+      taskManager.show();
+    });
+
+    test('with the close button', function() {
+      // Closing the first app
+      var card = taskManager.cards[taskManager.cards.length -1];
+      var closeButton = client.helper
+                       .waitForChild(card, taskManager.selectors.close);
+      closeButton.tap();
+
+      client.waitFor(function() {
+        return taskManager.cards.length == 1;
+      });
+
+      // Closing the second app
+      card = taskManager.cards[taskManager.cards.length -1];
+      closeButton = client.helper
+                       .waitForChild(card, taskManager.selectors.close);
+      closeButton.tap();
+
+      taskManager.waitUntilHidden();
+    });
+
+    test('by swipping', function() {
+      // Closing the first app
+      var card = taskManager.cards[taskManager.cards.length -1];
+      actions.flick(card, halfWidth, halfHeight, halfWidth, 0).perform();
+
+      client.waitFor(function() {
+        return taskManager.cards.length == 1;
+      });
+
+      // Closing the second app
+      card = taskManager.cards[taskManager.cards.length -1];
+      actions.flick(card, halfWidth, halfHeight, halfWidth, 0).perform();
+
+      taskManager.waitUntilHidden();
     });
   });
 

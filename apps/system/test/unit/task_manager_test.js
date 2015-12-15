@@ -1,6 +1,17 @@
-/* global MockStackManager, MockService, TaskManagerUtils,
-          TaskManager, AppWindow, WheelEvent, MockAppWindow,
-          HomescreenWindow, MockSettingsListener, MocksHelper, MockL10n */
+/* global
+  AppWindow,
+  HomescreenWindow,
+  MockAppWindow,
+  MockLazyLoader,
+  MockL10n,
+  MockService,
+  MockSettingsListener,
+  MocksHelper,
+  MockStackManager,
+  TaskManager,
+  TaskManagerUtils,
+  WheelEvent
+*/
 
 'use strict';
 
@@ -13,6 +24,7 @@ require('/shared/js/sanitizer.js');
 require('/shared/test/unit/mocks/mock_service.js');
 require('/shared/test/unit/mocks/mock_l10n.js');
 require('/shared/test/unit/mocks/mock_settings_listener.js');
+require('/shared/test/unit/mocks/mock_lazy_loader.js');
 
 var mocksForTaskManager = new MocksHelper([
   'StackManager',
@@ -30,13 +42,7 @@ suite('system/TaskManager >', function() {
   suiteSetup(mocksForTaskManager.suiteSetup);
   setup(mocksForTaskManager.setup);
 
-  // MockLazyLoader invokes promise callbacks in the wrong order, but changing
-  // it causes many other tests to fail. So for now, use a dead-simple shim:
-  window.LazyLoader = {
-    load(files) {
-      return Promise.resolve();
-    }
-  };
+  window.LazyLoader = MockLazyLoader;
 
   suiteSetup((done) => {
     function overrideProperty(obj, propName, newConfig) {
@@ -211,17 +217,22 @@ suite('system/TaskManager >', function() {
       clock.tick(TICK_SHOW_HIDE_MS);
     });
 
-    test('Should emit "cardviewbeforeshow" and "cardviewshown"', (done) => {
-      var spyCardViewBeforeShow = spyEvent(window, 'cardviewbeforeshow');
-      var spyCardViewShown = spyEvent(window, 'cardviewshown');
+    test('Should emit "cardviewprepare", "cardviewbeforeshow" ' +
+         'and "cardviewshown"', (done) => {
+      var spyCardViewPrepare = spyEvent(window, 'cardviewprepare');
       tm.hide().then(() => {
-        var show = tm.show();
-        assert.isTrue(spyCardViewBeforeShow.called);
-        clock.tick(TICK_SHOW_HIDE_MS);
-        return show;
-      }).then(() => {
-        assert.isTrue(spyCardViewShown.called);
-      }).then(done, done);
+        tm.show();
+        assert.isTrue(spyCardViewPrepare.called);
+        function onBeforeShow() {
+          window.removeEventListener('cardviewbeforeshow', onBeforeShow);
+          function onShown() {
+            window.removeEventListener('cardviewshown', onShown);
+            done();
+          }
+          window.addEventListener('cardviewshown', onShown);
+        }
+        window.addEventListener('cardviewbeforeshow', onBeforeShow);
+      });
       clock.tick(TICK_SHOW_HIDE_MS);
     });
 
@@ -396,6 +407,37 @@ suite('system/TaskManager >', function() {
       assert.equal(
         MockStackManager.getCurrent(),
         tm.currentCard.app);
+    });
+
+    test('should load icons before "cardviewshown"', done => {
+      tm.hide().then(() => tm.stop());
+      clock.tick(TICK_SHOW_HIDE_MS);
+
+      tm = new TaskManager();
+
+      var realUpdateStack = tm.updateStack.bind(tm);
+      tm.updateStack = arg => {
+        var result = realUpdateStack(arg);
+        tm.appToCardMap.forEach((card, app) => {
+          sinon.stub(card, 'loadIcon');
+        });
+        return result;
+      };
+
+      var onShow = () => {
+        window.removeEventListener('cardviewshown', onShow);
+        done(() => {
+          tm.updateStack = realUpdateStack;
+          tm.appToCardMap.forEach((card, app) => {
+            assert.isTrue(card.loadIcon.calledOnce);
+            card.loadIcon.restore();
+          });
+        });
+      };
+      window.addEventListener('cardviewshown', onShow);
+
+      tm.start().then(() => tm.show());
+      clock.tick(TICK_SHOW_HIDE_MS);
     });
 
     test('should not query the currentIndex for the initial launch (reflow)',

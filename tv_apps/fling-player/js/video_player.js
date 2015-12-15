@@ -18,7 +18,6 @@
 
     this._video.addEventListener('loadedmetadata', this);
     this._video.addEventListener('playing', this);
-    this._video.addEventListener('seeked', this);
   };
 
   proto.getVideo = function () {
@@ -43,10 +42,6 @@
   proto.getRoundedCurrentTime = function () {
     var s = Math.round(this._video.currentTime);
     return isNaN(s) ? 0 : s;
-  };
-
-  proto.addEventListener = function (type, handle) {
-    return this._video.addEventListener(type, handle);
   };
 
   proto.show = function () {
@@ -121,10 +116,6 @@
 
       case 'playing':
         this.show();
-      break;
-
-      case 'seeked':
-        this.play();
       break;
     }
   };

@@ -8,57 +8,30 @@ var AlbumsView = View.extend(function AlbumsView() {
   this.searchResults = document.getElementById('search-results');
   this.list = document.getElementById('list');
 
-  this.searchBox.addEventListener('search', (evt) => this.search(evt.detail));
-
-  this.searchResults.addEventListener('open', () => {
-    this.client.method('searchOpen');
-  });
-
-  this.searchResults.addEventListener('close', () => {
-    this.client.method('searchClose');
-    this.list.scrollTop = this.searchBox.HEIGHT;
-  });
-
-  this.searchResults.addEventListener('resultclick', (evt) => {
-    var link = evt.detail;
-    if (link) {
-      this.client.method('navigate', link.getAttribute('href'));
-    }
-  });
-
-  this.searchResults.getItemImageSrc = (item) => this.getThumbnail(item.name);
-
-  this.list.scrollTop = this.searchBox.HEIGHT;
-  this.list.minScrollHeight = `calc(100% + ${this.searchBox.HEIGHT}px)`;
-
-  this.list.configure({
-    getItemImageSrc: (item) => {
-      return this.getThumbnail(item.name);
-    }
-  });
-
   this.client.on('databaseChange', () => this.update());
+
+  this.setupSearch();
+  this.setupList();
 
   this.update();
 });
 
 AlbumsView.prototype.update = function() {
-  this.getAlbums().then((albums) => {
+  return this.getAlbums().then((albums) => {
     this.albums = albums;
-    this.render();
+    return this.render();
   });
 };
 
 AlbumsView.prototype.destroy = function() {
   this.client.destroy();
-
   View.prototype.destroy.call(this); // super(); // Always call *last*
 };
 
 AlbumsView.prototype.render = function() {
-  View.prototype.render.call(this); // super();
-
-  this.list.model = this.albums;
+  return this.list.setModel(this.albums)
+    .then(() => this.list.cache())
+    .then(this.onRenderDone);
 };
 
 AlbumsView.prototype.getAlbums = function() {

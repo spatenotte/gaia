@@ -6,6 +6,7 @@
 /* global ERROR_INVALID_SYNC_ACCOUNT */
 /* global ERROR_OFFLINE */
 /* global ERROR_UNVERIFIED_ACCOUNT */
+/* global ERROR_UNKNOWN */
 /* global LazyLoader */
 /* global mozIntl */
 
@@ -62,6 +63,9 @@ define(function(require) {
   }, {
     screen: LOGGED_IN_SCREEN,
     selector: '.fxsync-unverified'
+  }, {
+    screen: LOGGED_IN_SCREEN,
+    selector: '.fxsync-empty-account'
   }];
 
   function getElementName(str) {
@@ -98,6 +102,8 @@ define(function(require) {
     clean() {
       window.clearTimeout(this.timeout);
       this.timeout = undefined;
+      window.removeEventListener('offline', this.onlineListener);
+      window.removeEventListener('online', this.onlineListener);
     },
 
     /**
@@ -137,16 +143,35 @@ define(function(require) {
       switch (message.state) {
         case 'disabled':
           this.showScreen(LOGGED_OUT_SCREEN);
+          this.hideEnabling();
           this.clean();
           break;
+        case 'enabling':
+          this.showScreen(LOGGED_OUT_SCREEN);
+          this.showEnabling();
+          break;
         case 'enabled':
+          this.hideEnabling();
           this.showScreen(LOGGED_IN_SCREEN);
           this.showSyncNow();
           this.showUser(message.user);
           this.showLastSync(message.lastSync);
+          if (message.error) {
+            LazyLoader.load('shared/js/sync/errors.js', () => {
+              if (message.error == ERROR_INVALID_SYNC_ACCOUNT) {
+                this.showEmptyAccount(message.user);
+              }
+            });
+          } else {
+            this.hideEmptyAccount();
+          }
           break;
         case 'syncing':
           this.showScreen(LOGGED_IN_SCREEN);
+          // The user may enter in the panel while we are in the syncing
+          // state. In that case, we also need to show the user because
+          // the enabled state was not handled yet.
+          this.showUser(message.user);
           this.showSyncing();
           break;
         case 'errored':
@@ -154,6 +179,12 @@ define(function(require) {
             if (message.error == ERROR_UNVERIFIED_ACCOUNT) {
               this.showScreen(LOGGED_IN_SCREEN);
               this.showUnverified(message.user);
+              return;
+            }
+
+            if (message.error == ERROR_INVALID_SYNC_ACCOUNT) {
+              this.showScreen(LOGGED_IN_SCREEN);
+              this.showEmptyAccount(message.user);
               return;
             }
 
@@ -165,11 +196,10 @@ define(function(require) {
               return;
             }
 
-            var errorMsg = 'fxsync-error-unknown';
+            var errorMsg = ERROR_UNKNOWN;
             var title;
 
             const KNOWN_ERRORS = [
-              ERROR_INVALID_SYNC_ACCOUNT,
               ERROR_OFFLINE
             ];
 
@@ -228,6 +258,22 @@ define(function(require) {
       this.loadElements(screen);
     },
 
+    showEnabling() {
+      this.elements.login.disabled = true;
+      this.elements.login.dataset.l10nId = 'fxsync-signing';
+    },
+
+    hideEnabling() {
+      // It is possible that we go from enabled to syncing and viceversa.
+      // In that case the login button won't be available anymore, so we
+      // just bail out.
+      if (!this.elements.login) {
+        return;
+      }
+      this.elements.login.disabled = false;
+      this.elements.login.dataset.l10nId = 'fxsync-get-started';
+    },
+
     showSyncing() {
       this.elements.syncNow.dataset.l10nId = 'fxsync-syncing';
       this.disableSyncNowAndCollections(true);
@@ -237,7 +283,8 @@ define(function(require) {
       if (!this.elements.syncNow) {
         return;
       }
-      this.elements.syncNow.disabled = (this.collections.size <= 0);
+      this.elements.syncNow.disabled = (this.collections.size <= 0) ||
+                                       !navigator.onLine;
     },
 
     showSyncNow() {
@@ -245,6 +292,9 @@ define(function(require) {
       this.disableSyncNowAndCollections(false);
       this.elements.unverified.hidden = true;
       this.maybeEnableSyncNow();
+      this.onlineListener = this.maybeEnableSyncNow.bind(this);
+      window.addEventListener('offline', this.onlineListener);
+      window.addEventListener('online', this.onlineListener);
     },
 
     showUser(email) {
@@ -256,6 +306,17 @@ define(function(require) {
       this.showLastSync();
       this.disableSyncNowAndCollections(true);
       this.elements.unverified.hidden = false;
+    },
+
+    showEmptyAccount(email) {
+      this.showUser(email);
+      this.showLastSync();
+      this.disableSyncNowAndCollections(false);
+      this.elements.emptyAccount.hidden = false;
+    },
+
+    hideEmptyAccount() {
+      this.elements.emptyAccount.hidden = true;
     },
 
     showLastSync(time) {

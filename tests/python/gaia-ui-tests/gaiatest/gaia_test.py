@@ -135,6 +135,8 @@ class GaiaApps(object):
         self.marionette.switch_to_frame()
         result = self.marionette.execute_async_script("GaiaApps.kill('%s');" % app.origin)
         assert result, "Failed to kill app with name '%s'" % app.name
+        # Workaround for bug 1219971, launch an app directly after a kill fails sometimes
+        time.sleep(0.5)
 
     def kill_all(self):
         # First we attempt to kill the FTU, we treat it as a user app
@@ -146,14 +148,26 @@ class GaiaApps(object):
         # Now kill the user apps
         self.marionette.switch_to_frame()
         self.marionette.execute_async_script("GaiaApps.killAll();")
+        # Workaround for bug 1219971, launch an app directly after a kill fails sometimes
+        time.sleep(0.5)
 
-    def uninstall(self, name):
+    def install(self,manifest_url):
+        self._change_state_of_app(manifest_url, 'install')
+
+    def uninstall(self,manifest_url):
+        self._change_state_of_app(manifest_url, 'uninstall')
+
+    def install_package(self, manifest_url):
+        self._change_state_of_app(manifest_url, 'installPackage')
+
+    def _change_state_of_app(self, manifest_url, desired_action):
         self.marionette.switch_to_frame()
         data_layer = GaiaData(self.marionette)
-        data_layer.set_bool_pref('dom.mozApps.auto_confirm_uninstall', True)
-        result = self.marionette.execute_async_script('GaiaApps.uninstallWithName("%s")' % name)
-        assert (result is True), 'Failed to uninstall app: %s' % result
-        data_layer.set_bool_pref('dom.mozApps.auto_confirm_uninstall', False)
+        preference_action = desired_action.rstrip('Package')
+        data_layer.set_bool_pref('dom.mozApps.auto_confirm_{}'.format(preference_action), True)
+        result = self.marionette.execute_async_script('GaiaApps.{}("{}");'.format(desired_action, manifest_url))
+        assert (result is True), 'Failed to {} app: {}'.format(desired_action, manifest_url)
+        data_layer.set_bool_pref('dom.mozApps.auto_confirm_{}'.format(preference_action), False)
 
     @property
     def installed_apps(self):
@@ -188,7 +202,11 @@ class GaiaApps(object):
             "return GaiaApps.getRunningApps(%s);" % include_system_apps)
         result = []
         for app in [a[1] for a in apps.items()]:
-            result.append(GaiaApp(origin=app['origin'], name=app['name'], manifest_url=app['manifest']))
+            # Browser app can have no manifest when url is visited
+            manifest_url = None
+            if 'manifest' in app:
+                manifest_url = app['manifest']
+            result.append(GaiaApp(origin=app['origin'], name=app['name'], manifest_url=manifest_url))
         return result
 
 
@@ -628,7 +646,7 @@ class GaiaDevice(object):
     @property
     def is_android_build(self):
         if self.testvars.get('is_android_build') is None:
-            self.testvars['is_android_build'] = 'android' in self.marionette.session_capabilities['platformName'].lower()
+            self.testvars['is_android_build'] = 'boot2gecko' in self.marionette.session_capabilities['platformName'].lower()
         return self.testvars['is_android_build']
 
     @property
@@ -762,18 +780,11 @@ class GaiaDevice(object):
             homescreen.wait_to_be_displayed()
             apps.switch_to_displayed_app()
         else:
-            apps.switch_to_displayed_app()
-            mode = self.marionette.find_element(By.TAG_NAME, 'body').get_attribute('class')
             self._dispatch_home_button_event()
             apps.switch_to_displayed_app()
-            if 'edit-mode' in mode:
-                # touching home button will exit edit mode
-                Wait(self.marionette).until(lambda m: m.find_element(
-                    By.TAG_NAME, 'body').get_attribute('class') != mode)
-            else:
-                # touching home button inside homescreen will scroll it to the top
-                Wait(self.marionette).until(lambda m: m.execute_script(
-                    "return window.wrappedJSObject.scrollY") == 0)
+
+            # touching home button inside homescreen will scroll it to the top
+            Wait(self.marionette).until(lambda m: homescreen.is_at_topmost_position)
 
     def _dispatch_home_button_event(self):
         self.marionette.switch_to_frame()
@@ -839,10 +850,6 @@ class GaiaDevice(object):
               console.log("Changing orientation to '" + arguments[1] + "'.");
               window.screen.mozLockOrientation(arguments[1]);
             };""", script_args=[self.screen_orientation, orientation])
-
-    @property
-    def screen_width(self):
-        return self.marionette.execute_script('return window.screen.width')
 
     @property
     def screen_orientation(self):

@@ -3,6 +3,7 @@
 /* global KeyboardHelper */
 /* global LazyLoader */
 /* global ManifestHelper */
+/* global MatchPattern */
 /* global ModalDialog */
 /* global NotificationScreen */
 /* global Service */
@@ -25,11 +26,16 @@
       'INSTALL_FROM_DENIED': 'install-failed',
       'INVALID_SECURITY_LEVEL': 'install-failed',
       'INVALID_PACKAGE': 'install-failed',
-      'APP_CACHE_DOWNLOAD_ERROR': 'download-failed'
+      'APP_CACHE_DOWNLOAD_ERROR': 'download-failed',
+      'DOWNLOAD_CANCELED':'download-canceled'
     },
 
     start: function() {
-      LazyLoader.load(['js/system_banner.js']).then(() => {
+      var lazyLoadScripts = [
+        'js/system_banner.js',
+        'shared/js/addons/match_pattern.js'
+      ];
+      LazyLoader.load(lazyLoadScripts).then(() => {
         this.systemBanner = new SystemBanner();
       }).catch((err) => {
         console.error(err);
@@ -256,6 +262,10 @@
         this.authorUrl.textContent = '';
       }
 
+      // Warn about system level addons?
+      var warningEl = document.getElementById('system-addon-warning');
+      warningEl.hidden = !this.requiresRestart(manifest.content_scripts);
+
       this.installCallback = (function ai_installCallback() {
         this.dispatchResponse(id, 'webapps-install-granted');
       }).bind(this);
@@ -266,6 +276,52 @@
 
     },
 
+    requiresRestart: function ai_requiresRestart(contentScripts) {
+      var restartRequired = false;
+
+      if (contentScripts) {
+        var patterns = contentScripts.map(contentScript => {
+          return {
+            matches: new MatchPattern(contentScript.matches),
+            excludeMatches: new MatchPattern(contentScript.exclude_matches)
+          };
+        });
+
+        appLoop:
+        for (var appKey in applications.installedApps) {
+          if (!appKey) {
+            continue;
+          }
+
+          var installedApp = applications.installedApps[appKey];
+          var launchPath = installedApp.manifest.launch_path || '';
+
+          if (!installedApp.manifest.origin) {
+            continue;
+          }
+
+          if (installedApp.manifest.role !== 'system' &&
+              installedApp.manifest.role !== 'homescreen') {
+            continue;
+          }
+
+          var launchURL = new URL(launchPath, installedApp.manifest.origin);
+
+          for(var i = 0; i < patterns.length; i++) {
+            var pattern = patterns[i];
+            if (!pattern.excludeMatches.matches(launchURL) &&
+                pattern.matches.matches(launchURL)) {
+
+              restartRequired = true;
+              break appLoop;
+            }
+          }
+        }
+      }
+
+      return restartRequired;
+    },
+
     handleInstall: function ai_handleInstall(evt) {
       if (evt) {
         evt.preventDefault();
@@ -274,6 +330,7 @@
         this.installCallback();
       }
       this.installCallback = null;
+      this.installCancelCallback = null;
       this.dialog.classList.remove('visible');
       this.dispatchPromptEvent('hidden');
     },
@@ -763,6 +820,7 @@
       if (this.installCancelCallback) {
         this.installCancelCallback();
       }
+      this.installCallback = null;
       this.installCancelCallback = null;
       this.installCancelDialog.classList.remove('visible');
       this.dispatchPromptEvent('hidden');

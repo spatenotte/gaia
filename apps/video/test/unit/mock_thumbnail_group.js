@@ -4,8 +4,7 @@ var MockThumbnailGroup = function(item) {
   var counter = 0;
   var dummyNode = document.createElement('div');
   dummyNode.textContent = MockThumbnailGroup._GroupID;
-  dummyNode.innerHTML = '<div>' + MockThumbnailGroup._GroupID + '</div>';
-  dummyNode.htmlNode = dummyNode.firstElementChild;
+  dummyNode.htmlNode = dummyNode;
   dummyNode.updateTitleText = function() {};
 
   function addItem() {
@@ -17,11 +16,14 @@ var MockThumbnailGroup = function(item) {
     counter--;
   }
 
+  function localize() {}
+
   MockThumbnailGroup._GroupMap[MockThumbnailGroup._GroupID] = {
     // api
     addItem: addItem,
     getCount: function() {return counter;},
     removeItem: removeItem,
+    localize: localize,
     // properties.
     groupID: MockThumbnailGroup._GroupID,
     htmlNode: dummyNode
@@ -44,4 +46,3 @@ MockThumbnailGroup.reset = function() {
   MockThumbnailGroup._GroupMap = {};
   delete MockThumbnailGroup._GroupID;
 };
-

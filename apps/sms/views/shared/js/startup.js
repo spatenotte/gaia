@@ -6,6 +6,7 @@
 /*global ActivityHandler,
          App,
          ConversationView,
+         Drafts,
          InboxView,
          Information,
          InterInstanceEventDispatcher,
@@ -71,9 +72,7 @@ var Startup = exports.Startup = {
     '/views/shared/js/activity_handler.js',
     '/views/shared/js/system_message_handler.js',
     '/views/shared/js/localization_helper.js',
-    '/lib/bridge/bridge.js',
-    '/services/js/bridge_service_mixin.js',
-    '/services/js/activity/activity_shim.js',
+    '/lib/bridge/client.js',
     '/services/js/activity/activity_client.js',
     '/services/js/messaging/messaging_client.js',
     '/services/js/moz_mobile_connections/moz_mobile_connections_client.js'
@@ -104,8 +103,13 @@ var Startup = exports.Startup = {
       // dispatch contentInteractive when all the modules initialized
       SilentSms.init();
 
-      ActivityHandler.init();
-      SystemMessageHandler.init();
+      // When app is run as inline activity we don't want to handle any other
+      // system messages other than "activity" system message.
+      if (navigator.mozHasPendingMessage('activity')) {
+        ActivityHandler.init();
+      } else {
+        SystemMessageHandler.init();
+      }
 
       // Init UI Managers
       TimeHeaders.init();
@@ -141,6 +145,7 @@ var Startup = exports.Startup = {
       Utils.initializeShimHost(App.instanceId);
 
       MessageManager.init();
+      Drafts.init();
       InboxView.init();
       Navigation.init();
 

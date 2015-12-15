@@ -28,6 +28,15 @@
   };
 
   // Section's Interface
+  SettingsSection.prototype._handleMove = function(direction) {
+    var elem = this.getFocusedElement();
+    if ((elem.id == 'option-pair-on' && direction == 'down') ||
+        (elem.id == 'option-disabled' && direction == 'up')) {
+      return document.getElementById('clear-authorized-devices');
+    }
+  };
+
+  // Section's Interface
   SettingsSection.prototype._handleClick = function() {
     if (this._pendingSave) {
       return;
@@ -75,22 +84,22 @@
     var authorizedDevices = Settings['remote-control.authorized-devices'];
     var authorizedDevicesCount = 0;
     if (authorizedDevices) {
-      authorizedDevicesCount =
-        Object.keys(JSON.parse(authorizedDevices)).length;
+      authorizedDevicesCount = Object.keys(authorizedDevices).length;
     }
 
     var button = document.getElementById('clear-authorized-devices');
-    button.disabled = !authorizedDevicesCount;
     if (authorizedDevicesCount) {
+      button.classList.remove('disabled');
       button.removeAttribute('aria-hidden');
     } else {
+      button.classList.add('disabled');
       button.setAttribute('aria-hidden', true);
     }
   };
 
   SettingsSection.prototype.clearAuthorizedDevices = function() {
     Settings.save({
-      'remote-control.authorized-devices': '{}'
+      'remote-control.authorized-devices': {}
     }).then(() => {
       this.updateClearAuthorizedDevicesButton();
       this.focus('save-button');
@@ -114,7 +123,7 @@
 
     // Also clear authorized devices when user changes the mode.
     var settings = {
-      'remote-control.authorized-devices': '{}'
+      'remote-control.authorized-devices': {}
     };
 
     switch(checkedOption) {

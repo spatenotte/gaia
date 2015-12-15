@@ -93,6 +93,43 @@ function View() {
   });
 }
 
+View.prototype.setupSearch = function(params) {
+  this.searchBox.addEventListener('search', (evt) => this.search(evt.detail));
+
+  this.searchResults.addEventListener('open', () => {
+    this.client.method('searchOpen');
+  });
+
+  this.searchResults.addEventListener('close', () => {
+    this.client.method('searchClose');
+    this.list.scrollTop = this.searchBox.HEIGHT;
+  });
+
+  this.searchResults.addEventListener('resultclick', (evt) => {
+    var link = evt.detail;
+    if (link) {
+      this.client.method('navigate', link.getAttribute('href'));
+    }
+  });
+
+  this.searchResults.getItemImageSrc = (item) => this.getThumbnail(item.name);
+};
+
+View.prototype.setupList = function() {
+  this.list.minScrollHeight = `calc(100% + ${this.searchBox.HEIGHT}px)`;
+  this.list.offset = this.searchBox.HEIGHT;
+
+  this.list.configure({
+    getItemImageSrc: (item) => this.getThumbnail(item.name)
+  });
+
+  // Show the view only when list has something
+  // rendered, this prevents Gecko painting unnecessarily.
+  this.list.rendered.then(() => document.body.hidden = false);
+
+  this.list.scrollTo(this.searchBox.HEIGHT);
+};
+
 View.prototype.destroy = function() {
   Object.getOwnPropertyNames(this).forEach(prop => this[prop] = null);
 
@@ -100,6 +137,10 @@ View.prototype.destroy = function() {
 };
 
 View.prototype.render = function() {
+  // No-op in the base class.
+};
+
+View.prototype.onRenderDone = function() {
   if (window.frameElement) {
     window.frameElement.dispatchEvent(new CustomEvent('rendered'));
   }

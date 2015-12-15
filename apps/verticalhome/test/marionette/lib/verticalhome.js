@@ -31,9 +31,7 @@ VerticalHome.Selectors = {
   groupBackground: '#icons .group .background',
   groupToggle: '#icons .group .toggle',
   dividers: '#icons section.divider',
-  collections: '#icons .icon.collection',
   contextmenu: '#contextmenu-dialog',
-  removeCollectionConfirm: 'gaia-confirm',
   themeColor: 'head meta[name="theme-color"]',
   placeholders: '#icons .placeholder'
 };
@@ -60,15 +58,6 @@ VerticalHome.prototype = {
 
   get contextMenu() {
     return this.client.findElement(VerticalHome.Selectors.contextmenu);
-  },
-
-  get collections() {
-    return this.client.findElements(VerticalHome.Selectors.collections);
-  },
-
-  get removeCollectionConfirm() {
-    return this.client.findElement(
-      VerticalHome.Selectors.removeCollectionConfirm);
   },
 
   /**
@@ -301,7 +290,7 @@ VerticalHome.prototype = {
       return false;
     }
 
-    if (locale.indexOf('qps') === 0) {
+    if (locale.indexOf('-x-ps') > -1) {
       return this.client.executeScript(function(locale, name) {
         var mozL10n = window.wrappedJSObject.navigator.mozL10n;
         return mozL10n.qps[locale].translate(name);

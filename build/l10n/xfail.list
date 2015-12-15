@@ -21,10 +21,6 @@ apps/calendar/js/views/view_event.js
 apps/calendar/test/unit/view_test.js
 apps/calendar/test/unit/views/view_event_test.js
 apps/camera/test/unit/controllers/preview-gallery_test.js
-apps/collection/js/create_collection.js
-apps/collection/js/objects.js
-apps/collection/js/suggestions.js
-apps/collection/js/view_apps.js
 apps/communications/contacts/js/export/bt.js
 apps/communications/contacts/js/tag_options.js
 apps/communications/contacts/js/utilities/normalizer.js
@@ -43,7 +39,6 @@ apps/communications/contacts/views/form/js/form_ui.js
 apps/communications/contacts/views/matching/js/matching_ui.js
 apps/communications/dialer/js/mmi.js
 apps/communications/dialer/js/mmi_ui.js
-apps/communications/facebook/js/fb_sync_init.js
 apps/costcontrol/js/common.js
 apps/costcontrol/js/utils/toolkit.js
 apps/costcontrol/test/unit/mock_common.js
@@ -54,7 +49,6 @@ apps/email/js/cards/message_list.js
 apps/email/js/cards/settings_account_credentials.js
 apps/email/js/cards/setup_account_prefs.js
 apps/email/js/model_init.js
-apps/email/js/sync.js
 apps/email/js/toaster.js
 apps/fl/js/utils.js
 apps/homescreen/test/marionette/lib/homescreen.js
@@ -68,11 +62,6 @@ apps/ringtones/js/share.js
 apps/search/js/providers/marketplace.js
 apps/search/js/providers/places.js
 apps/sharedtest/test/unit/l10n/l10n_test.js
-apps/system/fxa/js/fxam_errors.js
-apps/system/fxa/js/screens/fxam_enter_email.js
-apps/system/fxa/js/screens/fxam_enter_password.js
-apps/system/fxa/js/screens/fxam_set_password.js
-apps/system/fxa/js/screens/fxam_signup_success.js
 apps/system/js/accessibility.js
 apps/system/js/app_install_manager.js
 apps/system/js/app_modal_dialog.js
@@ -111,12 +100,12 @@ apps/system/test/unit/updatable_test.js
 apps/verticalhome/test/marionette/lib/verticalhome.js
 dev_apps/feedback/js/feedback.js
 dev_apps/geoloc/js/geoloc.js
-shared/elements/gaia_grid/js/items/collection.js
 shared/js/l10n_date.js
-shared/js/tz_select.js
 tv_apps/browser/js/index.js
+tv_apps/browser/test/unit/browser_dialog_test.js
 tv_apps/smart-home/js/edit.js
 tv_apps/smart-home/js/home.js
+tv_apps/smart-system/fxa/js/fxam_errors.js
 tv_apps/smart-system/fxa/js/screens/fxam_enter_email.js
 tv_apps/smart-system/fxa/js/screens/fxam_enter_password.js
 tv_apps/smart-system/js/accessibility.js

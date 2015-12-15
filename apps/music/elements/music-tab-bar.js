@@ -5,9 +5,12 @@ var GaiaToolbar = window['gaia-toolbar'];
 
 var proto = Object.create(GaiaToolbar.prototype);
 
-var styles =
+proto.createdCallback = function() {
+  GaiaToolbar.prototype.createdCallback.apply(this, arguments);
+
+  this.querySelector('style').innerHTML +=
 `music-tab-bar {
-  background-color: #000;
+  background-color: var(--background-minus);
   position: absolute;
   bottom: 0;
   left: 0;
@@ -27,11 +30,6 @@ var styles =
 .-content > .selected {
   color: var(--highlight-color);
 }`;
-
-proto.createdCallback = function() {
-  GaiaToolbar.prototype.createdCallback.apply(this, arguments);
-
-  this.querySelector('style').innerHTML += styles;
 
   this.addEventListener('click', (evt) => {
     var tab = evt.target.closest('button');

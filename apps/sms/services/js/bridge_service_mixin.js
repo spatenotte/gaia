@@ -32,8 +32,8 @@
      *  The context/thread that service could listen for.
      */
     initService(endpoint) {
-      if (!('bridge' in self)) {
-        importScripts('/lib/bridge/bridge.js');
+      if (!('bridge' in self) || !('service' in bridge)) {
+        importScripts('/lib/bridge/service.js');
       }
 
       var service = bridge.service(this[priv.name]);
@@ -53,6 +53,10 @@
         streams.forEach((exposedStream) => {
           service.stream(exposedStream, this[exposedStream].bind(this));
         });
+      }
+
+      if (this.onConnected) {
+        service.on('connected', this.onConnected.bind(this));
       }
 
       service.listen();
@@ -77,7 +81,7 @@
   };
 
   exports.BridgeServiceMixin = {
-    mixin(target, name, { methods, streams, events}) {
+    mixin(target, name, { methods, streams, events }) {
       if (!name) {
         throw new Error(
           'A service name is mandatory to define a service.'

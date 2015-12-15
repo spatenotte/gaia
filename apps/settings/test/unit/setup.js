@@ -18,6 +18,9 @@ requireApp('settings/js/vendor/alameda.js', (function() {
       'settings': {
         exports: 'Settings'
       },
+      'shared/addons/match_pattern': {
+        exports: 'MatchPattern'
+      },
       'shared/lazy_loader': {
         exports: 'LazyLoader'
       },
@@ -99,9 +102,6 @@ requireApp('settings/js/vendor/alameda.js', (function() {
       },
       'shared_mocks/mock_navigator_moz_wifi_manager': {
         exports: 'MockNavigatorMozWifiManager'
-      },
-      'shared_mocks/mock_bluetooth_helper': {
-        exports: 'MockBluetoothHelper'
       },
       'shared_mocks/mock_navigator_moz_bluetooth': {
         exports: 'MockMozBluetooth'

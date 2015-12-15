@@ -1,14 +1,15 @@
 /* globals loadBodyHTML*/
 'use strict';
 
-requireApp('settings/shared/test/unit/load_body_html_helper.js');
+require('/shared/test/unit/load_body_html_helper.js');
 
 suite('AppStoragePanel', function() {
   var modules = ['panels/app_storage/panel'];
   var map = {
     '*': {
       'modules/settings_panel': 'MockSettingsPanel',
-      'modules/app_storage': 'MockAppStorage'
+      'modules/app_storage': 'MockAppStorage',
+      'modules/storage_helper': 'MockStorageHelper'
     }
   };
 
@@ -19,10 +20,14 @@ suite('AppStoragePanel', function() {
 
     loadBodyHTML('_application_storage.html');
 
-    window.DeviceStorageHelper = {
+    this.MockStorageHelper = {
       showFormatedSize: function(element, l10nId, size) {return size;}
     };
-    this.sinon.spy(window.DeviceStorageHelper, 'showFormatedSize');
+    this.sinon.spy(this.MockStorageHelper, 'showFormatedSize');
+
+    define('MockStorageHelper', function() {
+      return that.MockStorageHelper;
+    });
 
     // Define MockAppStorage
     this.MockAppStorage = {

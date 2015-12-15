@@ -33,6 +33,13 @@ Base.prototype = {
   },
 
   /**
+   * Close settings app.
+   */
+  close: function() {
+    this.client.apps.close(this.origin);
+  },
+
+  /**
    * @protected
    * @param {String} name of selector [its a key in Settings.Selectors].
    */
@@ -73,5 +80,10 @@ Base.prototype = {
    */
   tapSelectOption: function(name, optionText) {
     this.client.helper.tapSelectOption(this.selectors[name], optionText);
+  },
+
+  tapConfirmButton: function() {
+    this.client.helper.waitForElement(
+      '#settings-confirm-dialog button[type="submit"]').tap();
   }
 };

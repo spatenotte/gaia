@@ -40,6 +40,7 @@
     "audio-channel-notification": {},
     "audio-channel-content": {},
     "audio-channel-ringer": {},
+    "audio-channel-system": {},
     "cellbroadcast": {},
     "input-manage": {},
     "nfc": {},
@@ -180,6 +181,10 @@
     "bookmarks_store": {
       "readonly": false,
       "description": "View and modify bookmarks"
+    },
+    "alarms": {
+      "readonly": true,
+      "description": "View alarms"
     },
     "vertical_preferences_store": {
       "readonly": true,

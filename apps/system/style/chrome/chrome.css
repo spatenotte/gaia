@@ -86,8 +86,9 @@ html[dir="rtl"] .appWindow:not(.bar) > .chrome { transform-origin: top right; }
   display: none;
 }
 
-.appWindow.fullscreen-app:not(.browser) .chrome .controls .urlbar,
-.appWindow:not(.browser):not(.search-app) .chrome .controls .urlbar {
+/* Maximized rocketbar size when the 'Windows' button is not displayed */
+.appWindow.fullscreen-app:not(.browser) .chrome.maximized .controls .urlbar,
+.appWindow:not(.browser):not(.search-app) .chrome.maximized .controls .urlbar {
   width: calc(100% - 1rem);
 }
 
@@ -131,6 +132,8 @@ html[dir="rtl"] .appWindow:not(.bar) > .chrome { transform-origin: top right; }
   margin-inline-start: .5rem;
   position: absolute;
 }
+html[dir="ltr"] .chrome .controls .urlbar { text-align: left; }
+html[dir="rtl"] .chrome .controls .urlbar { text-align: right; }
 
 .maximized .controls .urlbar {
   background-color: rgba(204,204,204,0.2);
@@ -272,7 +275,7 @@ html[dir="rtl"] .controls .urlbar { transform-origin: top right; }
   visibility: visible;
 }
 
-.appWindow.attentionWindow.active .chrome,
+.appWindow.attentionWindow .chrome,
 .appWindow.fullscreen-app .chrome {
   visibility: hidden;
 }
@@ -811,9 +814,15 @@ gaia-overflow-menu button#share {
 }
 
 /* Progress */
-.appWindow:not(.bar).collapsible > .chrome gaia-progress,
-.appWindow:not(.fullscreen-app) > .chrome gaia-progress {
+.appWindow.collapsible > .chrome gaia-progress,
+.appWindow.scrollable > .chrome gaia-progress {
   top: 7.3rem;
+}
+.appWindow.bar > .chrome gaia-progress,
+.appWindow.fullscreen-app > .chrome gaia-progress,
+.appWindow.popupWindow > .chrome gaia-progress,
+.appWindow.trustedWindow > .chrome gaia-progress {
+  top: 0;
 }
 
 /* App specifics */

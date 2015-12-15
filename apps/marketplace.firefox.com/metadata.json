@@ -1,9 +1,9 @@
 {
   "external": true,
-  "etag": "\"6363154aaa684f432225cc797b899c923f4a8a872b627e8a44b2100dba691ead\"",
+  "etag": "\"2676c5e93248619106d35c706f0edc1e6c5a4a80c9418458b0605ea1f34c01c6\"",
   "installOrigin": "https://marketplace.firefox.com",
   "manifestURL": "https://marketplace.firefox.com/packaged.webapp",
-  "packageEtag": "\"5fe809cfa920e849e7b3e9e3872c1073daccd7c4b1ce7948f3169319309762f2\"",
+  "packageEtag": "\"9c6e8d1c3821e0ffcc7322f995bb299022b007e8745dcb857a9d2991871aba0b\"",
   "removable": false,
   "type": "privileged"
 }

@@ -20,7 +20,7 @@ require('/test/unit/mock_utility_tray.js');
 require('/test/unit/mock_layout_manager.js');
 require('/test/unit/mock_app_window.js');
 require('/test/unit/mock_base_icon.js');
-require('/test/unit/mock_lazy_loader.js');
+require('/shared/test/unit/mocks/mock_lazy_loader.js');
 
 var mocksForStatusbar = new MocksHelper([
   'UtilityTray',
@@ -684,6 +684,10 @@ suite('system/Statusbar', function() {
       testEventThatShows.bind(this)('appchromeexpanded');
     });
 
+    test('lockscreen-request-unlock', function() {
+      testEventThatShows.bind(this)('lockscreen-request-unlock');
+    });
+
     test('apptitlestatechanged', function() {
       testEventThatShows.bind(this)('apptitlestatechanged');
     });
@@ -783,11 +787,20 @@ suite('system/Statusbar', function() {
       wifiIcon.element = null;
       wifiIcon.render();
       assert.isNull(wifiIcon.element);
-      Statusbar.finishInit();
       window.addEventListener('iconrendered', function() {
         assert.ok(wifiIcon.element);
         done();
       });
+      Statusbar.start();
+    });
+
+    test('increments icons count on new icons', function() {
+      Statusbar.start();
+      this.sinon.stub(Statusbar, 'toggleMaximized');
+      window.dispatchEvent(new CustomEvent('iconshown', {
+        detail: {}
+      }));
+      assert(Statusbar.toggleMaximized.called);
     });
   });
 

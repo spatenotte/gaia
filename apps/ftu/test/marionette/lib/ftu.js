@@ -26,19 +26,26 @@ Ftu.Selectors = {
   'languagePanel': '#languages',
   'wifiPanel': '#wifi',
   'header': '#activation-screen gaia-header h1',
-  'languageItems': '#languages ul > li[data-value]'
+  'languageItems': '#languages ul > li[data-value]',
+  'finishScreen': '#finish-screen',
+  'splashScreen': '#splash-screen',
+
+  // Tutorial Section
+  'startTourButton': '#lets-go-button',
+  'completeTourButton': '#tutorialFinished',
+  'tourPanel': '#tutorial',
+  'nextButton': '#forward',
+  'tourNextButton': '#forward-tutorial',
+  'tourFinishedPanels': '.tutorial-finish-base'
 };
 
 Ftu.prototype = {
-  waitForL10nReady: function() {
-    this.client.helper.waitFor(function() {
-      return this.client.executeScript(function() {
-        return window.wrappedJSObject.navigator.mozL10n
-               .readyState === 'complete';
-      });
-    }.bind(this));
+  get startTourButton() {
+    return this.client.findElement(Ftu.Selectors.startTourButton);
   },
-
+  get completeTourButton() {
+    return this.client.findElement(Ftu.Selectors.completeTourButton);
+  },
   getPanel: function(panel) {
     return this.client.helper.waitForElement(
       Ftu.Selectors[panel + 'Panel']);
@@ -59,13 +66,32 @@ Ftu.prototype = {
       button.click();
     }
   },
+
+  clickThruToFinish: function() {
+    this.waitForFtuReady();
+    var finishScreen = this.client.findElement(Ftu.Selectors.finishScreen);
+    while (!finishScreen.displayed()) {
+      this.goNext();
+    }
+  },
+
+  waitForCurtainUp: function() {
+    this.client.helper.waitForElementToDisappear(Ftu.Selectors.splashScreen);
+  },
+
   waitForLanguagesToLoad: function() {
+    this.client.helper.waitForElement('#languages');
     return this.client.waitFor(function() {
       return this.client.findElements(Ftu.Selectors.languageItems).length > 1;
     }.bind(this));
   },
+
+  waitForFtuReady: function() {
+    this.waitForCurtainUp();
+    this.waitForLanguagesToLoad();
+  },
+
   selectLanguage: function(language) {
-    this.waitForL10nReady();
     this.waitForLanguagesToLoad();
     this.client.helper.waitForElement('#languages');
     var item = this.client.findElement(
@@ -88,6 +114,60 @@ Ftu.prototype = {
       throw new Error('Option '+ language +
                       ' could not be found in select wrapper');
     }
+  },
+
+  getLocationHash: function() {
+    var hash = this.client.executeScript(function() {
+      return window.wrappedJSObject.location.hash;
+    });
+    return hash;
+  },
+
+  goNext: function() {
+    var finishScreen = this.client.findElement(Ftu.Selectors.finishScreen);
+    this.client.helper.waitForElementToDisappear('#loading-overlay');
+    var button = this.client.helper.waitForElement(Ftu.Selectors.nextButton);
+    this.client.waitFor(function() {
+      return button.enabled;
+    });
+    var currentHash = this.getLocationHash();
+    button.tap();
+    this.client.waitFor(function() {
+      return (
+        finishScreen.displayed() ||
+        currentHash !== this.getLocationHash()
+      );
+    }.bind(this));
+  },
+
+  tapTakeTour: function() {
+    var button =
+      this.client.helper.waitForElement(Ftu.Selectors.startTourButton);
+    button.tap();
+    this.client.helper.waitForElement(Ftu.Selectors.tourPanel);
+  },
+
+  tapTourNext: function() {
+    var panel =
+      this.client.helper.waitForElement(Ftu.Selectors.tourPanel);
+    var currentStep = panel.getAttribute('data-step');
+    var button =
+      this.client.helper.waitForElement(Ftu.Selectors.tourNextButton);
+    button.tap();
+    this.client.waitFor(function() {
+      return (
+        (panel.getAttribute('data-step') != currentStep) ||
+        this.isTourFinished()
+      );
+    }.bind(this));
+  },
+
+  isTourFinished: function() {
+    var finishedPanels =
+      this.client.findElements(Ftu.Selectors.tourFinishedPanels);
+    return finishedPanels.some(function(panel) {
+      return panel.displayed();
+    });
   }
 };
 

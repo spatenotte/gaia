@@ -8,6 +8,14 @@ var SongsView = View.extend(function SongsView() {
   this.searchResults = document.getElementById('search-results');
   this.list = document.getElementById('list');
 
+  this.client.on('databaseChange', () => this.update());
+
+  this.setupSearch();
+  this.setupList();
+  this.update();
+});
+
+SongsView.prototype.setupSearch = function() {
   this.searchBox.addEventListener('search', (evt) => this.search(evt.detail));
 
   this.searchResults.addEventListener('open', () => {
@@ -23,54 +31,46 @@ var SongsView = View.extend(function SongsView() {
     var link = evt.detail;
     if (link) {
       this.queueSong(link.dataset.filePath);
-
       this.client.method('navigate', link.getAttribute('href'));
     }
   });
 
   this.searchResults.getItemImageSrc = (item) => this.getThumbnail(item.name);
+};
 
-  this.list.scrollTop = this.searchBox.HEIGHT;
-  this.list.minScrollHeight = `calc(100% + ${this.searchBox.HEIGHT}px)`;
+SongsView.prototype.setupList = function() {
+  View.prototype.setupList.call(this);
 
-  this.list.configure({
-    getItemImageSrc: (item) => {
-      return this.getThumbnail(item.name);
-    }
-  });
-
+  // Triggers player service to begin playing the track.
+  // This works for now, but we might have the PlayerView
+  // take care of this task as it's a big more webby :)
   this.list.addEventListener('click', (evt) => {
     var link = evt.target.closest('a[data-file-path]');
     if (link) {
       this.queueSong(link.dataset.filePath);
     }
   });
-
-  this.client.on('databaseChange', () => this.update());
-  this.update();
-});
+};
 
 SongsView.prototype.update = function() {
-  this.getSongs().then((songs) => {
+  return this.getSongs().then((songs) => {
     this.songs = songs;
-    this.render();
+    return this.render();
   });
 };
 
 SongsView.prototype.destroy = function() {
   this.client.destroy();
-
   View.prototype.destroy.call(this); // super(); // Always call *last*
 };
 
 SongsView.prototype.render = function() {
-  View.prototype.render.call(this); // super();
-
-  this.list.model = this.songs;
+  return this.list.setModel(this.songs)
+    .then(() => this.list.cache())
+    .then(this.onRenderDone);
 };
 
 SongsView.prototype.getSongs = function() {
-  console.time('getSongs');
   return document.l10n.formatValues('unknownTitle', 'unknownArtist')
     .then(([unknownTitle, unknownArtist]) => {
       return this.fetch('/api/songs/list')

@@ -10,6 +10,7 @@
 /* global MocksHelper */
 /* global MockL10n */
 /* global MockSyncManagerBridge */
+/* global Settings */
 /* global SyncManagerBridge */
 
 'use strict';
@@ -35,6 +36,7 @@ suite('Sync toolbar >', function() {
   };
 
   var getInfoSpy;
+  var settingsShowSpy;
   var addListenerStub;
   var addEventListenerStub;
 
@@ -50,6 +52,7 @@ suite('Sync toolbar >', function() {
     loadBodyHTML('sync/fixtures/toolbar.html');
 
     getInfoSpy = sinon.spy(SyncManagerBridge, 'getInfo');
+    settingsShowSpy = sinon.spy(Settings, 'show');
     addListenerStub = sinon.stub(SyncManagerBridge, 'addListener',
                                 listener => {
       onsyncchange = listener;
@@ -68,6 +71,7 @@ suite('Sync toolbar >', function() {
 
   suiteTeardown(function() {
     getInfoSpy.restore();
+    settingsShowSpy.restore();
     addListenerStub.restore();
     addEventListenerStub.restore();
     navigator.mozL10n = realL10n;
@@ -113,23 +117,40 @@ suite('Sync toolbar >', function() {
     });
   });
 
-  suite('Enable', function() {
+  ['enabled',
+   'syncing'].forEach(event => {
+    suite(event, function() {
+      suiteSetup(function() {
+        onsyncchange({
+          state: event,
+          user: 'pepito'
+        });
+      });
+
+      test('Tab name should change', function() {
+        expect(subject.syncTab.getAttribute('data-l10n-id'))
+          .to.equal('fxsync-signed-in-as');
+        expect(subject.syncTab.getAttribute('data-l10n-args'))
+          .to.equal('{"email":"pepito"}');
+      });
+    });
+  });
+
+  suite('enabling', function() {
     suiteSetup(function() {
       onsyncchange({
-        state: 'enabled',
-        user: 'pepito'
+        state: 'enabling'
       });
     });
 
     test('Tab name should change', function() {
+      expect(settingsShowSpy.calledOnce).to.equal(true);
       expect(subject.syncTab.getAttribute('data-l10n-id'))
-        .to.equal('fxsync-signed-in-as');
-      expect(subject.syncTab.getAttribute('data-l10n-args'))
-        .to.equal('{"email":"pepito"}');
+        .to.equal('fxsync-signing');
     });
   });
 
-  suite('Disable', function() {
+  suite('disabled', function() {
     suiteSetup(function() {
       onsyncchange({
         state: 'disabled'

@@ -9,7 +9,6 @@
     <!-- Building blocks -->
     <link rel="stylesheet" type="text/css" href="shared/style/buttons.css">
     <link rel="stylesheet" type="text/css" href="shared/style/input_areas.css">
-    <link rel="stylesheet" type="text/css" href="shared/style/action_menu.css">
     <link rel="stylesheet" type="text/css" href="shared/style/confirm.css">
     <link rel="stylesheet" type="text/css" href="shared/style/layout.css">
 
@@ -32,6 +31,7 @@
     <meta name="availableLanguages" content="en-US">
     <link rel="localization" href="locales/costcontrol.{locale}.properties">
     <link rel="localization" href="/shared/locales/date/date.{locale}.properties">
+    <link rel="localization" href="/shared/elements/gaia_menu/locales/gaia_menu.{locale}.properties">
     <script type="text/javascript" defer src="shared/js/l10n.js"></script>
     <script type="text/javascript" defer src="shared/js/lazy_loader.js"></script>
     <!-- TODO: Lazyly loaded, remove when mozHour12 is part of the platform
@@ -42,6 +42,7 @@
     <script defer src="/shared/elements/config.js"></script>
     <script defer src="/shared/js/component_utils.js"></script>
     <script defer src="/shared/elements/gaia-header/dist/gaia-header.js"></script>
+    <script defer src="/shared/elements/gaia_menu/script.js"></script>
     <script defer src="shared/elements/gaia_subheader/script.js"></script>
     <script defer src="/shared/elements/gaia_select/script.js"></script>
     <script defer src="/shared/elements/gaia_switch/script.js"></script>
@@ -53,7 +54,7 @@
     <section role="region" class="window skin-organic">
       <!-- Settings view -->
       <section role="region" id="settings-view" class="view">
-        <gaia-header ignore-dir>
+        <gaia-header>
           <h1 data-l10n-id="settings"></h1>
           <button id="close-settings" data-l10n-id="done">done</button>
         </gaia-header>
@@ -209,7 +210,7 @@
 
       <!-- Data usage limits -->
       <section aria-labelledby="limit-dialog-heading" role="dialog" id="data-limit-dialog" class="view" data-viewport="bottom">
-        <gaia-header ignore-dir id="limit-dialog-header" action="close">
+        <gaia-header id="limit-dialog-header" action="close">
           <h1 id="limit-dialog-heading" data-l10n-id="data-limit-header"></h1>
           <button id="data-usage-done-button" data-l10n-id="done" class="recommend">Done</button>
         </gaia-header>
@@ -238,13 +239,11 @@
       </section>
 
       <!-- Reset confirmation -->
-      <form role="dialog" class="view" data-type="action" data-viewport="ethereal" id="reset-data-dialog" >
+      <gaia-menu class="view" data-viewport="ethereal" id="reset-data-dialog">
         <header data-l10n-id="reset-data-usage">Reset Data usage</header>
-        <menu>
-          <button type="button" data-l10n-id="cancel" class="close-reset-dialog">Cancel</button>
-        </menu>
-      </form>
-    <!-- Reset confirmation -->
+      </gaia-menu>
+
+      <!-- Reset confirmation -->
       <form role="dialog" class="view" data-type="confirm" data-viewport="ethereal" id="reset-dialog">
           <section>
               <h1 data-l10n-id="confirmation">Confirmation</h1>

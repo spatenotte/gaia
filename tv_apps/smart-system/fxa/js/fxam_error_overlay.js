@@ -1,7 +1,10 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
-/* global HtmlHelper, KeyEvent, FxaModuleKeyNavigation */
+/* global FxaModuleKeyNavigation */
+/* global FxaModuleUI */
+/* global HtmlHelper */
+/* global KeyEvent */
 /* exported FxaModuleErrorOverlay */
 
 'use strict';
@@ -25,9 +28,17 @@ var FxaModuleErrorOverlay = {
       'fxa-error-ok'
     );
 
-    this.fxaErrorOk.addEventListener('click', this.hide.bind(this));
-    this.fxaErrorOk.addEventListener('keypress', e => {
-      if (e.keyCode & e.keyCode === KeyEvent.DOM_VK_RETURN) {
+    this.fxaErrorOk.addEventListener('mouseup', this.hide.bind(this));
+    this.fxaErrorOk.addEventListener('keydown', e => {
+      if (e.keyCode && e.keyCode === KeyEvent.DOM_VK_RETURN) {
+        this.fxaErrorOk.classList.add('active');
+      }
+    });
+    this.fxaErrorOk.addEventListener('keyup', e => {
+      if (e.keyCode &&
+          (e.keyCode === KeyEvent.DOM_VK_RETURN ||
+          e.keyCode === KeyEvent.DOM_VK_ESCAPE)) {
+        this.fxaErrorOk.classList.remove('active');
         this.hide();
       }
     });
@@ -50,6 +61,8 @@ var FxaModuleErrorOverlay = {
 
     document.activeElement.blur();
     this.fxaErrorOk.focus();
+
+    FxaModuleUI.disableEscapeButton();
   },
 
   hide: function fxam_overlay_hide() {
@@ -57,6 +70,7 @@ var FxaModuleErrorOverlay = {
 
     this.fxaErrorOverlay.classList.remove('show');
     FxaModuleKeyNavigation.enable();
+    FxaModuleUI.enableEscapeButton();
   },
 
   prevent: function fxam_prevent(event) {

@@ -5,11 +5,17 @@
 /* global Awesomescreen */
 /* global BrowserDB */
 /* global BrowserDialog */
+/* global connectionHandler */
 /* global SearchResult */
 /* global SearchUtil */
 /* global Settings */
 /* global Toolbar */
 /* global UrlHelper */
+
+//IFDEF_FIREFOX_SYNC
+/* global SyncManagerBridge */
+/* global SyncBrowserDB */
+//ENDIF_FIREFOX_SYNC
 
 var _ = navigator.mozL10n.get;
 
@@ -34,7 +40,6 @@ var Browser = {
   MAX_TOPSITE_LIST: 18,
   MAX_ICON_LIST: 120,
 
-  waitingActivities: [],
   hasLoaded: false,
 
   // < category >
@@ -105,9 +110,6 @@ var Browser = {
     document.addEventListener('keydown', this.keyHook.bind(this), true);
     // mouse move
     document.addEventListener('mousemove', this.mouseMove.bind(this), false);
-    // key press
-    document.addEventListener('keypress', this.keypress.bind(this), true);
-
 
     // init bookmark dialog
     Awesomescreen.init();
@@ -144,6 +146,10 @@ var Browser = {
 
         // start IAC handler
         connectionHandler.activate();
+        if (window.navigator.mozSetMessageHandler) {
+          window.navigator.mozSetMessageHandler('activity',
+              this.handleActivity.bind(this));
+        }
       }).bind(this));
     }).bind(this));
 
@@ -156,11 +162,10 @@ var Browser = {
     // init SearchResult
     SearchResult.init();
 
+//IFDEF_FIREFOX_SYNC
     SyncBrowserDB.init();
+//ENDIF_FIREFOX_SYNC
 
-    if (this.waitingActivities.length) {
-      this.waitingActivities.forEach(this.handleActivity, this);
-    }
     this.hasLoaded = true;
   },
 
@@ -595,6 +600,16 @@ var Browser = {
             a.href = tab.url;
             var iconUrl = a.protocol + '//' + a.hostname + '/' + 'favicon.ico';
             BrowserDB.setAndLoadIconForPage(tab.url, iconUrl);
+
+//IFDEF_FIREFOX_SYNC
+            // if data sync enabled, update icon info to data sync indexedDB
+            SyncManagerBridge.getInfo().then(message => {
+              if(message.state === 'enabled') {
+                SyncBrowserDB.setAndLoadIconForPage(tab.url, iconUrl);
+              }
+            });
+//ENDIF_FIREFOX_SYNC
+
           }
 
         // Capture screenshot for tab thumbnail
@@ -645,6 +660,15 @@ var Browser = {
           // TODO: Pick up the best icon
           // based on evt.detail.sizes and device size.
           BrowserDB.setAndLoadIconForPage(tab.url, tab.iconUrl);
+
+//IFDEF_FIREFOX_SYNC
+          // if data sync enabled, update icon info to data sync indexedDB
+          SyncManagerBridge.getInfo().then(message => {
+            if(message.state === 'enabled') {
+              SyncBrowserDB.setAndLoadIconForPage(tab.url, tab.iconUrl);
+            }
+          });
+//ENDIF_FIREFOX_SYNC
         }
         break;
 
@@ -714,10 +738,6 @@ var Browser = {
         }, 800);
         break;
 
-      case 'mozbrowserasyncscroll':
-        this.debug('mozbrowserasyncscroll[' + tab.id + ']');
-        break;
-
       default:
         this.debug('other event = ' + evt.type);
         break;
@@ -761,7 +781,7 @@ var Browser = {
     var browserEvents = ['loadstart', 'loadend', 'locationchange',
                          'titlechange', 'iconchange', 'contextmenu',
                          'securitychange', 'openwindow', 'close',
-                         'showmodalprompt', 'error', 'asyncscroll',
+                         'showmodalprompt', 'error',
                          'usernameandpasswordrequired', 'memorypressure'];
     browserEvents.forEach(function attachBrowserEvent(type) {
       iframe.addEventListener('mozbrowser' + type,
@@ -962,7 +982,7 @@ var Browser = {
           case 'url':
             var url = this.getUrlFromInput(activity.source.data.url);
             this.debug(' url = ' + url);
-            this.start_page_url = url;
+            connectionHandler.openPage(url);
             break;
         }
         break;
@@ -1127,21 +1147,6 @@ var Browser = {
     }
   },
 
-
-  /**
-   * keypress
-   */
-  keypress: function browser_keypress(ev) {
-    if( (Awesomescreen.isDisplayedList()) && (!(Awesomescreen.isDisplayedDialog())) ){
-      ev.preventDefault();
-      setTimeout( function() {
-        if(Awesomescreen.exeflag && (ev.keyCode == KeyEvent.DOM_VK_UP || ev.keyCode == KeyEvent.DOM_VK_DOWN )){
-          Awesomescreen.listDialogKeyCont(ev, ev.target);
-        }
-      }, 100);
-    }
-  },
-
   /**
    * location hash change event
    */
@@ -1209,16 +1214,4 @@ window.addEventListener('load', function browserOnLoad(evt) {
     Browser.init();
   }.bind(this));
 });
-
-function actHandle(activity) {
-  if (Browser.hasLoaded) {
-    Browser.handleActivity(activity);
-  } else {
-    Browser.waitingActivities.push(activity);
-  }
-}
-
-if (window.navigator.mozSetMessageHandler) {
-  window.navigator.mozSetMessageHandler('activity', actHandle);
-}
 
