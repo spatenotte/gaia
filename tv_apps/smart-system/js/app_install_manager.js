@@ -17,6 +17,8 @@
 // note: we removed the download cancel dialog because we don't have an UI to
 // remove it.
 
+const PREVIEW_OPENED_TIMES_TO_HINT = 3;
+
 var AppInstallManager = {
   mapDownloadErrorsToMessage: {
     'NETWORK_ERROR': 'download-failed',
@@ -45,6 +47,8 @@ var AppInstallManager = {
     this.appInfos = {};
     this.setupQueue = [];
     this.isSetupInProgress = false;
+    this.pausePreview = false;
+    this.previewOpenedTimes = {};
 
     window.addEventListener('mozChromeEvent', (evt) => {
       var detail = evt.detail;
@@ -56,7 +60,9 @@ var AppInstallManager = {
               this.dispatchResponse(detail.id, 'webapps-install-denied');
             } else {
               this.dispatchResponse(detail.id, 'webapps-install-granted');
-              this.setPreviewAppManifestURL(detail.app.manifestURL);
+              if (!this.pausePreview) {
+                this.setPreviewAppManifestURL(detail.app.manifestURL);
+              }
             }
           } else {
             this.handleAppInstallPrompt(detail);
@@ -338,11 +344,32 @@ var AppInstallManager = {
       this.systemBanner.show({
         id: 'preview-app-hint'
       });
+      this.previewOpenedTimes[manifestURL] =
+        ++this.previewOpenedTimes[manifestURL] || 1;
     };
 
     var handlePreviewTerminated = () => {
       window.removeEventListener('previewterminated', handlePreviewTerminated);
-      this.uninstallPreviewApp();
+      var askAddPrompt =
+        this.previewOpenedTimes[manifestURL] === PREVIEW_OPENED_TIMES_TO_HINT;
+      if (askAddPrompt && !this.getAppAddedState(manifestURL)) {
+        var options = { 'manifest': app.manifest };
+        var TYPES = AppInstallDialogs.TYPES;
+        // Keep app info in case of it is destroyed by terminated event
+        var cloneApp = {
+          manifestURL: app.manifestURL,
+          manifest: app.manifest,
+          updateManifest: app.updateManifest
+        };
+        this.appInstallDialogs.show(TYPES.AddAppDialog, options).then(
+          this.handleAddAppToApps.bind(this, cloneApp),
+          this.uninstallPreviewApp.bind(this)
+        ).catch(function(e) {
+          console.error(e);
+        });
+      } else {
+        this.uninstallPreviewApp();
+      }
     };
 
     window.addEventListener('previewopened', handlePreviewOpened);
@@ -373,6 +400,16 @@ var AppInstallManager = {
     }
   },
 
+  getAppAddedState: function(manifestURL) {
+    return this.getPreviewAppManifestURL() !== manifestURL &&
+      applications.getByManifestURL(manifestURL);
+  },
+
+  handleAddAppToApps: function(app) {
+    this.setPreviewAppManifestURL('');
+    this.showInstallSuccess(app);
+  },
+
   handleInstallSuccess: function ai_handleInstallSuccess(app) {
     var manifest = app.manifest || app.updateManifest;
     var role = manifest.role;
@@ -384,10 +421,13 @@ var AppInstallManager = {
       return;
     }
 
-    if (app.manifestURL === this.getPreviewAppManifestURL()) {
+    if (!this.pausePreview &&
+      app.manifestURL === this.getPreviewAppManifestURL()) {
       this.previewApp(app);
       return;
     }
+
+    this.pausePreview = false;
 
     if (this.configurations[role]) {
       this.setupQueue.push(app);
@@ -408,11 +448,15 @@ var AppInstallManager = {
     var manifest = app.manifest || app.updateManifest;
     var appManifest = new ManifestHelper(manifest);
     var name = appManifest.name;
-    var msg = {
-      id: 'app-install-success',
-      args: { appName: name }
-    };
-    this.systemBanner.show(msg);
+    var msgID = this.isMarketplaceAppActive() ?
+      'app-add-success' : 'app-install-success';
+
+    this.systemBanner.show({
+      id: msgID,
+      args: {
+        appName: name
+      }
+    });
   },
 
   checkSetupQueue: function ai_checkSetupQueue() {

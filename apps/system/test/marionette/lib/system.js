@@ -354,6 +354,15 @@ System.prototype = {
     return iframe;
   },
 
+  shareLink: function() {
+    this.appChromeContextLink.tap();
+    this.client.waitFor(function() {
+      return this.appChromeContextMenu.displayed();
+    }.bind(this));
+    this.appChromeContextMenuShare.tap();
+    this.waitForActivityMenu();
+  },
+
   /**
    * Clicks the bottom of the screen, where we expect the software home button
    * to exist. There are several different variations in the same spot, this
@@ -368,10 +377,26 @@ System.prototype = {
   },
 
   gotoBrowser: function(url) {
-    var frame = this.client.helper.waitForElement(
-      'div[transition-state="opened"] iframe[src="' + url + '"]');
+    this.client.switchToFrame();
+    var frame = this.waitForUrlLoaded(url);
     this.client.switchToFrame(frame);
     this.client.helper.waitForElement('body');
+  },
+
+  waitForUrlLoaded: function(url) {
+    var frame = this.client.helper.waitForElement(
+      'div[transition-state="opened"] iframe[src="' + url + '"]');
+    return frame;
+  },
+
+  goBack: function(url) {
+    this.client.switchToFrame();
+    this.appChromeBack.tap();
+  },
+
+  goForward: function(url) {
+    this.client.switchToFrame();
+    this.appChromeForward.tap();
   },
 
   getHomescreenIframe: function() {

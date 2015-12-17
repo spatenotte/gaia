@@ -5,6 +5,7 @@
 /* global ERROR_DIALOG_CLOSED_BY_USER */
 /* global ERROR_INVALID_SYNC_ACCOUNT */
 /* global ERROR_OFFLINE */
+/* global ERROR_SYNC_APP_KILLED */
 /* global ERROR_UNVERIFIED_ACCOUNT */
 /* global ERROR_UNKNOWN */
 /* global LazyLoader */
@@ -189,7 +190,8 @@ define(function(require) {
             }
 
             const IGNORED_ERRORS = [
-              ERROR_DIALOG_CLOSED_BY_USER
+              ERROR_DIALOG_CLOSED_BY_USER,
+              ERROR_SYNC_APP_KILLED
             ];
 
             if (IGNORED_ERRORS.indexOf(message.error) > -1) {
@@ -330,7 +332,7 @@ define(function(require) {
       formatter.format(time).then(relDate => {
         var selector = 'span[data-l10n-id=fxsync-last-synced]';
         var lastSync = this.elements.lastSync.querySelector(selector);
-        navigator.mozL10n.setAttributes(lastSync, 'fxsync-last-synced', {
+        document.l10n.setAttributes(lastSync, 'fxsync-last-synced', {
           when: relDate
         });
         this.elements.lastSync.classList.remove('hidden');

@@ -1,4 +1,3 @@
-/* global Storage */
 'use strict';
 
 /**
@@ -539,7 +538,7 @@ require([
       this.defaultMediaLocation.addEventListener('click', this);
       this.makeDefaultLocationMenu();
 
-      window.addEventListener('localized', this);
+      document.addEventListener('DOMRetranslated', this);
     },
 
     initAllVolumeObjects: function ms_initAllVolumeObjects() {
@@ -579,13 +578,11 @@ require([
 
     handleEvent: function ms_handleEvent(evt) {
       switch (evt.type) {
-        case 'localized':
+        case 'DOMRetranslated':
           this.updateInfo();
           break;
         case 'change':
-          if (evt.target.id === 'ums-switch') {
-            Storage.umsMasterSettingChanged(evt);
-          } else if (evt.target.id === 'defaultMediaLocation') {
+          if (evt.target.id === 'defaultMediaLocation') {
             this.defaultLocationName = this.defaultMediaLocation.value;
           } else {
             // we are handling storage changes
