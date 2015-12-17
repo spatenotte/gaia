@@ -1,15 +1,25 @@
 'use strict';
+
+window.addEventListener("load", function() {
+  //register eventlistener
+  let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
+           .getService(Ci.nsISyncMessageSender);
+  cpmm.addMessageListener("PrivacyMonitor:APIRequest", function(obj) {
+    console.log(obj.appName);
+  });
+});
+
 function getContact() {
   console.log('Clicked getContacts');
   var allContacts = navigator.mozContacts
-                    .getAll({sortBy: 'familyName', 
+                    .getAll({sortBy: 'familyName',
                       sortOrder: 'descending'});
   console.log(allContacts);
-  
+
 //   allContacts.onsuccess = function(event) {
 //     var cursor = event.target;
 //     if (cursor.result) {
-//       console.log('Found: ' + cursor.result.givenName[0] + ' ' 
+//       console.log('Found: ' + cursor.result.givenName[0] + ' '
 //                             + cursor.result.familyName[0]);
 //       cursor.continue();
 //     } else {
@@ -20,7 +30,7 @@ function getContact() {
 //   allContacts.onerror = function() {
 //     console.warn('Something went terribly wrong! :(');
 //   }
-} 
+}
 
 function getGeoloc() {
   var options = {
@@ -82,20 +92,20 @@ function getVideoCap() {
   navigator.mediaDevices.getUserMedia({ audio: false, video: true });
 }
 
-// requesting some services after a set interval - to see 
+// requesting some services after a set interval - to see
 // if the app does it in the app ground.
 
 function loopGeoRequest() {
-  // console.log('Button clicked to request access to different 
+  // console.log('Button clicked to request access to different
   // services continously, to see if the app logs the'
-  // + 'data to indexedDB - so we know if the app runs 
+  // + 'data to indexedDB - so we know if the app runs
   // in background');
     setInterval(getGeoloc, 10000);
 }
 
 
 function loopContactRequest() {
-  // console.log('Button clicked to request access 
+  // console.log('Button clicked to request access
   // to different services continously, to see if the app logs the'
   // +'data to indexedDB - so we know if the app runs in background');
     setInterval(getContact, 15000);
