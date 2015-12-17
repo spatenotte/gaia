@@ -137,6 +137,7 @@ define(function(require) {
      * @param {Function} callback
      * @memberOf AppsCache
      */
+     
     addEventListener: function am_addEventListener(eventName, callback) {
       if (this._eventHandlers[eventName]) {
         this._eventHandlers[eventName].push(callback);
