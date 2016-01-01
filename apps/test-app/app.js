@@ -1,42 +1,43 @@
 'use strict';
 
 window.addEventListener("load", function() {
-  //register eventlistener
-  let cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
-           .getService(Ci.nsISyncMessageSender);
-  cpmm.addMessageListener("PrivacyMonitor:APIRequest", function(obj) {
-    console.log(obj.appName);
-  });
+  writeToIndexedDB("Test", "contacts", "dhdolg");
+  writeToIndexedDB("Test2", "geolocation", "dhdolg");
+  writeToIndexedDB("Test3", "contacts", "dhdolg");
+  writeToIndexedDB("Test4", "sms", "dhdolg");
+  readFromIndexedDB();
 });
 
 function getContact() {
   console.log('Clicked getContacts');
   var allContacts = navigator.mozContacts
-                    .getAll({sortBy: 'familyName',
-                      sortOrder: 'descending'});
+    .getAll({
+      sortBy: 'familyName',
+      sortOrder: 'descending'
+    });
   console.log(allContacts);
 
-//   allContacts.onsuccess = function(event) {
-//     var cursor = event.target;
-//     if (cursor.result) {
-//       console.log('Found: ' + cursor.result.givenName[0] + ' '
-//                             + cursor.result.familyName[0]);
-//       cursor.continue();
-//     } else {
-//       console.log('No more contacts');
-//     }
-//   };
+  //   allContacts.onsuccess = function(event) {
+  //     var cursor = event.target;
+  //     if (cursor.result) {
+  //       console.log('Found: ' + cursor.result.givenName[0] + ' '
+  //                             + cursor.result.familyName[0]);
+  //       cursor.continue();
+  //     } else {
+  //       console.log('No more contacts');
+  //     }
+  //   };
 
-//   allContacts.onerror = function() {
-//     console.warn('Something went terribly wrong! :(');
-//   }
+  //   allContacts.onerror = function() {
+  //     console.warn('Something went terribly wrong! :(');
+  //   }
 }
 
 function getGeoloc() {
   var options = {
-   enableHighAccuracy: true,
-   timeout: 5000,
-   maximumAge: 0
+    enableHighAccuracy: true,
+    timeout: 5000,
+    maximumAge: 0
   };
   console.log('testing for loop request access');
   navigator.geolocation.getCurrentPosition(success, error, options);
@@ -59,7 +60,10 @@ function error(err) {
 
 function getAudio() {
   console.log('Clicked getAudio');
-  navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: false
+  });
 }
 
 function getCamera() {
@@ -89,7 +93,10 @@ function getVideos() {
 
 function getVideoCap() {
   console.log('Clicked getVideoCap');
-  navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+  navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: true
+  });
 }
 
 // requesting some services after a set interval - to see
@@ -100,7 +107,7 @@ function loopGeoRequest() {
   // services continously, to see if the app logs the'
   // + 'data to indexedDB - so we know if the app runs
   // in background');
-    setInterval(getGeoloc, 10000);
+  setInterval(getGeoloc, 10000);
 }
 
 
@@ -108,40 +115,120 @@ function loopContactRequest() {
   // console.log('Button clicked to request access
   // to different services continously, to see if the app logs the'
   // +'data to indexedDB - so we know if the app runs in background');
-    setInterval(getContact, 15000);
+  setInterval(getContact, 15000);
 }
 
 // to access indexedDB
 function showIndexedDB() {
   var db = navigator.privacyMonitor.readIndexedDB();
   var data = db.transaction(['entries'], 'readwrite')
-             .objectStore('entries').getAll();
+    .objectStore('entries').getAll();
   data.onsuccess = function(event) {
     console.log(data);
   };
 }
 
+function writeToIndexedDB(name, permission, date) {
+  console.log("Entered indexedDB");
+  let request = indexedDB.open("permissionLog", 1);
+  var db;
+
+  request.onerror = function(event) {
+    console.log("error opening DB ");
+  };
+
+  request.onsuccess = function(event) {
+    db = event.target.result;
+    console.log("success opening DB");
+    var write = db.transaction(["entries"], "readwrite")
+      .objectStore("entries")
+      .add({
+        name: name,
+        permission: permission,
+        date: date
+      });
+
+    write.onerror = function(event) {
+      console.log("error writing to DB");
+    };
+
+    write.onsuccess = function(event) {
+      console.log("success writing to DB");
+    };
+
+    db.close();
+  };
+
+  request.onupgradeneeded = function(event) {
+    db = event.target.result;
+    var objectStore = db.createObjectStore("entries", {
+      autoIncrement: true
+    });
+    objectStore.createIndex("name", "name", {
+      unique: false
+    });
+    objectStore.createIndex("permission", "permission", {
+      unique: false
+    });
+    objectStore.createIndex("date", "date", {
+      unique: false
+    });
+  }
+}
+
+function readFromIndexedDB() {
+
+  console.log("Entered indexedDB");
+  let request = indexedDB.open("permissionLog", 1);
+  var db;
+
+  request.onerror = function(event) {
+    console.log("error opening DB ");
+  };
+
+  request.onsuccess = function(event) {
+    db = event.target.result;
+    console.log("success opening DB");
+    var write = db.transaction(["entries"], "readwrite")
+      .objectStore("entries");
+
+    // open a cursor to retrieve all items from the 'notes' store
+    write.openCursor().onsuccess = function(e) {
+      var cursor = e.target.result;
+      if (cursor) {
+        var value = cursor.value;
+
+        console.log(value.name + " accessing " + value.permission);
+
+        // move to the next item in the cursor
+        cursor.continue();
+      }
+      db.close();
+    };
+  };
+}
+
 document.getElementById('contactsButton')
-        .addEventListener('click', getContact);
+  .addEventListener('click', getContact);
 document.getElementById('geolocButton')
-        .addEventListener('click', getGeoloc);
+  .addEventListener('click', getGeoloc);
 document.getElementById('audioCapButton')
-        .addEventListener('click', getAudio);
+  .addEventListener('click', getAudio);
 document.getElementById('cameraButton')
-        .addEventListener('click', getCamera);
+  .addEventListener('click', getCamera);
 document.getElementById('musicButton')
-        .addEventListener('click', getMusic);
+  .addEventListener('click', getMusic);
 document.getElementById('picturesButton')
-        .addEventListener('click', getPictures);
+  .addEventListener('click', getPictures);
 document.getElementById('sdcardButton')
-        .addEventListener('click', getSdcard);
+  .addEventListener('click', getSdcard);
 document.getElementById('videosButton')
-        .addEventListener('click', getVideos);
+  .addEventListener('click', getVideos);
 document.getElementById('videoCapButton')
-        .addEventListener('click', getVideoCap);
+  .addEventListener('click', getVideoCap);
 document.getElementById('indexedDBButton')
-        .addEventListener('click', showIndexedDB);
+  .addEventListener('click', showIndexedDB);
 document.getElementById('loopGeolocButton')
-        .addEventListener('click', loopGeoRequest);
+  .addEventListener('click', loopGeoRequest);
 document.getElementById('loopContactButton')
-        .addEventListener('click', loopContactRequest);
+  .addEventListener('click', loopContactRequest);
