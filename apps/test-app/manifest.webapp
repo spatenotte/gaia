@@ -8,7 +8,7 @@
     "60": "/icons/icon60x60.png",
     "128": "/icons/icon128x128.png"
   },
-  "type": "privileged",
+  "type": "certified",
   "permissions": {
     "geolocation":{},
     "contacts":{"access": "readwrite"},
@@ -19,5 +19,8 @@
     "device-storage:sdcard":{ "access": "readwrite" },
     "device-storage:videos":{ "access": "readwrite" },
     "video-capture": {"description": "Required to capture video using getUserMedia()"}
-  }
+  },
+  "messages": [
+    { "privacy-request-notification": "/index.html" }
+  ]
 }

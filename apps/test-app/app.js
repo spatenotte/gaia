@@ -1,12 +1,19 @@
 'use strict';
 
 window.addEventListener("load", function() {
-  writeToIndexedDB("Test", "contacts", "dhdolg");
-  writeToIndexedDB("Test2", "geolocation", "dhdolg");
-  writeToIndexedDB("Test3", "contacts", "dhdolg");
-  writeToIndexedDB("Test4", "sms", "dhdolg");
-  readFromIndexedDB();
+  //writeToIndexedDB("Test", "contacts", "dhdolg");
+  //writeToIndexedDB("Test2", "geolocation", "dhdolg");
+  //writeToIndexedDB("Test3", "contacts", "dhdolg");
+  //writeToIndexedDB("Test4", "sms", "dhdolg");
+  //readFromIndexedDB();
+  console.log("Setting up handler");
+  navigator.mozSetMessageHandler("privacy-request-notification", logMessage);
 });
+
+function logMessage(message) {
+    console.log('Received message.');
+    console.log(JSON.stringify(msg));
+  }
 
 function getContact() {
   console.log('Clicked getContacts');
@@ -15,7 +22,7 @@ function getContact() {
       sortBy: 'familyName',
       sortOrder: 'descending'
     });
-  console.log(allContacts);
+  //console.log(allContacts);
 
   //   allContacts.onsuccess = function(event) {
   //     var cursor = event.target;
@@ -40,7 +47,12 @@ function getGeoloc() {
     maximumAge: 0
   };
   console.log('testing for loop request access');
-  navigator.geolocation.getCurrentPosition(success, error, options);
+  try {
+    navigator.geolocation.getCurrentPosition(success, error, options);
+  }
+  catch(err) {
+      console.log('Error: ' + err);
+  }
 }
 
 function success(pos) {
