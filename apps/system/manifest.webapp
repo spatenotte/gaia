@@ -41,6 +41,9 @@
     "audio-channel-content": {},
     "audio-channel-ringer": {},
     "audio-channel-system": {},
+    "audio-channel-telephony" : {},
+    "audio-channel-alarm" : {},
+    "audio-channel-publicnotification" : {},
     "cellbroadcast": {},
     "input-manage": {},
     "nfc": {},
@@ -51,7 +54,8 @@
     "feature-detection": {},
     "before-after-keyboard-event": {},
     "moz-extremely-unstable-and-will-change-webcomponents":{},
-    "moz-firefox-accounts": {}
+    "moz-firefox-accounts": {},
+    "presentation-device-manage": {}
   },
   "locales": {
     "ar": {

@@ -568,10 +568,8 @@ li {
 #circle-img:focus {
   outline:none;
   transform: scale(1.2);
-  border : 0.1rem solid #fff;
   background: url("../style/images/ic_close_black.png") no-repeat center/contain #fff;
   transition: transform 0.42s cubic-bezier(0.25, 0, 0, 1.0),
-                   border 0.42s cubic-bezier(0.25, 0, 0, 1.0),
                    background 0.42s cubic-bezier(0.25, 0, 0, 1.0);
 }
 
@@ -611,6 +609,18 @@ li {
 #bmtitle-area.input #input-area {
   font-style: normal;
   transition: font-style 0.06s cubic-bezier(0.25, 0, 0, 1.0);
+}
+
+#bmtitle-area.invalid {
+  border-bottom-color: #b90000;
+}
+
+#bmtitle-area.invalid .input-line {
+  background-color: #b90000;
+}
+
+#input-area:invalid {
+  box-shadow:none;
 }
 
 .awesomescreen-default-button:hover,
@@ -685,6 +695,21 @@ li {
   outline:none;
   pointer-events: auto;
   transform: scale(1.0);
+}
+
+#ok-button.disable,
+#rename-confirm-button.disable {
+  color: rgba(255,255,255,0.5);
+  background-color: #5f6368;
+  pointer-events: none;
+}
+
+#ok-button.disable.awesomescreen-primary-button.active,
+#rename-confirm-button.disable.awesomescreen-primary-button.active {
+  color: rgba(255,255,255,0.5);
+  background-color: #5f6368;
+  transform: none;
+  transiton: none;
 }
 
 /* --- tabview --- */

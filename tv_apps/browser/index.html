@@ -591,7 +591,7 @@ ENDIF_FIREFOX_SYNC-->
             <div id="message-area">
               <div id="message-title" class="title-area"></div>
               <div id="bmtitle-area">
-                <input id="input-area" value="" size="30" type="text">
+                <input id="input-area" value="" size="30" type="text" required pattern="\s*\S.*">
                 <div class="input-line"></div>
                 <div id="circle-img"></div>
               </div>
@@ -676,7 +676,7 @@ ENDIF_FIREFOX_SYNC-->
       </section>
 
       <!-- dialog -->
-      <div id="browser-dialog-base">
+      <div id="browser-dialog-base" class="hide">
         <div id="browser-dialog">
           <div id="browser-dialog-title">
             <p id="browser-dialog-title-text"></p>
@@ -747,9 +747,9 @@ ENDIF_FIREFOX_SYNC-->
                   <span data-l10n-id="fxsync-collections-history"></span>
                 </li>
               </ul>
+              <p class="fine-print"><a id="fxsync-tos" data-l10n-id="fxsync-tos"></a></p>
+              <p class="fine-print"><a id="fxsync-privacy" data-l10n-id="fxsync-privacy"></a></p>
             </div>
-            <p class="fine-print"><a id="fxsync-tos" data-l10n-id="fxsync-tos"></a></p>
-            <p class="fine-print"><a id="fxsync-privacy" data-l10n-id="fxsync-privacy"></a></p>
           </div>
         </div>
 ENDIF_FIREFOX_SYNC-->

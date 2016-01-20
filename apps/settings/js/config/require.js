@@ -35,6 +35,18 @@ require.config({
     'shared/device_storage/enumerate_all': {
       exports: 'enumerateAll'
     },
+    'shared/download/download_formatter': {
+      exports: 'DownloadFormatter'
+    },
+    'shared/download/download_store': {
+      exports: 'DownloadStore'
+    },
+    'shared/download/download_ui': {
+      exports: 'DownloadUI'
+    },
+    'shared/download/download_helper': {
+      exports: 'DownloadHelper'
+    },
     'shared/fxa_iac_client': {
       exports: 'FxAccountsIACHelper'
     },
@@ -56,6 +68,9 @@ require.config({
     },
     'shared/manifest_helper': {
       exports: 'ManifestHelper'
+    },
+    'shared/mime_mapper': {
+      exports: 'MimeMapper'
     },
     'shared/mobile_operator': {
       exports: 'MobileOperator'
@@ -115,9 +130,6 @@ require.config({
     },
     'shared/wifi_helper': {
       exports: 'WifiHelper'
-    },
-    'utils': {
-      exports: ''
     },
     'vendor/jszip': {
       exports: 'JSZip'
@@ -319,7 +331,8 @@ require.config({
         'modules/state_model',
         'modules/mvvm/list_view',
         'modules/dialog_service',
-        'modules/customized_network_type_map'
+        'modules/customized_network_type_map',
+        'modules/mobile/supported_network_info'
       ]
     },
     {
@@ -372,7 +385,10 @@ require.config({
     },
     {
       name: 'panels/sound/panel',
-      exclude: ['main']
+      exclude: [
+        'main',
+        'modules/mobile/supported_network_info'
+      ]
     },
     {
       name: 'panels/usb_storage/panel',

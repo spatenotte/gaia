@@ -8,6 +8,7 @@
 function Contacts(client) {
   this.client = client;
   this.client.setSearchTimeout(10000);
+  this.actions = this.client.loader.getActions();
 }
 
 /**
@@ -59,6 +60,7 @@ Contacts.Selectors = {
   duplicateMerge: '#merge-action',
 
   exportButton: '#exportContacts button',
+  exportSDCard: '#export-sd-option button',
 
   form: '#view-contact-form',
   formTitle: '#contact-form-title',
@@ -82,12 +84,14 @@ Contacts.Selectors = {
   formAddNewEmail: '#add-new-email',
   formHeader: '#contact-form-header',
   formPhotoImg: '#thumbnail-photo',
+  deleteContact: '#delete-contact',
 
   groupList: ' #groups-list',
   contacts: '#groups-list .contact-item',
   list: '#view-contacts-list',
   listContactFirst: 'li:not([data-group="ice"]).contact-item',
   listContactFirstText: 'li:not([data-group="ice"]).contact-item p',
+  contactsItems: 'li:not([data-group="ice"]).contact-item p',
   contactListHeader: '#contacts-list-header',
 
   searchLabel: '#search-start',
@@ -101,6 +105,8 @@ Contacts.Selectors = {
   settingsView: '#view-settings',
   settingsClose: '#settings-close',
   bulkDelete: '#bulkDelete',
+  orderSwitch: '#settingsOrder gaia-switch',
+  changeOrder: '#switch',
 
   editForm: '#selectable-form',
   editMenu: '#select-all-wrapper',
@@ -121,10 +127,15 @@ Contacts.Selectors = {
   iceGroupOpen: '#section-group-ice',
   iceContact: '#ice-group .contact-item',
 
+  importContacts: '#importContacts',
+  importSDCard: '#import-sd-option button',
+  importHeader: '#import-settings-header',
+
   activityChooser: 'form[data-type="action"]',
   buttonActivityChooser: 'form[data-type="action"] button',
   actionMenu: '#action-menu',
   actionMenuList: '#value-menu',
+  actionButton: '.action-button',
 
   multipleSelectSave: '#save-button',
   multipleSelectStatus: '#statusMsg p',
@@ -406,11 +417,36 @@ Contacts.prototype = {
     });
   },
 
+  goToSettings: function() {
+    this.client.helper.waitForElement(
+      Contacts.Selectors.settingsButton).tap();
+    var settings = this.client.helper.waitForElement(
+      Contacts.Selectors.settingsView);
+    this.waitForFadeIn(settings);
+  },
+
   getElementStyle: function(selector, type) {
     return this.client.executeScript(function(selector, type) {
       return document.querySelector(selector).style[type];
     }, [selector, type]);
+  },
+
+  getNumberOfContacts: function() {
+    return this.contactsNames.length;
+  },
+
+  get contactsNames() {
+    try {
+      var contactElements = this.client.findElements(
+        Contacts.Selectors.contactsItems);
+      return contactElements.map((element) => {
+        return element.text();
+      });
+    } catch(e) {
+      return [];
+    }
   }
+
 };
 
 module.exports = Contacts;

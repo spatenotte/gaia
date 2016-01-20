@@ -1,4 +1,4 @@
-/* global LazyLoader, AppWindowManager, applications, ManifestHelper*/
+/* global LazyLoader, applications, ManifestHelper*/
 /* global Template, focusManager, SpatialNavigator, KeyEvent */
 /* global KeyNavigationAdapter */
 
@@ -268,10 +268,6 @@
         case 'cancel-permission-prompt':
           this.discardPermissionRequest();
           break;
-        case 'fullscreenoriginchange':
-          delete this.overlay.dataset.type;
-          this.handleFullscreenOriginChange(detail);
-          break;
       }
 
       switch (evt.type) {
@@ -306,35 +302,6 @@
             link.disabled = true;
           }
         }
-      }
-    },
-
-    /**
-     * Show the request for the new domain
-     * @memberof PermissionManager.prototype
-     * @param {Object} detail The event detail object.
-     */
-    handleFullscreenOriginChange:
-      function pm_handleFullscreenOriginChange(detail) {
-      // If there's already a fullscreen request visible, cancel it,
-      // we'll show the request for the new domain.
-      if (this.fullscreenRequest !== undefined) {
-        this.cancelRequest(this.fullscreenRequest);
-        this.fullscreenRequest = undefined;
-      }
-      if (detail.fullscreenorigin !== AppWindowManager.getActiveApp().origin) {
-        // The message to be displayed on the approval UI.
-        var message = {
-          id: 'fullscreen-request',
-          args: { 'origin': detail.fullscreenorigin }
-        };
-        this.fullscreenRequest =
-          this.requestPermission(detail.id, detail.origin, detail.permission,
-                                 message, '',
-                                              /* yesCallback */ null,
-                                              /* noCallback */ function() {
-                                                document.mozCancelFullScreen();
-                                              });
       }
     },
 
@@ -644,6 +611,10 @@
 
       // Make the screen visible
       this.overlay.classList.add('visible');
+
+      this._spatialNavigator.silent = true;
+      this._spatialNavigator.focus(this.no);
+      this._spatialNavigator.silent = false;
       focusManager.focus();
     },
 
@@ -711,7 +682,7 @@
     focus: function pm_focus() {
       setTimeout(function() {
         document.activeElement.blur();
-        this._spatialNavigator.focus(this.no);
+        this._spatialNavigator.focus();
       }.bind(this));
     },
 

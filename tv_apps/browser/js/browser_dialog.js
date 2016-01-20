@@ -1,4 +1,9 @@
 /* global _ */
+/* global Awesomescreen */
+/* global Browser */
+/* global BrowserDB */
+/* global KeyEvent */
+/* global Settings */
 
 'use strict';
 
@@ -88,7 +93,8 @@ var BrowserDialog = {
       evt.preventDefault();
     }
     this.dialogEvt = evt;
-    this.browserDialogBase.style.display = 'block';
+    this.browserDialogBase.classList.remove('hide');
+    this.browserDialogBase.dataset.type = type;
 
     var promise;
     switch(type) {
@@ -110,18 +116,10 @@ var BrowserDialog = {
         };
         break;
 
-      case 'close_browser':
-        opt = {
-          title: null,
-          msg: _('LT_BROWSER_CONFIRM_EXIT2'),
-          bt1: _('LT_CANCEL'),
-          bt2: _('LT_WB_OK')
-        };
-        break;
-
       case 'error_browser':
-        var msg_str = (evt.detail.type === 'certerror')?
-          _('WB_LT_CONNECTION_IS_UNTRUSTED'): _('WB_LT_PAGE_CANNOT_BE_DISPLAYED');
+        var msg_str = (evt.detail.type === 'certerror') ?
+          _('WB_LT_CONNECTION_IS_UNTRUSTED') :
+          _('WB_LT_PAGE_CANNOT_BE_DISPLAYED');
         opt = {
           title: null,
           msg: msg_str,
@@ -169,8 +167,8 @@ var BrowserDialog = {
 //IFDEF_FIREFOX_SYNC
       case 'signout_confirm':
         opt = {
-          title: null,
-          msg: _('fxsync-confirm-sign-out'),
+          title: _('fxsync-confirm-sign-out-title'),
+          msg: _('fxsync-confirm-sign-out-message'),
           bt1: _('LT_CANCEL'),
           bt2: _('fxsync-sign-out')
         };
@@ -246,9 +244,24 @@ var BrowserDialog = {
       this.defaultFocusIndex.x = 0;
       this.defaultFocusIndex.y = 0;
       this.focusIndex.x = 0;
+
+//IFDEF_FIREFOX_SYNC
+      if(type === 'signout_confirm') {
+        this.focusIndex.y = 0;
+        this.focusElement[0][countIndex++] = this.browserDialogButton1;
+        this.focusElement[0][countIndex++] = this.browserDialogButton2;
+      } else {
+        this.focusIndex.y = 1;
+        this.focusElement[0][countIndex++] = this.browserDialogButton2;
+        this.focusElement[0][countIndex++] = this.browserDialogButton1;
+      }
+//ENDIF_FIREFOX_SYNC
+
+//IFNDEF_FIREFOX_SYNC
       this.focusIndex.y = 1;
       this.focusElement[0][countIndex++] = this.browserDialogButton2;
       this.focusElement[0][countIndex++] = this.browserDialogButton1;
+//ENDIF_FIREFOX_SYNC
     } else if(opt.bt1) {
       this.defaultFocusIndex.x = 0;
       this.defaultFocusIndex.y = 0;
@@ -256,31 +269,32 @@ var BrowserDialog = {
       this.focusIndex.y = 0;
       this.focusElement[0][countIndex++] = this.browserDialogButton1;
     }
-    Awesomescreen.focusImgFunc(this.focusElement[this.focusIndex.x][this.focusIndex.y]);
+    Awesomescreen.focusImgFunc(
+      this.focusElement[this.focusIndex.x][this.focusIndex.y]);
     this.focusElement[this.focusIndex.x][this.focusIndex.y].focus();
     return promise;
   },
 
   isDisplayed: function dialog_isDisplayed() {
-    if( this.browserDialogBase.style.display == 'block' ) {
-      return true;
-    } else {
-      return false;
-    }
+    return !this.browserDialogBase.classList.contains('hide');
   },
 
   dialogBaseClick: function dialog_dialogBaseClick(evt) {
-    if( evt ) evt.stopPropagation();
+    if( evt ) {
+      evt.stopPropagation();
+    }
   },
 
   dialogButtonKeyup: function dialog_dialogButton1Keyup(evt) {
-    if( evt ) evt.preventDefault();
+    if( evt ) {
+      evt.preventDefault();
+    }
     switch( evt.keyCode ) {
       case KeyEvent.DOM_VK_RETURN :
         var elm = document.activeElement;
         elm.classList.remove('active');
-        var dEvt = document.createEvent("MouseEvents");
-        dEvt.initMouseEvent("mouseup", true, true, window, 0, 0, 0, 0, 0,
+        var dEvt = document.createEvent('MouseEvents');
+        dEvt.initMouseEvent('mouseup', true, true, window, 0, 0, 0, 0, 0,
             false, false, false, false, 0, elm);
         elm.dispatchEvent( dEvt );
         break;
@@ -305,7 +319,6 @@ var BrowserDialog = {
     switch(type) {
       case 'del_cookie':
       case 'clear_history':
-      case 'close_browser':
       case 'error_browser':
       case 'max_bookmark':
       case 'alert':
@@ -364,28 +377,9 @@ var BrowserDialog = {
         //BrowserDB.clearHistory(this.cancelDialog.bind(this));
         BrowserDB.clearHistory(
             function(){
-              BrowserDialog.dialogButton2End(BrowserDialog.argEvt)
+              BrowserDialog.dialogButton2End(BrowserDialog.argEvt);
             }.bind(this));
         Awesomescreen.selectTopSites();
-        break;
-
-      case 'close_browser':
-        if (Browser.returnApp && Browser.returnApp == 'Search') {
-          var activity;
-          activity = new MozActivity({
-            name: 'search',
-            data: { keyword: '' }
-          });
-          activity.onsuccess == function () {
-            //console.log ('browser moaActivity succeeded');
-          };
-          activity.onerror == function () {
-            console.error ('browser launch search by moaActivity failed');
-          };
-        }
-        Browser.returnApp = null;
-        Browser.returnOpt = null;
-        self.close();
         break;
 
       case 'prompt':
@@ -424,12 +418,16 @@ var BrowserDialog = {
   },
 
   dialogInput: function dialog_dialogInput(evt) {
-    if( evt ) evt.preventDefault();
+    if( evt ) {
+      evt.preventDefault();
+    }
     this.browserDialogInputArea.blur();
   },
 
   dialogInputAreaFocus: function dialog_dialogInputAreaFocus(evt) {
-    if( evt ) evt.preventDefault();
+    if( evt ) {
+      evt.preventDefault();
+    }
     this.browserDialogInput.classList.add('input');
     this.browserDialogInput.classList.remove('exfocus');
   },
@@ -438,8 +436,10 @@ var BrowserDialog = {
     this.browserDialogInputArea.value = '';
   },
 
-  dialogInputAreaKeydown: function dialog_dialogInputKeydown() {
-    if( evt ) evt.preventDefault();
+  dialogInputAreaKeydown: function dialog_dialogInputKeydown(evt) {
+    if( evt ) {
+      evt.preventDefault();
+    }
     switch( evt.keyCode ) {
       case KeyEvent.DOM_VK_RETURN :
         this.moveFocus(this.focusIndex.x+1, 0);
@@ -507,7 +507,7 @@ var BrowserDialog = {
       BrowserDialog.browserDialogInput.classList.remove('exfocus');
       BrowserDialog.browserDialogInput.classList.remove('input');
     }
-    BrowserDialog.browserDialogBase.style.display = 'none';
+    BrowserDialog.browserDialogBase.classList.add('hide');
     BrowserDialog.browserDialogButton1.classList.remove('visible');
     BrowserDialog.browserDialogButton2.classList.remove('visible');
     Browser.switchCursorMode(true);
@@ -515,7 +515,9 @@ var BrowserDialog = {
   },
 
   moveFocus: function dialog_moveFocus(xd, yd) {
-    if(!this.focusElement[xd]) return;
+    if(!this.focusElement[xd]) {
+      return;
+    }
     if(( xd < 0 || yd < 0 ) || ( !this.focusElement[xd][yd] )) {
       if(( !this.browserDialogButton2.classList.contains('visible') ) &&
          ( Awesomescreen.pointerImg.style.display !== 'block' )) {
@@ -541,17 +543,22 @@ var BrowserDialog = {
       flg = true;
     }
     document.activeElement.blur();
-    Awesomescreen.focusImgFunc(this.focusElement[this.focusIndex.x][this.focusIndex.y], opt);
-    if(this.focusElement[this.focusIndex.x][this.focusIndex.y].nodeName == 'INPUT') {
+    Awesomescreen.focusImgFunc(
+      this.focusElement[this.focusIndex.x][this.focusIndex.y], opt);
+    if(this.focusElement[this.focusIndex.x][this.focusIndex.y].nodeName ==
+      'INPUT') {
       if( !this.browserDialogInput.classList.contains('exfocus') ) {
         this.browserDialogInput.classList.add('exfocus');
       }
-    } else if(this.focusElement[this.focusIndex.x][this.focusIndex.y].id == 'browser-dialog-input-clear') {
+    } else if(this.focusElement[this.focusIndex.x][this.focusIndex.y].id ==
+      'browser-dialog-input-clear') {
       this.focusElement[this.focusIndex.x][this.focusIndex.y].focus();
       if( !this.browserDialogInput.classList.contains('exfocus') ) {
         this.browserDialogInput.classList.add('exfocus');
       }
-      if( flg ) opt = Awesomescreen.DEFAULT_EXCLEAR;
+      if( flg ) {
+        opt = Awesomescreen.DEFAULT_EXCLEAR;
+      }
     } else {
       this.focusElement[this.focusIndex.x][this.focusIndex.y].focus();
       this.browserDialogInput.classList.remove('exfocus');
@@ -559,7 +566,9 @@ var BrowserDialog = {
   },
 
   handleKeyEvent: function dialog_handleKeyEvent(evt) {
-    if( !BrowserDialog.isDisplayed() ) return false;
+    if( !BrowserDialog.isDisplayed() ) {
+      return false;
+    }
     if( document.activeElement.nodeName == 'INPUT' ) {
       return true;
     }
@@ -582,7 +591,7 @@ var BrowserDialog = {
         break;
       case KeyEvent.DOM_VK_RETURN :
         evt.preventDefault();
-        if(this.focusIndex.x == 1 && this.focusIndex.y == 0) {
+        if(this.focusIndex.x === 1 && this.focusIndex.y === 0) {
           this.focusElement[this.focusIndex.x][this.focusIndex.y].focus();
           Awesomescreen.pointerImg.style.display = 'none';
         } else {

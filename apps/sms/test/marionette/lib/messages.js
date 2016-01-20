@@ -1,6 +1,6 @@
 'use strict';
 
-/* global module, __dirname */
+/* global module */
 var InboxAccessor = require('./views/inbox/accessors');
 var NewMessageAccessor = require('./views/new-message/accessors');
 var NewMessageView = require('./views/new-message/view');
@@ -15,14 +15,6 @@ var ParticipantsAccessor = require('./views/participants/accessors');
   var ORIGIN_URL = 'app://sms.gaiamobile.org';
   var MANIFEST_URL = ORIGIN_URL + '/manifest.webapp';
 
-  var MOCKS = [
-    '/../mocks/mock_test_storages.js',
-    '/../mocks/mock_test_blobs.js',
-    '/../mocks/mock_navigator_moz_icc_manager.js',
-    '/../mocks/mock_navigator_moz_mobile_message.js',
-    '/../mocks/mock_navigator_moz_contacts.js'
-  ];
-
   // TODO Move these constants to marionette, see bug 1207516
   var Chars = {
     ENTER: '\ue007',
@@ -31,6 +23,7 @@ var ParticipantsAccessor = require('./views/participants/accessors');
 
   var SELECTORS = Object.freeze({
     main: '#main-wrapper',
+    appReady: 'body.js-app-ready',
 
     Message: {
       content: '.message-content > p:first-child',
@@ -63,11 +56,20 @@ var ParticipantsAccessor = require('./views/participants/accessors');
 
         Participants: new ParticipantsAccessor(client),
 
-        launch: function() {
+        launch(doNotWaitForAppToBecomeReady) {
           client.switchToFrame();
           client.apps.launch(ORIGIN_URL);
           client.apps.switchToApp(ORIGIN_URL);
-          client.helper.waitForElement(SELECTORS.main);
+
+          // In 99.99% cases we'd like to wait for the app to become fully ready
+          // before we do anything in the tests, but sometimes we'd like to
+          // verify that app is actionable before it's marked as ready, in this
+          // case we just wait for the main app container to appear.
+          if (!doNotWaitForAppToBecomeReady) {
+            client.helper.waitForElement(SELECTORS.appReady);
+          } else {
+            client.helper.waitForElement(SELECTORS.main);
+          }
         },
 
         close: function() {
@@ -75,9 +77,13 @@ var ParticipantsAccessor = require('./views/participants/accessors');
         },
 
         loadMocks: function() {
-          MOCKS.forEach(function(mock) {
-            client.contentScript.inject(__dirname + mock);
-          });
+          client.loader.getMockManager('sms').inject([
+            'test_storages',
+            'test_blobs',
+            'navigator_moz_icc_manager',
+            'navigator_moz_mobile_message',
+            'navigator_moz_contacts'
+          ]);
         },
 
         /**
@@ -113,6 +119,7 @@ var ParticipantsAccessor = require('./views/participants/accessors');
           client.switchToFrame();
 
           client.apps.switchToApp(ORIGIN_URL);
+          client.helper.waitForElement(SELECTORS.appReady);
         },
 
         waitForAppToAppear: function() {

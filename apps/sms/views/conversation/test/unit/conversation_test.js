@@ -273,12 +273,19 @@ suite('conversation.js >', function() {
       for (var i = 0; i < 99; i++) {
         innerHTML += ConversationView.tmpl.message.interpolate({
           id: String(i),
-          bodyHTML: 'test #' + i
+          bodyHTML: 'test #' + i,
+          subject: '',
+          simInformationHTML: '',
+          timestamp: '',
+          messageStatusHTML: ''
         });
       }
       container.innerHTML = innerHTML;
       // This crudely emulates the CSS styles applied to the message list
       container.lastElementChild.style.paddingBottom = '16px';
+
+      // force reflow
+      container.scrollTop;
     });
 
     test('scroll 100px, should be detected as a manual scroll', function() {
@@ -4444,7 +4451,11 @@ suite('conversation.js >', function() {
         // fake content so that there is something to scroll
         container.innerHTML = ConversationView.tmpl.message.interpolate({
           id: '1',
-          bodyHTML: 'test #1'
+          bodyHTML: 'test #1',
+          subject: '',
+          simInformationHTML: '',
+          timestamp: '',
+          messageStatusHTML: ''
         });
 
         message = MockMessages.mms();

@@ -36,23 +36,19 @@ marionette('Messages Composer', function() {
     assert.isFalse(element.displayed(), 'Element should not be displayed');
   }
 
-  var MOCKS = [
-    '/mocks/mock_test_storages.js',
-    '/mocks/mock_test_blobs.js',
-    '/mocks/mock_navigator_moz_icc_manager.js',
-    '/mocks/mock_navigator_moz_mobile_message.js',
-    '/mocks/mock_navigator_moz_contacts.js'
-  ];
-
   setup(function() {
     messagesApp = Messages.create(client);
     storage = Storage.create(client);
 
     activityCallerApp = MessagesActivityCaller.create(client);
 
-    MOCKS.forEach(function(mock) {
-      client.contentScript.inject(__dirname + mock);
-    });
+    client.loader.getMockManager('sms').inject([
+      'test_storages',
+      'test_blobs',
+      'navigator_moz_icc_manager',
+      'navigator_moz_mobile_message',
+      'navigator_moz_contacts'
+    ]);
   });
 
   suite('Preserve message input while navigating', function() {
@@ -128,7 +124,7 @@ marionette('Messages Composer', function() {
       messagesApp.Inbox.navigateToComposer();
     });
 
-    test('Message char counter and MMS label', function() {
+    test('Message char counter and MMS label 1', function() {
       var composer = messagesApp.Composer;
 
       // Case #1: When we open composer initially we should not see neither char
@@ -195,6 +191,17 @@ marionette('Messages Composer', function() {
       client.helper.waitForElementToDisappear(composer.mmsLabel);
       client.helper.waitForElement(composer.charCounter);
       assert.equal(composer.charCounter.text(), '17/1');
+    });
+
+    test('Message char counter and MMS label 2', function() {
+      var composer = messagesApp.Composer;
+
+      // initial setup: the char counter needs to be displayed
+      composer.messageInput.tap();
+      composer.messageInput.sendKeys(message.slice(0, 140));
+      client.helper.waitForElement(composer.charCounter);
+      assert.equal(composer.charCounter.text(), '20/1');
+      assertIsNotDisplayed(composer.mmsLabel);
 
       // Case #10: Add attachment, message is converted to MMS and appropriate
       // label appears in the subject line.
@@ -218,6 +225,7 @@ marionette('Messages Composer', function() {
       // Case #11: show subject when we have an attachment, message is still
       // MMS.
       messagesApp.showSubject();
+      composer.subjectInput.sendKeys('subject');
 
       assertIsDisplayed(composer.mmsLabel);
       assertIsNotDisplayed(composer.charCounter);
@@ -246,7 +254,7 @@ marionette('Messages Composer', function() {
 
       client.helper.waitForElementToDisappear(composer.mmsLabel);
       client.helper.waitForElement(composer.charCounter);
-      assert.equal(composer.charCounter.text(), '15/1');
+      assert.equal(composer.charCounter.text(), '18/1');
 
       // Case #14: add an email recipient, the message is converted to MMS.
       messagesApp.addRecipient('a@b.com');

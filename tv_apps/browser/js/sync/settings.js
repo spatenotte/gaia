@@ -6,6 +6,7 @@
 /* global ERROR_DIALOG_CLOSED_BY_USER */
 /* global ERROR_INVALID_SYNC_ACCOUNT */
 /* global ERROR_OFFLINE */
+/* global ERROR_SYNC_APP_KILLED */
 /* global ERROR_UNKNOWN */
 /* global LazyLoader */
 /* global Settings */
@@ -60,12 +61,12 @@
     listener: 'onhistorychecked',
     init: 'onhistorychange'
   }, {
-    screen: [DISABLED, ENABLED],
+    screen: ENABLED,
     selector: '#fxsync-tos',
     event: 'click',
     listener: 'openTos'
   }, {
-    screen: [DISABLED, ENABLED],
+    screen: ENABLED,
     selector: '#fxsync-privacy',
     event: 'click',
     listener: 'openPrivacy'
@@ -164,8 +165,11 @@
         case 'disabled':
           // We want to show a dialog once Sync is disabled
           // but we only want to do that if it's disabled via user action
+          // and the user has already logged in.
           // (and not because it is already disabled from a previous run).
-          if (this.state === 'disabling') {
+          if (this.state === 'disabling' &&
+             (this.previousState === 'enabled' ||
+              this.previousState === 'syncing')) {
             navigator.mozL10n.formatValue('fxsync-disabled').then(result => {
               window.alert(result);
             });
@@ -201,7 +205,8 @@
         case 'errored':
           LazyLoader.load('shared/js/sync/errors.js', () => {
             const IGNORED_ERRORS = [
-              ERROR_DIALOG_CLOSED_BY_USER
+              ERROR_DIALOG_CLOSED_BY_USER,
+              ERROR_SYNC_APP_KILLED
             ];
 
             if (IGNORED_ERRORS.indexOf(message.error) > -1) {
@@ -232,6 +237,7 @@
           });
           break;
       }
+      this.previousState = this.state;
       this.state = message.state;
     },
 

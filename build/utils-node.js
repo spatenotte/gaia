@@ -34,7 +34,7 @@ mime.define({'audio/ogg': ['opus']});
 module.exports = {
   Q: Q,
 
-  scriptParser: esprima,
+  scriptParser: esprima.parse,
 
   log: function() {
     var args = Array.prototype.slice.call(arguments);
@@ -64,7 +64,8 @@ module.exports = {
 
   getFile: function() {
     var self = module.exports;
-    var src = path.join.apply(path, arguments);
+    var args = Array.prototype.slice.call(arguments);
+    var src = path.resolve.apply(path, args);
     var fileStat;
     try {
       fileStat = fs.statSync(src);
@@ -204,9 +205,7 @@ module.exports = {
   },
 
   getDocument: function(content) {
-    // In order to use document.querySelector, we have to pass level for
-    // jsdom-nogyp.
-    return jsdom.jsdom(content, jsdom.level(3, 'core'));
+    return jsdom.jsdom(content);
   },
 
   getXML: function(file) {
@@ -422,9 +421,13 @@ module.exports = {
   },
 
   getNewURI: function(uri) {
-    var result = url.parse(uri);
-    result.prePath = result.protocol + '//' + result.host;
-    return result;
+    return {
+      host: /[a-z]+:\/\/[@]?([^\/:]+)/.exec(uri)[1],
+      prePath: /[a-z]+:\/\/[^\/]+/.exec(uri)[0],
+      resolve: function(to) {
+        return url.resolve(uri, to);
+      }
+    };
   },
 
   isExternalApp: function(webapp) {
@@ -493,7 +496,12 @@ module.exports = {
   },
 
   fileExists: function(path) {
-    return fs.existsSync(path);
+    try {
+      fs.accessSync(path);
+      return true;
+    } catch(err) {
+      return false;
+    }
   },
 
   listFiles: function(path, type, recursive, exclude) {

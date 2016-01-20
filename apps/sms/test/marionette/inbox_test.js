@@ -8,14 +8,6 @@ var InboxView = require('./lib/views/inbox/view');
 var Storage = require('./lib/storage.js');
 
 marionette('Inbox View tests', function() {
-  var MOCKS = [
-    '/mocks/mock_test_storages.js',
-    '/mocks/mock_test_blobs.js',
-    '/mocks/mock_navigator_moz_icc_manager.js',
-    '/mocks/mock_navigator_moz_mobile_message.js',
-    '/mocks/mock_navigator_moz_contacts.js'
-  ];
-
   var client = marionette.client({
     desiredCapabilities: { raisesAccessibilityExceptions: false }
   });
@@ -26,9 +18,13 @@ marionette('Inbox View tests', function() {
     messagesApp = Messages.create(client);
     storage = Storage.create(client);
 
-    MOCKS.forEach(function(mock) {
-      client.contentScript.inject(__dirname + mock);
-    });
+    client.loader.getMockManager('sms').inject([
+      'test_storages',
+      'test_blobs',
+      'navigator_moz_icc_manager',
+      'navigator_moz_mobile_message',
+      'navigator_moz_contacts'
+    ]);
   });
 
   suite('Long list of conversations', function() {
@@ -57,7 +53,7 @@ marionette('Inbox View tests', function() {
         conversations, ThreadGenerator.uniqueMessageId
       );
 
-      messagesApp.launch();
+      messagesApp.launch(true /* doNotWaitForAppToBecomeReady */);
     });
 
     test('User could navigate without waiting for the app to be fully loaded',
@@ -69,7 +65,6 @@ marionette('Inbox View tests', function() {
       newMessageView.assertRecipientsInputFocused();
 
       // We should enter new message view even if not all messages are rendered.
-      assert.isTrue(inboxView.hasConversation(10));
       assert.isFalse(inboxView.hasConversation(400));
 
       // And rendering should still continue.
