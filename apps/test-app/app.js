@@ -1,19 +1,20 @@
 'use strict';
 
+navigator.mozSetMessageHandler("privacy-request-notification", logMessage);
+
+function logMessage(message) {
+  console.log('Received message.');
+  console.log(JSON.stringify(msg));
+}
+
 window.addEventListener("load", function() {
   //writeToIndexedDB("Test", "contacts", "dhdolg");
   //writeToIndexedDB("Test2", "geolocation", "dhdolg");
   //writeToIndexedDB("Test3", "contacts", "dhdolg");
   //writeToIndexedDB("Test4", "sms", "dhdolg");
   //readFromIndexedDB();
-  console.log("Setting up handler");
-  navigator.mozSetMessageHandler("privacy-request-notification", logMessage);
+  //console.log("Setting up handler");
 });
-
-function logMessage(message) {
-    console.log('Received message.');
-    console.log(JSON.stringify(msg));
-  }
 
 function getContact() {
   console.log('Clicked getContacts');
