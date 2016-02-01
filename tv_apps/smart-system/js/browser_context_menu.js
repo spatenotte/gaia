@@ -110,7 +110,7 @@
       evt.stopPropagation();
 
       var listItemTask;
-      if (this.app.isWebsite) {
+      if (this.app.isAppLike) {
         listItemTask = this._listAddWebsiteToAppsItem(
           this.app.identity, this.app.features.name, this.app.features.iconUrl);
       } else {
@@ -230,15 +230,17 @@
       return;
     }
 
-    var template = new Template('fte_template');
-
-    var fteViewElem = document.createElement('div');
-    fteViewElem.className = 'ctxmenu-fte';
-    fteViewElem.insertAdjacentHTML('beforeend', template.interpolate());
-    parent.appendChild(fteViewElem);
+    if (!this.fteViewElem) {
+      var template = new Template('fte_template');
+      var fteViewElem = document.createElement('div');
+      fteViewElem.className = 'ctxmenu-fte';
+      fteViewElem.insertAdjacentHTML('beforeend', template.interpolate());
+      parent.appendChild(fteViewElem);
+      this.fteViewElem = fteViewElem;
+    }
 
     this.fteWizard.init({
-      container: fteViewElem,
+      container: this.fteViewElem,
       onfinish: () => {
         this.focus();
       }

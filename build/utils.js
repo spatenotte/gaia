@@ -287,7 +287,7 @@ var gaia = {
   }
 };
 
-
+exports.isNode = isNode;
 exports.Q = utils.Q;
 exports.isSubjectToBranding = isSubjectToBranding;
 exports.isSubjectToDeviceType = isSubjectToDeviceType;
@@ -369,3 +369,7 @@ exports.NodeHelper = utils.NodeHelper;
 exports.relativePath = utils.relativePath;
 exports.normalizePath = utils.normalizePath;
 exports.getMD5hash = utils.getMD5hash;
+exports.createSandbox = utils.createSandbox;
+exports.runScriptInSandbox = utils.runScriptInSandbox;
+exports.exit = utils.exit;
+exports.getHash = utils.getHash;
