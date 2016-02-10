@@ -1,11 +1,9 @@
 'use strict';
 
-navigator.mozSetMessageHandler("privacy-request-notification", logMessage);
-
-function logMessage(message) {
-  console.log('Received message.');
-  console.log(JSON.stringify(msg));
-}
+console.log("Opened app");
+navigator.mozSetMessageHandler('privacy-request-notification', message => {
+	dump('Received message: ' + JSON.stringify(message));
+});
 
 window.addEventListener("load", function() {
   //writeToIndexedDB("Test", "contacts", "dhdolg");
@@ -79,10 +77,10 @@ function getAudio() {
   });
 }
 
-function getCamera() {
-  console.log('Clicked getCamera');
-  navigator.mozCamera.getCamera();
-}
+// function getCamera() {
+//   console.log('Clicked getCamera');
+//   navigator.mozCamera.getCamera();
+// }
 
 function getMusic() {
   console.log('Clicked getMusic');
@@ -110,6 +108,11 @@ function getVideoCap() {
     audio: false,
     video: true
   });
+}
+
+function getMobileID() {
+  console.log('Clicked getMobileID');
+  navigator.getMobileIdAssertion();
 }
 
 // requesting some services after a set interval - to see
@@ -227,8 +230,8 @@ document.getElementById('geolocButton')
   .addEventListener('click', getGeoloc);
 document.getElementById('audioCapButton')
   .addEventListener('click', getAudio);
-document.getElementById('cameraButton')
-  .addEventListener('click', getCamera);
+//document.getElementById('cameraButton')
+//  .addEventListener('click', getCamera);
 document.getElementById('musicButton')
   .addEventListener('click', getMusic);
 document.getElementById('picturesButton')
@@ -239,6 +242,8 @@ document.getElementById('videosButton')
   .addEventListener('click', getVideos);
 document.getElementById('videoCapButton')
   .addEventListener('click', getVideoCap);
+document.getElementById('mobileIDButton')
+  .addEventListener('click', getMobileID);
 document.getElementById('indexedDBButton')
   .addEventListener('click', showIndexedDB);
 document.getElementById('loopGeolocButton')

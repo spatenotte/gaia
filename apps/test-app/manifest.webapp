@@ -13,12 +13,12 @@
     "geolocation":{},
     "contacts":{"access": "readwrite"},
     "audio-capture": {"description": "Required to capture audio using getUserMedia()"},
-    "camera": {"description": "Required for accessing cameras on the device."},
     "device-storage:music":{ "access": "readwrite" },
     "device-storage:pictures":{ "access": "readwrite" },
     "device-storage:sdcard":{ "access": "readwrite" },
     "device-storage:videos":{ "access": "readwrite" },
-    "video-capture": {"description": "Required to capture video using getUserMedia()"}
+    "video-capture": {"description": "Required to capture video using getUserMedia()"},
+    "mobileid": {}
   },
   "messages": [
     { "privacy-request-notification": "/index.html" }
