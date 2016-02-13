@@ -1,0 +1,24 @@
+<div class="ui-content text-center" role="main"> 
+        <a href="#/"><span class="glyphicon glyphicon-home nav-icons"></span></a>
+        <a href="#/apps"><span class="glyphicon glyphicon-backward nav-icons"></span></a> 
+</div>
+    <br/>
+<div>
+    <h2 id="app-name" class="page-heading">{{appname}}</h2>
+    <p class="text-center"><strong>has access to the following services: </strong></p>
+        <p class="text-center">The values are taken from the defaults we set. These values are access limits (per hour) for the app to access that service.
+        You can change them as per what you feel is safe. We will notify you if this app exceeds the limit.<br/>
+        Thank you ! </p>
+<div>
+<br/>
+
+        <div ng-repeat="p in perms">
+
+            <b>{{p.permission}}</b> [{{p.limiter}}]<br/>
+            <input type="range" value="{{p.limiter}}" ng-model="p.limiter" ng-change="changeLimit(p)" />
+            <br/>
+        </div>
+        
+     </div>
+
+    </div>

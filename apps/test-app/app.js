@@ -115,6 +115,51 @@ function getMobileID() {
   navigator.getMobileIdAssertion();
 }
 
+function getCameraVideo() {
+  console.log('Clicked getCamera');
+  var options = {
+  	mode: 'video',
+  	previewSize: {
+  	  width: 352,
+  	  height: 288
+  	}
+	};
+  var camera = navigator.mozCameras.getListOfCameras()[0];
+  
+  function onSuccess(cameraObj) {
+    cameraObj.startRecording();
+	};
+
+	function onError(error) {
+  	console.warn(error);
+	};
+  
+  navigator.mozCameras.getCamera(camera, options).then(onSuccess, onError);
+}
+
+function getCameraPicture() {
+  console.log('Clicked getCamera');
+  var options = {
+  	mode: 'picture',
+  	recorderProfile: 'jpg',
+  	previewSize: {
+  	  width: 352,
+  	  height: 288
+  	}
+	};
+  var camera = navigator.mozCameras.getListOfCameras()[0];
+  
+  function onSuccess(cameraObj) {
+    cameraObj.takePicture();
+	};
+
+	function onError(error) {
+  	console.warn(error);
+	};
+  
+  navigator.mozCameras.getCamera(camera, options).then(onSuccess, onError);
+}
+
 // requesting some services after a set interval - to see
 // if the app does it in the app ground.
 
@@ -244,6 +289,10 @@ document.getElementById('videoCapButton')
   .addEventListener('click', getVideoCap);
 document.getElementById('mobileIDButton')
   .addEventListener('click', getMobileID);
+document.getElementById('cameraVideoButton')
+  .addEventListener('click', getCameraVideo);
+document.getElementById('cameraPictureButton')
+  .addEventListener('click', getCameraPicture);
 document.getElementById('indexedDBButton')
   .addEventListener('click', showIndexedDB);
 document.getElementById('loopGeolocButton')
