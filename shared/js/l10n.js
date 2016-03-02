@@ -1,3 +1,11 @@
+/*
+
+!!! WARNING !!!
+
+The L10n.js library is deprecated.
+For any new code use L20n.js located in ./shared/js/intl/l20n.js
+
+*/
 (function(window, undefined) {
   'use strict';
 
@@ -2166,26 +2174,22 @@
       navigator.mozL10n.ctx.requestLocales.apply(
         navigator.mozL10n.ctx, langs);
     },
-    pseudo: {
-      'fr-x-psaccent': {
-        getName: function() {
-          return Promise.resolve(navigator.mozL10n.qps['fr-x-psaccent'].name);
-        },
-        processString: function(s) {
-          return Promise.resolve(
-            navigator.mozL10n.qps['fr-x-psaccent'].translate(s));
-        }
-      },
-      'ar-x-psbidi': {
-        getName: function() {
-          return Promise.resolve(navigator.mozL10n.qps['ar-x-psbidi'].name);
-        },
-        processString: function(s) {
-          return Promise.resolve(
-            navigator.mozL10n.qps['ar-x-psbidi'].translate(s));
-        }
+    get pseudo() {
+      var result = {};
+      /*jshint -W083 */
+      for (var code in navigator.mozL10n.qps) {
+        result[code] = {
+          getName: function() {
+            return Promise.resolve(navigator.mozL10n.qps[code].name);
+          },
+          processString: function(s) {
+           return Promise.resolve(
+            navigator.mozL10n.qps[code].translate(s));
+          }
+        };
       }
-    },
+      return result;
+    }
   };
 
   navigator.mozL10n.ready(function() {

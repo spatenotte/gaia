@@ -127,9 +127,7 @@
         Applications.on('uninstall', that.onAppUninstalled.bind(that));
       };
 
-      navigator.mozL10n.once(function() {
-        Applications.init(afterApplicationsInit);
-      });
+      Applications.init(afterApplicationsInit);
     },
 
     /**
@@ -220,6 +218,7 @@
         case 'removed':
           targetElem = this._appDeckGridViewElem.querySelector(
                                     'smart-button[data-url="' + evt.id +'"]');
+
           // Move focus to next or previous element of `elem`, because
           // we are going to remove `elem` from DOM tree
           var nextFocus = targetElem.nextElementSibling ||
@@ -229,6 +228,9 @@
           this._appDeckGridViewElem.removeChild(targetElem);
           this._spatialNavigator.remove(targetElem);
           URL.revokeObjectURL(targetElem.dataset.revokableURL);
+          // Unpinning bookmarks are sended in smart-system/bookmark_handler.js
+          // when datastore.onremove is fired. So we don't need to send unpin
+          // for that.
           break;
       }
     },

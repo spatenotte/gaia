@@ -50,6 +50,13 @@ System.prototype = {
     return this.client.findElement('#homescreen iframe');
   },
 
+  waitForFullyLoaded: function() {
+    var body = this.client.findElement('body');
+    this.client.waitFor(function() {
+      return body.getAttribute('ready-state') == 'fullyLoaded';
+    });
+  },
+
   waitForLaunch: function(url) {
     this.client.apps.launch(url);
     var iframe = this.getAppIframe(url);
@@ -58,6 +65,10 @@ System.prototype = {
     });
 
     return iframe;
+  },
+
+  waitForStartup: function() {
+    this.client.helper.waitForElementToDisappear('#os-logo');
   },
 
   waitForEvent: function(evt) {

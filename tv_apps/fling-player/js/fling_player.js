@@ -82,7 +82,7 @@
     this._keyNavAdapter.init();
     this._keyNavAdapter.on('enter', this.onKeyEnterDown.bind(this));
     this._keyNavAdapter.on('enter-keyup', this.onKeyEnterUp.bind(this));
-    this._keyNavAdapter.on('esc-keyup', this.onBackKeyUp.bind(this));
+    this._keyNavAdapter.on('back-keyup', this.onBackKeyUp.bind(this));
     this._keyNavAdapter.on('move-keyup',
       this.onDemandingControlPanel.bind(this)
     );
@@ -108,6 +108,7 @@
     this._connector.on('playRequest', this.onPlayRequest.bind(this));
     this._connector.on('seekRequest', this.onSeekRequest.bind(this));
     this._connector.on('pauseRequest', this.onPauseRequest.bind(this));
+    this._connector.on('closeRequest', this.onCloseRequest.bind(this));
   };
 
   proto._initPlayer = function () {
@@ -494,6 +495,10 @@
     this.pause();
   };
 
+  proto.onCloseRequest = function () {
+    window.close();
+  };
+
   proto.onSeekRequest = function (e) {
     this.seek(e.time);
   };
@@ -558,7 +563,7 @@
   };
 
   proto.onBackKeyUp = function () {
-    navigator.mozL10n.formatValue('want-to-end')
+    document.l10n.formatValue('want-to-end')
       .then((txt) => {
         var end = window.confirm(txt);
         if (end) {

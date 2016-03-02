@@ -11,7 +11,7 @@ require('/shared/test/unit/mocks/mock_dom_request.js');
 require('/shared/test/unit/mocks/mock_promise.js');
 require('/test/unit/mock_navigator_get_device_storage.js');
 require('/shared/test/unit/mocks/mock_navigator_moz_bluetooth_v2.js');
-require('/shared/test/unit/mocks/mock_l10n.js');
+require('/shared/test/unit/mocks/mock_l20n.js');
 require('/shared/test/unit/mocks/mock_notification_helper.js');
 require('/shared/test/unit/mocks/mock_notification.js');
 require('/shared/js/mime_mapper.js');
@@ -49,8 +49,8 @@ suite('system/bluetooth_transfer', function() {
     realNavigatorGetDeviceStorage = navigator.getDeviceStorage;
     navigator.getDeviceStorage = MockNavigatorGetDeviceStorage;
 
-    realL10n = navigator.mozL10n;
-    navigator.mozL10n = MockL10n;
+    realL10n = document.l10n;
+    document.l10n = MockL10n;
 
     realNotification = window.Notification;
     window.Notification = MockNotification;
@@ -64,7 +64,7 @@ suite('system/bluetooth_transfer', function() {
     MockNavigatormozSetMessageHandler.mTeardown();
     navigator.mozSetMessageHandler = realSetMessageHandler;
     navigator.getDeviceStorage = realNavigatorGetDeviceStorage;
-    navigator.mozL10n = realL10n;
+    document.l10n = realL10n;
     window.Notification = realNotification;
   });
 
@@ -186,33 +186,6 @@ suite('system/bluetooth_transfer', function() {
           connectedDevicesReq.readyState = 'pending';
           connectedDevicesReq.fireSuccess(mockConnectedDevices);
         });
-      });
-    });
-
-    suite('humanizeSize', function() {
-      test('should handle zero size ', function() {
-        var expectedSize = 'fileSize{"size":"0.00","unit":"byteUnit-B"}';
-        assert.equal(expectedSize, BluetoothTransfer.humanizeSize(0));
-      });
-
-      test('should handle bytes size ', function() {
-        var expectedSize = 'fileSize{"size":"42.00","unit":"byteUnit-B"}';
-        assert.equal(expectedSize, BluetoothTransfer.humanizeSize(42));
-      });
-
-      test('should handle kilobytes size ', function() {
-        var expectedSize = 'fileSize{"size":"1.00","unit":"byteUnit-KB"}';
-        assert.equal(expectedSize, BluetoothTransfer.humanizeSize(1024));
-      });
-
-      test('should handle megabytes size ', function() {
-        var expectedSize = 'fileSize{"size":"4.67","unit":"byteUnit-MB"}';
-        assert.equal(expectedSize, BluetoothTransfer.humanizeSize(4901024));
-      });
-
-      test('should handle gigabytes size ', function() {
-        var expectedSize = 'fileSize{"size":"3.73","unit":"byteUnit-GB"}';
-        assert.equal(expectedSize, BluetoothTransfer.humanizeSize(4000901024));
       });
     });
 

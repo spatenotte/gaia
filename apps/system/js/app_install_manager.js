@@ -10,6 +10,7 @@
 /* global SystemBanner */
 /* global Sanitizer */
 /* global UtilityTray */
+/* global mozIntl */
 /* global applications */
 
 'use strict';
@@ -242,14 +243,16 @@
 
       if (manifest.size) {
         this.size.removeAttribute('data-l10n-id');
-        this.size.textContent = this.humanizeSize(manifest.size);
+        this.humanizeSize(manifest.size).then(val => {
+          this.size.textContent = val;
+        });
       } else {
         this.size.setAttribute('data-l10n-id', 'size-unknown');
       }
 
       // Wrap manifest to get localized properties
       manifest = new ManifestHelper(manifest);
-      navigator.mozL10n.setAttributes(this.msg, 'install-app', {
+      document.l10n.setAttributes(this.msg, 'install-app', {
         'name': manifest.displayName
       });
 
@@ -480,7 +483,7 @@
       var appName = appManifest.displayName;
       var appDescription = appManifest.description;
       this.setupAppDescription.textContent = appDescription;
-      navigator.mozL10n.setAttributes(this.setupAppName,
+      document.l10n.setAttributes(this.setupAppName,
                                       'app-install-success',
                                       { appName: appName });
       this.setupInstalledAppDialog.classList.add('visible');
@@ -655,7 +658,7 @@
 
       var manifest = app.manifest || app.updateManifest;
 
-      navigator.mozL10n.setAttributes(
+      document.l10n.setAttributes(
         newNode.querySelector('.title-container'),
         'downloadingAppMessage',
         { appName: new ManifestHelper(manifest).displayName }
@@ -696,26 +699,31 @@
           id: 'downloadingAppProgressIndeterminate',
           args: null
         };
+        document.l10n.setAttributes(
+          progressNode,
+          message.id,
+          message.args);
         progressNode.removeAttribute('value'); // switch to indeterminate state
       } else if (appInfo.hasMax) {
-        message = {
-          id: 'downloadingAppProgress',
-          args: {
-            progress: this.humanizeSize(app.progress),
-            max: this.humanizeSize(progressNode.max)
-          }
-        };
         progressNode.value = app.progress;
+        return Promise.all([
+          this.humanizeSize(app.progress),
+          this.humanizeSize(progressNode.max)
+        ]).then(([progress, max]) => {
+          document.l10n.setAttributes(
+            progressNode,
+            'downloadingAppProgress',
+            {progress, max});
+        });
       } else {
-        message = {
-          id: 'downloadingAppProgressNoMax',
-          args: { progress: this.humanizeSize(app.progress) }
-        };
+        return this.humanizeSize(app.progress).then(progress => {
+          document.l10n.setAttributes(
+            progressNode,
+            'downloadingAppProgressNoMax',
+            {progress});
+        });
       }
-      navigator.mozL10n.setAttributes(
-        progressNode,
-        message.id,
-        message.args);
+      return Promise.resolve();
     },
 
     removeNotification: function ai_removeNotification(app) {
@@ -767,16 +775,7 @@
     },
 
     humanizeSize: function ai_humanizeSize(bytes) {
-      var _ = navigator.mozL10n.get;
-      var units = ['bytes', 'kB', 'MB', 'GB', 'TB', 'PB'];
-
-      if (!bytes) {
-        return '0.00 ' + _(units[0]);
-      }
-
-      var e = Math.floor(Math.log(bytes) / Math.log(1024));
-      return (bytes / Math.pow(1024, Math.floor(e))).toFixed(2) + ' ' +
-        _(units[e]);
+      return mozIntl._gaia.getFormattedUnit('digital', 'short', bytes);
     },
 
     showInstallCancelDialog: function ai_showInstallCancelDialog(evt) {
@@ -810,7 +809,7 @@
 
       var title = dialog.querySelector('h1');
 
-      navigator.mozL10n.setAttributes(title, 'stopDownloading', {
+      document.l10n.setAttributes(title, 'stopDownloading', {
         app: new ManifestHelper(manifest).displayName
       });
 

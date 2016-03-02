@@ -33,7 +33,6 @@ var Browser = {
   //By multiplying 0.8, image of the designated size can be obtained
   DEVICE_RATIO: 0.8,
 
-  MAX_BOOKMARK_LIST: 60,
   MAX_HISTORY_LIST: 60,
   MAX_TOPSITE_LIST: 18,
   MAX_ICON_LIST: 120,
@@ -320,7 +319,6 @@ var Browser = {
 
     // indexedDB MaxNum Check Type
     var checkTypeTbl = [
-      {'type':'bookmarks', 'maxNum': Browser.MAX_BOOKMARK_LIST},
       {'type':'visits'   , 'maxNum': Browser.MAX_HISTORY_LIST},
       {'type':'places'   , 'maxNum': Browser.MAX_TOPSITE_LIST},
       {'type':'icons'    , 'maxNum': Browser.MAX_ICON_LIST}
@@ -709,17 +707,19 @@ var Browser = {
 
       case 'mozbrowsershowmodalprompt':
         this.debug('mozbrowsershowmodalprompt[' + tab.id + ']');
+        evt.preventDefault();
         switch( evt.detail.promptType ) {
           case 'alert' :
-            BrowserDialog.createDialog('alert', evt);
+            window.alert(evt.detail.message);
             break;
           case 'prompt' :
-            BrowserDialog.createDialog('prompt', evt);
+            evt.detail.returnValue = window.prompt(evt.detail.message);
             break;
           case 'confirm' :
-            BrowserDialog.createDialog('confirm', evt);
+            evt.detail.returnValue = window.confirm(evt.detail.message);
             break;
         }
+        evt.detail.unblock();
         break;
 
       case 'mozbrowsererror':
@@ -735,7 +735,7 @@ var Browser = {
           var errorMessageL10nId = '';
           if (evt.detail.type === 'certerror') {
             errorMessageL10nId = 'WB_LT_CONNECTION_IS_UNTRUSTED';
-            navigator.mozL10n.formatValue(errorMessageL10nId).then(result => {
+            document.l10n.formatValue(errorMessageL10nId).then(result => {
               window.alert(result);
             });
           }
@@ -1211,11 +1211,14 @@ window.onhashchange = Browser.hashChange;
 window.addEventListener('load', function browserOnLoad(evt) {
   Browser.debug('browser browserOnLoad...');
   window.removeEventListener('load', browserOnLoad, false);
-  var mozL10n = navigator.mozL10n;
-  mozL10n.ready(function() {
+  // hash change param
+  Browser.hashChange();
+  Browser.init();
+
+  document.addEventListener('DOMRetranslated', () => {
     // hash change param
     Browser.hashChange();
     Browser.init();
-  }.bind(this));
+  });
 });
 

@@ -1,5 +1,5 @@
 /* global AppUpdatable, LazyLoader, MozActivity, NotificationScreen, Service,
-          SettingsListener, SystemBanner, SystemUpdatable */
+          SettingsListener, SystemBanner, mozIntl, SystemUpdatable */
 
 'use strict';
 
@@ -345,7 +345,7 @@
     },
 
     showDownloadPrompt: function um_showDownloadPrompt() {
-      var _localize = navigator.mozL10n.setAttributes;
+      var _localize = document.l10n.setAttributes;
 
       this._systemUpdateDisplayed = false;
       _localize(this.downloadDialogTitle, 'numberOfUpdates', {
@@ -406,7 +406,9 @@
 
         if (updatable.size) {
           var sizeItem = document.createElement('span');
-          sizeItem.textContent = this._humanizeSize(updatable.size);
+          this._humanizeSize(updatable.size).then(val => {
+            sizeItem.textContent = val;
+          });
           nameDetails.appendChild(sizeItem);
         } else {
           nameDetails.classList.add('nosize');
@@ -578,7 +580,7 @@
     },
 
     render: function um_render() {
-      var _localize = navigator.mozL10n.setAttributes;
+      var _localize = document.l10n.setAttributes;
       var l10nId = 'updateAvailableInfo';
 
       if ((this.updatesQueue.length === 1) &&
@@ -594,8 +596,8 @@
         if (this._uncompressing && this.downloadsQueue.length === 1) {
           _localize(this.message, 'uncompressingMessage');
         } else {
-          _localize(this.message, 'downloadingUpdateMessage', {
-            progress: this._humanizeSize(this._downloadedBytes)
+          this._humanizeSize(this._downloadedBytes).then(progress => {
+            _localize(this.message, 'downloadingUpdateMessage', { progress });
           });
         }
       } else {
@@ -872,7 +874,7 @@
     },
 
     _openDownloadViaDataDialog: function um_downloadViaDataDialog() {
-      var _ = navigator.mozL10n.setAttributes;
+      var _ = document.l10n.setAttributes;
       var connections = window.navigator.mozMobileConnections;
       var dataType;
       var sim;
@@ -938,18 +940,8 @@
       window.dispatchEvent(event);
     },
 
-    // This is going to be part of l10n.js
     _humanizeSize: function um_humanizeSize(bytes) {
-      var _ = navigator.mozL10n.get;
-      var units = ['bytes', 'kB', 'MB', 'GB', 'TB', 'PB'];
-
-      if (!bytes) {
-        return '0.00 ' + _(units[0]);
-      }
-
-      var e = Math.floor(Math.log(bytes) / Math.log(1024));
-      return (bytes / Math.pow(1024, Math.floor(e))).toFixed(2) + ' ' +
-        _(units[e]);
+      return mozIntl._gaia.getFormattedUnit('digital', 'short', bytes);
     },
 
     _closeDownloadDialog: function um_closeDownloadDialog() {

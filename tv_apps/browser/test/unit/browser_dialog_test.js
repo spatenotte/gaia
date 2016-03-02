@@ -12,7 +12,7 @@
 'use strict';
 
 require('/shared/test/unit/load_body_html_helper.js');
-require('/shared/test/unit/mocks/mock_l10n.js');
+require('/shared/test/unit/mocks/mock_l20n.js');
 requireApp('browser/js/browser_dialog.js');
 requireApp('browser/test/unit/mocks/mock_browser.js');
 requireApp('browser/test/unit/mocks/mock_awesomescreen.js');
@@ -29,8 +29,8 @@ suite('Browser Dialog >', function() {
   mocksForBrowserDialog.attachTestHelpers();
 
   suiteSetup(function() {
-    realL10n = navigator.mozL10n;
-    navigator.mozL10n = MockL10n;
+    realL10n = document.l10n;
+    document.l10n = MockL10n;
 
     loadBodyHTML('fixtures/browser_dialog.html');
 
@@ -39,7 +39,7 @@ suite('Browser Dialog >', function() {
   });
 
   suiteTeardown(function() {
-    navigator.mozL10n = realL10n;
+    document.l10n = realL10n;
   });
 
   suite('Initial state', function() {
@@ -77,7 +77,7 @@ suite('Browser Dialog >', function() {
       expect(subject.browserDialogTitle.getAttribute('data-l10n-id'))
         .to.equals('fxsync-confirm-sign-out-title');
       expect(subject.browserDialogMsg.getAttribute('data-l10n-id'))
-        .to.equals('fxsync-confirm-sign-out-message');
+        .to.equals('fxsync-confirm-sign-out-detail');
       expect(subject.browserDialogButton1.getAttribute('data-l10n-id'))
         .to.equals('LT_CANCEL');
       expect(subject.browserDialogButton1.dataset.type)

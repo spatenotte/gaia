@@ -23,6 +23,18 @@ suite('MozIntl', function() {
   suiteSetup(function() {
     realL10n = navigator.mozL10n;
     navigator.mozL10n = MockL10n;
+
+    if (!Intl.DateTimeFormat.prototype.formatToParts) {
+      // We temporarily need this because formatToParts is not exposed to
+      // Gu tests and the tests fail.
+      // This feature is really tested by Gij tests which run certified
+      // apps.
+      Intl.DateTimeFormat.prototype.formatToParts = function(d) {
+        return [
+          {type: 'dayperiod', value: (new Date()).toLocaleFormat('%p')}
+        ];
+      };
+    }
   });
 
   suiteTeardown(function() {
@@ -1421,6 +1433,17 @@ suite('MozIntl', function() {
   suite('mozIntl._gaia methods', function() {
     suite('getFormattedUnit', function() {
       suite('digital type', function() {
+        test('should handle undefined', function(done) {
+          mozIntl._gaia.getFormattedUnit('digital', 'short').then(val => {
+            assert.isUndefined(val);
+          }).then(done, done);
+        });
+
+        test('should handle NaN', function(done) {
+          mozIntl._gaia.getFormattedUnit('digital', 'short', 'NaN').then(
+            val => { assert.isUndefined(val); }).then(done, done);
+        });
+
         test('should handle 0 bytes', function(done) {
           mozIntl._gaia.getFormattedUnit('digital', 'short', 0).then(val => {
             assert.equal(val, MockL10n._stringify('digital-byte-short', {

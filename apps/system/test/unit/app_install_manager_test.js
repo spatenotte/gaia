@@ -1,7 +1,7 @@
 /* global AppInstallManager, KeyboardHelper, Service, ConfirmDialogHelper,
           MockApp, MockApplications, MockChromeEvent, MockNavigatormozApps,
           MockNavigatorWakeLock, MocksHelper, MockL10n, MockModalDialog,
-          MockNotificationScreen, MockService,
+          MockNotificationScreen, MockService, MockMozIntl,
           MockSystemBanner, MockUtilityTray, l10nAssert */
 
 'use strict';
@@ -13,7 +13,8 @@ requireApp('system/test/unit/mock_notification_screen.js');
 requireApp('system/test/unit/mock_applications.js');
 requireApp('system/test/unit/mock_utility_tray.js');
 requireApp('system/test/unit/mock_modal_dialog.js');
-require('/shared/test/unit/mocks/mock_l10n.js');
+require('/shared/test/unit/mocks/mock_l20n.js');
+require('/shared/test/unit/mocks/mock_moz_intl.js');
 
 require('/shared/js/component_utils.js');
 require('/shared/elements/gaia_checkbox/script.js');
@@ -42,6 +43,7 @@ var mocksForAppInstallManager = new MocksHelper([
 
 suite('system/AppInstallManager >', function() {
   var realL10n;
+  var realMozIntl;
   var realDispatchResponse;
   var realRequestWakeLock;
   var realMozApps;
@@ -57,9 +59,12 @@ suite('system/AppInstallManager >', function() {
 
   mocksForAppInstallManager.attachTestHelpers();
   suiteSetup(function() {
-    realL10n = navigator.mozL10n;
+    realL10n = document.l10n;
 
-    navigator.mozL10n = MockL10n;
+    document.l10n = MockL10n;
+
+    realMozIntl = window.mozIntl;
+    window.mozIntl = MockMozIntl;
 
     realApplications = window.applications;
     window.applications = MockApplications;
@@ -90,7 +95,8 @@ suite('system/AppInstallManager >', function() {
     AppInstallManager.installCallback = null;
     AppInstallManager.cancelCallback = null;
 
-    navigator.mozL10n = realL10n;
+    document.l10n = realL10n;
+    window.mozIntl = realMozIntl;
     AppInstallManager.dispatchResponse = realDispatchResponse;
 
     navigator.requestWakeLock = realRequestWakeLock;
@@ -275,21 +281,21 @@ suite('system/AppInstallManager >', function() {
     });
 
     test('should bind to the click event', function() {
-      assert.equal(AppInstallManager.handleInstall.name,
+      assert.equal(`bound ${AppInstallManager.handleInstall.name}`,
                    AppInstallManager.installButton.onclick.name);
-      assert.equal(AppInstallManager.showInstallCancelDialog.name,
+      assert.equal(`bound ${AppInstallManager.showInstallCancelDialog.name}`,
                    AppInstallManager.cancelButton.onclick.name);
-      assert.equal(AppInstallManager.handleInstallCancel.name,
+      assert.equal(`bound ${AppInstallManager.handleInstallCancel.name}`,
                    AppInstallManager.confirmCancelButton.onclick.name);
-      assert.equal(AppInstallManager.hideInstallCancelDialog.name,
+      assert.equal(`bound ${AppInstallManager.hideInstallCancelDialog.name}`,
                    AppInstallManager.resumeButton.onclick.name);
-      assert.equal(AppInstallManager.handleSetupCancelAction.name,
+      assert.equal(`bound ${AppInstallManager.handleSetupCancelAction.name}`,
                    AppInstallManager.setupCancelButton.onclick.name);
-      assert.equal(AppInstallManager.handleSetupConfirmAction.name,
+      assert.equal(`bound ${AppInstallManager.handleSetupConfirmAction.name}`,
                    AppInstallManager.setupConfirmButton.onclick.name);
-      assert.equal(AppInstallManager.hideIMEList.name,
+      assert.equal(`bound ${AppInstallManager.hideIMEList.name}`,
                    AppInstallManager.imeCancelButton.onclick.name);
-      assert.equal(AppInstallManager.handleImeConfirmAction.name,
+      assert.equal(`bound ${AppInstallManager.handleImeConfirmAction.name}`,
                    AppInstallManager.imeConfirmButton.onclick.name);
 
     });
@@ -447,7 +453,9 @@ suite('system/AppInstallManager >', function() {
 
       suite('install size >', function() {
         test('should display the package size', function() {
-          assert.equal('5.00 MB', AppInstallManager.size.textContent);
+          assert.equal(AppInstallManager.size.textContent,
+              MockL10n._stringify('digital-selected-short',
+                {'value': 5245678}));
         });
 
         test('should tell if the size is unknown', function() {
@@ -884,7 +892,7 @@ suite('system/AppInstallManager >', function() {
 
           test('notification should have a message', function() {
             var l10nAttrs =
-              navigator.mozL10n.getAttributes(
+              document.l10n.getAttributes(
                 fakeNotif.querySelector('.title-container'));
             assert.equal(l10nAttrs.id, 'downloadingAppMessage');
             assert.deepEqual(
@@ -954,18 +962,19 @@ suite('system/AppInstallManager >', function() {
           });
 
           suite('on quantified progress >', function() {
-            setup(function() {
-              mockApp.mTriggerDownloadProgress(10);
+            setup(function(done) {
+              mockApp.mTriggerDownloadProgress(10).then(done, done);
             });
 
             test('should have a quantified progress', function() {
               var progressNode = fakeNotif.querySelector('progress');
               assert.equal(progressNode.position, -1);
 
-              var l10nAttrs = navigator.mozL10n.getAttributes(progressNode);
+              var l10nAttrs = document.l10n.getAttributes(progressNode);
 
               assert.equal(l10nAttrs.id, 'downloadingAppProgressNoMax');
-              assert.deepEqual(l10nAttrs.args, { progress: '10.00 bytes' });
+              assert.equal(l10nAttrs.args.progress,
+                  MockMozIntl._gaia._stringifyUnit('digital', 'short', 10));
             });
           });
 
@@ -1024,11 +1033,11 @@ suite('system/AppInstallManager >', function() {
       suite('on first progress >', function() {
         var newprogress = 5;
 
-        setup(function() {
+        setup(function(done) {
           // resetting this mock because we want to test only the
           // following call
           MockNotificationScreen.mTeardown();
-          mockApp.mTriggerDownloadProgress(newprogress);
+          mockApp.mTriggerDownloadProgress(newprogress).then(done, done);
         });
 
         test('should add a notification', function() {
@@ -1038,7 +1047,7 @@ suite('system/AppInstallManager >', function() {
         });
 
         test('notification should have a message', function() {
-          var l10nAttrs = navigator.mozL10n.getAttributes(
+          var l10nAttrs = document.l10n.getAttributes(
             fakeNotif.querySelector('.title-container'));
 
           assert.equal(l10nAttrs.id, 'downloadingAppMessage');
@@ -1105,7 +1114,7 @@ suite('system/AppInstallManager >', function() {
           });
 
           test('notification should have a message', function() {
-            var l10nAttrs = navigator.mozL10n.getAttributes(
+            var l10nAttrs = document.l10n.getAttributes(
               fakeNotif.querySelector('.title-container'));
 
             assert.equal(l10nAttrs.id, 'downloadingAppMessage');
@@ -1186,12 +1195,14 @@ suite('system/AppInstallManager >', function() {
               var progressNode = fakeNotif.querySelector('progress');
               assert.equal(progressNode.position, ratio);
 
-              var l10nAttrs = navigator.mozL10n.getAttributes(progressNode);
+              var l10nAttrs = document.l10n.getAttributes(progressNode);
 
               assert.equal(l10nAttrs.id, 'downloadingAppProgress');
               assert.deepEqual(l10nAttrs.args, {
-                progress: '10.00 bytes',
-                max: '5.00 MB'
+                progress:
+                  MockMozIntl._gaia._stringifyUnit('digital', 'short', 5),
+                max:
+                  MockMozIntl._gaia._stringifyUnit('digital', 'short', 5245678)
               });
             });
           });
@@ -1323,7 +1334,7 @@ suite('system/AppInstallManager >', function() {
         fakeNotif.querySelector('.fake-notification').click();
         var title = fakeDownloadCancelDialog.querySelector('h1');
 
-        var l10nAttrs = navigator.mozL10n.getAttributes(title);
+        var l10nAttrs = document.l10n.getAttributes(title);
 
         assert.equal(l10nAttrs.id, 'stopDownloading');
         assert.deepEqual(l10nAttrs.args, { app: 'Mock app' });
@@ -1412,35 +1423,13 @@ suite('system/AppInstallManager >', function() {
     });
   });
 
-  suite('humanizeSize >', function() {
-    test('should handle bytes size', function() {
-      assert.equal('42.00 bytes', AppInstallManager.humanizeSize(42));
-    });
-
-    test('should handle kilobytes size', function() {
-      assert.equal('1.00 kB', AppInstallManager.humanizeSize(1024));
-    });
-
-    test('should handle megabytes size', function() {
-      assert.equal('4.67 MB', AppInstallManager.humanizeSize(4901024));
-    });
-
-    test('should handle gigabytes size', function() {
-      assert.equal('3.73 GB', AppInstallManager.humanizeSize(4000901024));
-    });
-
-    test('should handle 0', function() {
-      assert.equal('0.00 bytes', AppInstallManager.humanizeSize(0));
-    });
-  });
-
   suite('3rd-party IME app flow >', function() {
     var mockApp, mockAppTwo, mockAppName, mockAppTwoName;
     setup(function() {
       AppInstallManager.start();
       MockService.mockQueryWith('isOutOfProcessEnabled', true);
 
-      navigator.mozL10n = MockL10n;
+      document.l10n = MockL10n;
       mockAppName = 'Fake keyboard app';
       mockApp = new MockApp({
         manifest: {
